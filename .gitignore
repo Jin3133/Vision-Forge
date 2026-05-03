@@ -1,3 +1,19 @@
+# ==============================================
+# Vision-Forge 项目专属忽略
+# ==============================================
+# 前端项目
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# 项目虚拟环境
+vfenv/
+
+# 后端向量数据库（本地数据，不上传）
+backend/assets/vector_database/
+
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
