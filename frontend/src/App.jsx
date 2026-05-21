@@ -20,7 +20,7 @@ function Layout({ children }) {
     setOpenMenus(prev => prev.includes(name) ? prev.filter(m => m !== name) : [...prev, name])
   }
 
-  const navGroups = [
+    const navGroups = [
     {
       name: '智能对话',
       icon: '💬',
