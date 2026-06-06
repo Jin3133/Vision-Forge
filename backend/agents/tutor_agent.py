@@ -47,7 +47,11 @@ class TutorAgent(AgentBase):
         # 2. 读取真实的底层物理资产
         source_code = self._read_source_code(target_file)
         if "读取失败" in source_code:
-            return {"current_step": "error_stage"}
+            # ✅ 修复：即使失败，也要通过 return 安全地推进状态机并记录 history
+            return {
+                "current_step": "error_stage",
+                "history": [f"[{self.name}] 源码读取失败，已中断流程"]
+            }
 
         # 3. 组装“强力 Prompt” (将源码和学习画像一起喂给大模型)
         prompt = f"""
@@ -56,38 +60,46 @@ class TutorAgent(AgentBase):
         以下是我们要讲解的核心算子真实源码（文件：{target_file}）：
         ```python
         {source_code}
+        ```
         请用启发式的口吻，结合源码中的中文注释，为该学生详细拆解这段代码的 forward 函数执行流。
         """
-        self.update_history(state, f"准备讲解底层源码: {target_file}")
+
         # 4. 调用星火大脑 (适度提高 temperature 让讲解更生动)
         response_text = self.call_llm(user_input=prompt, temperature=0.5)
 
-        self.update_history(state, "源码教研讲解生成完毕")
-
         # 5. 返回增量数据，写回全局黑板
+        # ✅ 修复：避开数据黑洞，将输出装进 evaluation_results，统一通过 history 列表记录日志
         return {
-            "tutor_response": response_text,
-            "current_step": "evaluator_stage"  # 讲解完后，指针推向评估阶段
+            "evaluation_results": {
+                "tutor_response": response_text
+            },
+            "current_step": "evaluator_stage",  # 讲解完后，指针推向评估阶段
+            "history": [
+                f"[{self.name}] 准备讲解底层源码: {target_file}",
+                f"[{self.name}] 源码教研讲解生成完毕"
+            ]
         }
 
-#================= 单元测试 =================
+
+# ================= 单元测试 =================
 if __name__ == "__main__":
-# 测试前，请确保 backend/assets/code_mirror/ 目录下有 MAFE_Module.py 文件！
-    mock_state: TaskState = {
-    "session_id": "test_session_002",
-    "user_intent": "我想看看特征金字塔是怎么融合的",
-    "learner_profile": {
-    "cognitive_style": "代码底层探索，喜欢看矩阵维度计算"
-    },
-    "sandbox_config": {},
-    "evaluation_results": {},
-    "history": [],
-    "current_step": "tutor_stage"
-    }
+    from core.state import TaskState  # ✅ 必须引入 Pydantic 模型
+
+    # 测试前，请确保 backend/assets/code_mirror/ 目录下有 SE_Block.py 文件！
+    # ✅ 修复：必须实例化为 TaskState 对象
+    mock_state = TaskState(
+        session_id="test_session_002",
+        user_intent="我想看看特征金字塔是怎么融合的",
+        learner_profile={
+            "cognitive_style": "代码底层探索，喜欢看矩阵维度计算"
+        },
+        current_step="tutor_stage"
+    )
 
     print("--- 源码教研智能体 测试开始 ---")
     tutor = TutorAgent()
     delta_updates = tutor.run(mock_state)
 
     print("\n--- 助教讲解输出 ---")
-    print(delta_updates.get("tutor_response", "无输出"))
+    # ✅ 修复获取路径，从嵌套字典里取出来
+    print(delta_updates.get("evaluation_results", {}).get("tutor_response", "无输出"))

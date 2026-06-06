@@ -39,22 +39,23 @@ class EvaluatorAgent(AgentBase):
     def run(self, state: TaskState) -> Dict[str, Any]:
         logger.info(f"[{self.name}] 启动学情与配置评估引擎...")
 
-        # 1. 读取架构师生成的 JSON 配置
+        # 1. 读取架构师生成的 JSON 配置 (这是一个 Pydantic 对象)
         sandbox_config = self.read_blackboard(state, "sandbox_config")
 
         # 2. 从本地/远程 RAG 数据库检索相关的论文基准
-        # 这里我们用 task_type 和 backbone 拼接成检索词
-        task = sandbox_config.get("task_type", "目标检测")
-        model = sandbox_config.get("suggested_backbone", "未知模型")
+        # ✅ 修复：使用 getattr 安全读取 Pydantic 属性，而不是 dict.get()
+        task = getattr(sandbox_config, "task_type", "目标检测")
+        model = getattr(sandbox_config, "suggested_backbone", "未知模型")
         search_query = f"{model} 在 {task} 中的最佳实践与算子搭配"
 
         retrieved_knowledge = self._mock_rag_search(search_query)
-        self.update_history(state, "成功从 ragflow 检索到论文基准数据")
 
         # 3. 组装评估 Prompt
+        # ✅ 修复：先将 Pydantic 对象用 .model_dump() 转成字典，再 json.dumps，否则会报错
+        config_dict = sandbox_config.model_dump() if sandbox_config else {}
         prompt = f"""
 用户提交的沙盒配置如下：
-{json.dumps(sandbox_config, ensure_ascii=False, indent=2)}
+{json.dumps(config_dict, ensure_ascii=False, indent=2)}
 
 我们从底层论文向量库中检索到的真实基准数据如下：
 {retrieved_knowledge}
@@ -64,36 +65,35 @@ class EvaluatorAgent(AgentBase):
 
         # 4. 调用大模型
         response_text = self.call_llm(user_input=prompt, temperature=0.3)
-        self.update_history(state, "完成架构评估报告生成")
 
+        # ✅ 修复：严格遵守黑板模式的“增量合并”原则
+        # 移除越权的 update_history，将日志统一放进返回的 history 列表里
         return {
             "evaluation_results": {
                 "report": response_text,
                 "retrieved_sources": retrieved_knowledge
             },
-            "current_step": "generator_stage"  # 推向最终的报告生成环节
+            "current_step": "generator_stage",  # 推向最终的报告生成环节
+            "history": [
+                f"[{self.name}] 成功从 ragflow 检索到论文基准数据",
+                f"[{self.name}] 完成架构评估报告生成"
+            ]
         }
 
 
 # ================= 单元测试 =================
 if __name__ == "__main__":
-    # 我们把 Architect 生成的真实结果喂给它
-    mock_state: TaskState = {
-        "session_id": "test_session_003",
-        "user_intent": "我要做玉米病斑检测",
-        "learner_profile": {},
-        "sandbox_config": {
-            "task_type": "目标检测",
-            "suggested_backbone": "YOLOv8",
-            "suggested_plugins": [
-                "SE_Block (reduction=4)",  # 故意写一个不合理的参数
-                "CutMix"
-            ]
-        },
-        "evaluation_results": {},
-        "history": [],
-        "current_step": "evaluator_stage"
-    }
+    from core.state import SandboxConfig
+    # ✅ 修复测试用例：必须实例化为 TaskState 对象，不能直接传字典
+    mock_state = TaskState(
+        session_id="test_session_003",
+        user_intent="我要做玉米病斑检测",
+        sandbox_config=SandboxConfig(
+            task_type="目标检测",
+            suggested_backbone="YOLOv8"
+        ),
+        current_step="evaluator_stage"
+    )
 
     print("--- 评估智能体 测试开始 ---")
     evaluator = EvaluatorAgent()
