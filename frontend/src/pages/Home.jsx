@@ -1,18 +1,56 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, Tooltip, ResponsiveContainer } from 'recharts'
 
 export default function Home() {
+  /* ═══════════════ state ═══════════════ */
   const [messages, setMessages] = useState([
-    { role: 'assistant', text: '你好！我是 Vision-Forge 多智能体学习助手。\n\n我可以调用以下4个智能体为你服务：\n\n🏗️ **架构引导智能体** - 引导模型架构设计\n📖 **算法教研智能体** - 深入讲解算法原理\n📝 **资源生成智能体** - 生成专属学习资料\n📈 **学情评估智能体** - 评估学习效果\n\n请问你今天想学什么？', agent: 'system' }
+    {
+      role: 'assistant',
+      text: '你好！我是 Vision-Forge 多智能体学习助手。\n\n我可以调用以下4个智能体为你服务：\n\n🏗️ **架构引导智能体** - 引导模型架构设计\n📖 **算法教研智能体** - 深入讲解算法原理\n📝 **资源生成智能体** - 生成专属学习资料\n📈 **学情评估智能体** - 评估学习效果\n\n请问你今天想学什么？',
+      agent: 'system',
+      time: formatTime(new Date()),
+    }
   ])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
+  const [streamText, setStreamText] = useState('')
   const [currentAgent, setCurrentAgent] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
   const messagesEndRef = useRef(null)
   const historyRef = useRef(null)
 
+  /* 画像评估状态 */
+  const [portraitStep, setPortraitStep] = useState(0)
+  const [portraitAnswers, setPortraitAnswers] = useState([])
+  const portraitQuestions = [
+    '🎯 第1/6问：你对计算机视觉领域的整体了解程度如何？（初学者/有基础/较深入）',
+    '🎯 第2/6问：你更偏好的学习方式是什么？（看视频/读论文/动手实践/听课）',
+    '🎯 第3/6问：你在深度学习框架（PyTorch/TensorFlow）上的熟练度如何？',
+    '🎯 第4/6问：你对注意力机制（Attention）的理解程度如何？',
+    '🎯 第5/6问：你每周能投入多少小时进行模型相关的学习？',
+    '🎯 第6/6问：你最希望掌握的技能是什么？（模型设计/调参优化/论文复现/工程部署）',
+  ]
+
+  /* 今日任务 */
+  const [tasks, setTasks] = useState(() => {
+    const saved = localStorage.getItem('vf_tasks')
+    return saved ? JSON.parse(saved) : [
+      { id: 1, text: '可视化模型搭建', done: false },
+      { id: 2, text: '查看学习方案', done: false },
+      { id: 3, text: '学习推荐课程', done: false },
+    ]
+  })
+
+  useEffect(() => {
+    localStorage.setItem('vf_tasks', JSON.stringify(tasks))
+  }, [tasks])
+
+  const toggleTask = (id) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
+  }
+
+  /* 智能体配置 */
   const agents = [
     { id: 'architect', name: '架构引导', icon: '🏗️', color: '#3b82f6', desc: '引导模型设计' },
     { id: 'tutor', name: '算法教研', icon: '📖', color: '#10b981', desc: '讲解算法原理' },
@@ -37,13 +75,16 @@ export default function Home() {
     { day: '周日', 时长: 5.5 },
   ]
 
+  /* ═══════════════ helpers ═══════════════ */
+  function formatTime(d) {
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+  useEffect(() => { scrollToBottom() }, [messages, streamText])
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -55,9 +96,95 @@ export default function Home() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const sendMessage = () => {
-    if (!input.trim()) return
-    setMessages([...messages, { role: 'user', text: input }])
+  /* 流式打字输出 */
+  const typeMessage = (fullText, callback) => {
+    let i = 0
+    const interval = setInterval(() => {
+      callback(fullText.slice(0, i + 1))
+      i++
+      if (i >= fullText.length) {
+        clearInterval(interval)
+        callback(null) // 表示结束
+      }
+    }, 15)
+    return () => clearInterval(interval)
+  }
+
+  /* 渲染消息文本（支持代码块） */
+  const renderMessageText = (text) => {
+    const parts = text.split(/(```[\s\S]*?```)/g)
+    return parts.map((part, idx) => {
+      if (part.startsWith('```') && part.endsWith('```')) {
+        const code = part.slice(3, -3).replace(/^(\w+)\n/, '')
+        return (
+          <pre key={idx} style={{
+            background: '#1e293b', color: '#e2e8f0', padding: 12,
+            borderRadius: 8, fontSize: 12, lineHeight: 1.6,
+            overflowX: 'auto', margin: '8px 0', fontFamily: 'monospace',
+          }}>
+            <code>{code}</code>
+          </pre>
+        )
+      }
+      return <span key={idx} style={{ whiteSpace: 'pre-wrap' }}>{part}</span>
+    })
+  }
+
+  /* ═══════════════ 发送消息 ═══════════════ */
+  const sendMessage = (overrideText) => {
+    const text = overrideText !== undefined ? overrideText : input
+    if (!text.trim()) return
+
+    /* 画像评估流程 */
+    if (portraitStep > 0) {
+      const newAnswers = [...portraitAnswers, text.trim()]
+      setPortraitAnswers(newAnswers)
+      setMessages(prev => [...prev, { role: 'user', text, time: formatTime(new Date()) }])
+      setInput('')
+
+      if (portraitStep < 6) {
+        /* 继续下一问 */
+        const nextQ = portraitQuestions[portraitStep]
+        setPortraitStep(portraitStep + 1)
+        setIsTyping(true)
+        setStreamText('')
+        typeMessage(nextQ, (chunk) => {
+          if (chunk === null) {
+            setMessages(prev => [...prev, {
+              role: 'assistant', text: nextQ, agent: 'evaluator',
+              time: formatTime(new Date()),
+            }])
+            setStreamText('')
+            setIsTyping(false)
+          } else {
+            setStreamText(chunk)
+          }
+        })
+      } else {
+        /* 完成，生成报告 */
+        setPortraitStep(0)
+        setPortraitAnswers([])
+        const report = generatePortraitReport(newAnswers)
+        setIsTyping(true)
+        setStreamText('')
+        typeMessage(report, (chunk) => {
+          if (chunk === null) {
+            setMessages(prev => [...prev, {
+              role: 'assistant', text: report, agent: 'evaluator',
+              time: formatTime(new Date()),
+            }])
+            setStreamText('')
+            setIsTyping(false)
+          } else {
+            setStreamText(chunk)
+          }
+        })
+      }
+      return
+    }
+
+    /* 普通对话流程 */
+    setMessages(prev => [...prev, { role: 'user', text, time: formatTime(new Date()) }])
     setInput('')
     setIsTyping(true)
     setCurrentAgent(null)
@@ -71,61 +198,130 @@ export default function Home() {
           setTimeout(() => {
             let response = ''
             let agent = ''
-            
-            if (input.includes('模型') || input.includes('架构') || input.includes('搭建')) {
+
+            if (text.includes('模型') || text.includes('架构') || text.includes('搭建')) {
               agent = 'architect'
-              response = '🏗️ 【架构引导智能体】\n\n根据你的需求，推荐使用 SAM 作为基础模型。\n\n**建议架构**：\n1. 图像编码器（ViT）\n2. 提示编码器\n3. 掩码解码器\n\n需要我继续讲解具体实现吗？'
-            } else if (input.includes('算法') || input.includes('原理') || input.includes('源码')) {
+              response = '🏗️ 【架构引导智能体】\n\n根据你的需求，推荐使用 SAM 作为基础模型。\n\n**建议架构**：\n1. 图像编码器（ViT）\n2. 提示编码器\n3. 掩码解码器\n\n核心代码框架：\n```python\nclass SAM(nn.Module):\n    def __init__(self):\n        self.image_encoder = ImageEncoderViT()\n        self.prompt_encoder = PromptEncoder()\n        self.mask_decoder = MaskDecoder()\n\n    def forward(self, image, prompt):\n        image_embeds = self.image_encoder(image)\n        sparse_embeds, dense_embeds = self.prompt_encoder(prompt)\n        masks, scores = self.mask_decoder(image_embeds, sparse_embeds, dense_embeds)\n        return masks, scores\n```\n\n需要我继续讲解具体实现吗？'
+            } else if (text.includes('算法') || text.includes('原理') || text.includes('源码')) {
               agent = 'tutor'
-              response = '📖 【算法教研智能体】\n\nSAM 模型的核心代码结构：\n\n```python\nclass SAM(nn.Module):\n    def __init__(self):\n        self.image_encoder = ImageEncoder()\n        self.prompt_encoder = PromptEncoder()\n        self.mask_decoder = MaskDecoder()\n```\n\n核心创新：引入 Prompt 机制，实现可提示分割。'
-            } else if (input.includes('生成') || input.includes('讲义') || input.includes('资源')) {
+              response = '📖 【算法教研智能体】\n\nSAM 模型的核心算法原理：\n\n**1. 图像编码器**\n采用 Vision Transformer (ViT) 将图像编码为特征嵌入。输入图像被划分为 16×16 的 patch，经过多层自注意力机制提取高级语义特征。\n\n**2. 提示编码器**\n支持稀疏提示（点、框）和密集提示（掩码）。将用户输入的提示转换为与图像特征对齐的嵌入表示。\n\n**3. 掩码解码器**\n核心创新：引入 Prompt 机制，实现可提示分割。通过交叉注意力融合图像特征和提示嵌入，预测分割掩码。\n\n**关键公式**：\n```\nAttention(Q, K, V) = softmax(QK^T / √d) · V\n```\n\n还有什么想了解的吗？'
+            } else if (text.includes('生成') || text.includes('讲义') || text.includes('资源')) {
               agent = 'generator'
-              response = '📝 【资源生成智能体】\n\n已为你生成专属学习资源：\n\n**📖 学习讲义**：SAM模型从入门到实战\n**📝 练习题**：5道选择题 + 3道编程题\n**🗺️ 思维导图**：知识体系全景图\n\n快去「资源中心」查看！'
-            } else if (input.includes('评估') || input.includes('学情')) {
+              response = '📝 【资源生成智能体】\n\n已为你生成专属学习资源包：\n\n📖 **学习讲义**：SAM模型从入门到实战（36页）\n📝 **练习题**：5道选择题 + 3道编程题 + 2道思考题\n🗺️ **思维导图**：知识体系全景图\n📊 **对比表格**：SAM vs U-Net vs DeepLab\n\n**推荐学习路径**：\n理论基础 → 模型搭建 → 源码阅读 → 实战训练\n\n快去「资源中心」查看完整内容！'
+            } else if (text.includes('评估') || text.includes('学情')) {
               agent = 'evaluator'
-              response = '📈 【学情评估智能体】\n\n基于你的学习数据：\n\n**综合评分**：78分\n**优势**：知识掌握较好\n**待提升**：应用能力、创新思维\n**建议**：增加项目实战练习'
+              response = '📈 【学情评估智能体】\n\n基于你的学习数据分析：\n\n**综合评分**：78分\n📊 知识掌握：82分\n📊 实践能力：71分\n📊 代码水平：75分\n📊 创新思维：68分\n\n**优势领域**：\n• 理论基础扎实\n• 学习积极性高\n\n**待提升项**：\n• 项目实战经验\n• 模型调优能力\n• 论文阅读理解\n\n**建议**：增加每周实战练习时间，尝试复现经典论文。'
             } else {
               agent = 'architect'
-              response = '🤖 我可以调用4个专业智能体为你服务：\n\n• 说 **"帮我设计模型架构"** → 🏗️ 架构引导智能体\n• 说 **"讲解算法原理"** → 📖 算法教研智能体\n• 说 **"生成学习资料"** → 📝 资源生成智能体\n• 说 **"评估学习效果"** → 📈 学情评估智能体\n\n试试问我这些问题吧！'
+              response = '🤖 我可以调用4个专业智能体为你服务：\n\n• 说 **"帮我设计模型架构"** → 🏗️ 架构引导智能体\n• 说 **"讲解算法原理"** → 📖 算法教研智能体\n• 说 **"生成学习资料"** → 📝 资源生成智能体\n• 说 **"评估学习效果"** → 📈 学情评估智能体\n• 说 **"开始画像评估"** → 🎯 6轮画像评估（推荐新用户）\n\n试试问我这些问题吧！'
             }
-            
-            setMessages(prev => [...prev, { role: 'assistant', text: response, agent }])
-            setCurrentAgent(null)
-            setIsTyping(false)
+
+            setCurrentAgent(agent)
+            setStreamText('')
+            typeMessage(response, (chunk) => {
+              if (chunk === null) {
+                setMessages(prev => [...prev, {
+                  role: 'assistant', text: response, agent,
+                  time: formatTime(new Date()),
+                }])
+                setStreamText('')
+                setIsTyping(false)
+                setCurrentAgent(null)
+              } else {
+                setStreamText(chunk)
+              }
+            })
           }, 800)
         }, 600)
       }, 600)
     }, 600)
   }
 
+  /* 生成画像评估报告 */
+  const generatePortraitReport = (answers) => {
+    return `📈 【学情评估智能体】画像评估报告\n\n基于你的6轮回答，为你生成专属学习画像：\n\n🎯 **学习风格**：${answers[1]?.includes('实践') ? '实践驱动型' : '理论驱动型'}\n📊 **基础水平**：${answers[0]?.includes('深入') ? '进阶' : answers[0]?.includes('基础') ? '中等' : '入门'}\n💻 **代码能力**：${answers[2]?.includes('熟练') ? '熟练' : '待提升'}\n🧠 **核心概念**：${answers[3]?.includes('深入') ? '掌握良好' : '需加强'}\n⏰ **投入时间**：${answers[4]}\n🌟 **目标技能**：${answers[5]}\n\n**个性化建议**：\n1. 推荐从 ${answers[0]?.includes('初学者') ? '理论基础' : '源码阅读'} 开始\n2. 每周保持 ${answers[4]?.match(/\d+/)?.[0] || '5'}h 学习节奏\n3. 重点加强 ${answers[3]?.includes('注意力') ? '注意力机制' : '框架使用'} 练习\n\n已为你生成专属学习方案，可前往「资源中心」查看！`
+  }
+
+  /* 加载历史对话 */
   const loadHistory = (title) => {
     setMessages([
-      { role: 'user', text: title },
-      { role: 'assistant', text: '已加载历史对话，你可以继续提问～' }
+      { role: 'user', text: title, time: formatTime(new Date()) },
+      { role: 'assistant', text: '已加载历史对话，你可以继续提问～', time: formatTime(new Date()), agent: 'system' }
     ])
     setShowHistory(false)
   }
 
-  const quickQuestions = ['帮我设计模型架构', '讲解SAM算法原理', '生成学习资料', '评估学习效果']
+  /* 开始画像评估 */
+  const startPortraitEval = () => {
+    setPortraitStep(1)
+    setPortraitAnswers([])
+    setIsTyping(true)
+    setStreamText('')
+    const firstQ = portraitQuestions[0]
+    typeMessage(firstQ, (chunk) => {
+      if (chunk === null) {
+        setMessages(prev => [...prev, {
+          role: 'assistant', text: firstQ, agent: 'evaluator',
+          time: formatTime(new Date()),
+        }])
+        setStreamText('')
+        setIsTyping(false)
+      } else {
+        setStreamText(chunk)
+      }
+    })
+  }
 
+  const quickQuestions = [
+    '帮我设计模型架构',
+    '讲解SAM算法原理',
+    '生成学习资料',
+    '评估学习效果',
+  ]
+
+  /* 1+N 跨学科演示场景（农业遥感为旗舰标杆，N为可拓展领域） */
+  const demoScenarios = [
+    { icon: '🌾', name: '农业遥感', tag: '旗舰标杆', color: '#10b981', bg: '#f0fdf4', prompt: '我想用SAM做农作物长势监测和田块分割，请引导我设计模型架构' },
+    { icon: '🩺', name: '医学影像', tag: '拓展', color: '#ef4444', bg: '#fef2f2', prompt: '帮我设计一个细胞分割的医学影像分析流程' },
+    { icon: '🛒', name: '电商视觉', tag: '拓展', color: '#f59e0b', bg: '#fffbeb', prompt: '我想做商品视觉特征检测，帮我设计模型' },
+    { icon: '🚗', name: '自动驾驶', tag: '拓展', color: '#3b82f6', bg: '#eff6ff', prompt: '帮我设计一个车道线和障碍物检测方案' },
+  ]
+
+  /* ═══════════════ render ═══════════════ */
   return (
-    <div style={{ display: 'flex', gap: 20 }}>
-      {/* 左侧对话区域 */}
-      <div style={{ flex: 2, background: '#fff', borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-        {/* 多智能体协作状态条 */}
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #e8ecf1', background: '#fafbfc' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>🤖 多智能体协作中</span>
-            <div style={{ display: 'flex', gap: 8, flex: 1 }}>
+    <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', height: 'calc(100vh - 96px)' }}>
+      {/* ═══════ 左侧对话区 ═══════ */}
+      <div style={{
+        flex: 1, background: '#fff', borderRadius: 16, display: 'flex',
+        flexDirection: 'column', overflow: 'hidden',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        minWidth: 0,
+      }}>
+        {/* 多智能体协作状态条 + 中央状态机共享黑板 */}
+        <div style={{ padding: '10px 16px 12px', borderBottom: '1px solid #e8ecf1', background: '#fafbfc', flexShrink: 0 }}>
+          {/* 顶部：架构标识 */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, fontSize: 11 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#475569' }}>
+              <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#10b981', animation: 'pulse 1.5s infinite' }} />
+              <span style={{ fontWeight: 600 }}>4-Agent 协同架构 · 中央状态机（Task_State.json）· 共享黑板</span>
+            </div>
+            <span style={{ color: '#94a3b8' }}>基座：星火大模型 + LangGraph</span>
+          </div>
+          {/* 4个智能体状态卡 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>🤖 协作中</span>
+            <div style={{ display: 'flex', gap: 6, flex: 1 }}>
               {agents.map(agent => (
                 <div key={agent.id} style={{
-                  flex: 1, padding: '6px', background: currentAgent === agent.id ? agent.color + '20' : '#f1f5f9',
-                  borderRadius: 8, textAlign: 'center', transition: 'all 0.3s'
+                  flex: 1, padding: '6px 8px',
+                  background: currentAgent === agent.id ? agent.color + '20' : '#f1f5f9',
+                  borderRadius: 8, textAlign: 'center', transition: 'all 0.3s',
+                  border: currentAgent === agent.id ? `1.5px solid ${agent.color}` : '1.5px solid transparent',
                 }}>
-                  <span style={{ fontSize: 14 }}>{agent.icon}</span>
-                  <div style={{ fontSize: 10, color: currentAgent === agent.id ? agent.color : '#94a3b8' }}>
+                  <span style={{ fontSize: 13 }}>{agent.icon}</span>
+                  <div style={{ fontSize: 10, color: currentAgent === agent.id ? agent.color : '#94a3b8', fontWeight: currentAgent === agent.id ? 600 : 400 }}>
                     {agent.name}
-                    {currentAgent === agent.id && <span style={{ marginLeft: 4 }}>⚡</span>}
+                    {currentAgent === agent.id && <span style={{ marginLeft: 3 }}>⚡</span>}
                   </div>
                 </div>
               ))}
@@ -133,107 +329,265 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 消息列表 */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 16, minHeight: 400 }}>
+        {/* 消息列表 — 独立滚动 */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16, minHeight: 0 }}>
           {messages.map((m, i) => (
-            <div key={i} style={{ marginBottom: 16, display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              <div style={{
-                maxWidth: '85%', padding: '10px 14px', borderRadius: 12,
-                background: m.role === 'user' ? '#3b82f6' : '#f1f5f9',
-                color: m.role === 'user' ? '#fff' : '#1e293b',
-                whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.5
-              }}>{m.text}</div>
+            <div key={i} style={{
+              marginBottom: 16,
+              display: 'flex',
+              justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
+            }}>
+              <div style={{ maxWidth: '85%' }}>
+                {/* 时间戳 */}
+                <div style={{
+                  fontSize: 10, color: '#94a3b8', marginBottom: 4,
+                  textAlign: m.role === 'user' ? 'right' : 'left',
+                  padding: m.role === 'user' ? '0 4px' : '0 4px',
+                }}>
+                  {m.time || ''}
+                </div>
+                <div style={{
+                  padding: '10px 14px', borderRadius: 12,
+                  background: m.role === 'user' ? '#3b82f6' : '#f1f5f9',
+                  color: m.role === 'user' ? '#fff' : '#1e293b',
+                  fontSize: 13, lineHeight: 1.6,
+                }}>
+                  {renderMessageText(m.text)}
+                </div>
+              </div>
             </div>
           ))}
-          {isTyping && (
+
+          {/* 流式输出中的消息 */}
+          {isTyping && streamText && (
+            <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 16 }}>
+              <div style={{ maxWidth: '85%' }}>
+                <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 4, padding: '0 4px' }}>
+                  {formatTime(new Date())}
+                </div>
+                <div style={{
+                  padding: '10px 14px', borderRadius: 12,
+                  background: '#f1f5f9', color: '#1e293b',
+                  fontSize: 13, lineHeight: 1.6,
+                }}>
+                  {renderMessageText(streamText)}
+                  <span className="cursor-blink">▊</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 正在输入提示（无流式文本时） */}
+          {isTyping && !streamText && (
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
               <div style={{ padding: '10px 14px', borderRadius: 12, background: '#f1f5f9' }}>
-                <span className="dot">●</span><span className="dot">●</span><span className="dot">●</span>
+                <span className="dot">●</span>
+                <span className="dot">●</span>
+                <span className="dot">●</span>
               </div>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 输入区域 */}
-        <div style={{ padding: 16, borderTop: '1px solid #e8ecf1' }}>
+        {/* 输入区域（固定在底部） */}
+        <div style={{ padding: 16, borderTop: '1px solid #e8ecf1', flexShrink: 0, background: '#fff' }}>
+          {/* 1+N 跨学科演示场景 */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6, fontWeight: 500 }}>🌐 1+N 跨学科演示场景</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {demoScenarios.map((s) => (
+                <button key={s.name} onClick={() => { setInput(s.prompt) }} style={{
+                  padding: '5px 10px', fontSize: 11,
+                  background: s.bg, color: s.color,
+                  border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 600,
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                }}>
+                  <span>{s.icon}</span>
+                  <span>{s.name}</span>
+                  <span style={{
+                    fontSize: 9, padding: '1px 5px', borderRadius: 6,
+                    background: 'rgba(255,255,255,0.7)', color: s.color, fontWeight: 700,
+                  }}>{s.tag}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             {quickQuestions.map((q, i) => (
-              <button key={i} onClick={() => { setInput(q); setTimeout(() => sendMessage(), 100) }} style={{
+              <button key={i} onClick={() => { setInput(q) }} style={{
                 padding: '6px 12px', fontSize: 11, background: '#f1f5f9', color: '#475569',
-                boxShadow: 'none', borderRadius: 16
+                border: 'none', borderRadius: 16, cursor: 'pointer', fontWeight: 500,
               }}>{q}</button>
             ))}
+            <button onClick={startPortraitEval} style={{
+              padding: '6px 12px', fontSize: 11, background: '#eff6ff', color: '#3b82f6',
+              border: 'none', borderRadius: 16, cursor: 'pointer', fontWeight: 600,
+            }}>🎯 开始画像评估</button>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <input style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13 }}
-              value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()}
-              placeholder="输入你的问题，智能体会为你服务..." />
-            <button onClick={sendMessage} style={{ padding: '0 24px', borderRadius: 10 }}>发送</button>
+            <input
+              style={{
+                flex: 1, padding: '10px 14px', borderRadius: 10,
+                border: '1px solid #e2e8f0', fontSize: 13, outline: 'none',
+              }}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && sendMessage()}
+              placeholder={portraitStep > 0 ? '请回答上述问题...' : '输入你的问题，智能体会为你服务...'}
+            />
+            <button
+              onClick={() => sendMessage()}
+              style={{
+                padding: '0 24px', borderRadius: 10, background: '#3b82f6',
+                color: '#fff', border: 'none', fontWeight: 600,
+                cursor: 'pointer', fontSize: 13,
+              }}
+            >发送</button>
           </div>
         </div>
       </div>
 
-      {/* 右侧面板 */}
-      <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* ═══════ 右侧面板 ═══════ — 固定高度独立滚动 */}
+      <div style={{
+        width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12,
+        height: '100%', overflowY: 'auto', overflowX: 'hidden',
+      }}>
         {/* 历史对话按钮 */}
-        <div style={{ position: 'relative' }}>
-          <button onClick={() => setShowHistory(!showHistory)} style={{ width: '100%', padding: '10px', background: '#f1f5f9', color: '#475569', boxShadow: 'none' }}>
+        <div style={{ position: 'relative' }} ref={historyRef}>
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            style={{
+              width: '100%', padding: '10px', background: '#f1f5f9', color: '#475569',
+              border: 'none', borderRadius: 12, cursor: 'pointer', fontSize: 13,
+              fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}
+          >
             📋 历史对话
+            <span style={{ fontSize: 10, marginLeft: 'auto' }}>{showHistory ? '▲' : '▼'}</span>
           </button>
           {showHistory && (
-            <div ref={historyRef} style={{ position: 'absolute', top: 50, left: 0, right: 0, background: '#fff', borderRadius: 12, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10 }}>
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
+              background: '#fff', borderRadius: 12, padding: 12,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10,
+            }}>
               {historyList.map(item => (
-                <div key={item.id} onClick={() => loadHistory(item.title)} style={{ padding: 8, borderRadius: 8, background: '#f8fafc', marginBottom: 8, cursor: 'pointer', fontSize: 12 }}>
-                  {item.title}
+                <div
+                  key={item.id}
+                  onClick={() => loadHistory(item.title)}
+                  style={{
+                    padding: 8, borderRadius: 8, background: '#f8fafc',
+                    marginBottom: 8, cursor: 'pointer', fontSize: 12,
+                    color: '#475569', fontWeight: 500,
+                  }}
+                >
+                  <div>{item.title}</div>
+                  <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{item.date}</div>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* 学习进度卡片 */}
+        {/* 今日任务 */}
         <div style={{ background: '#fff', borderRadius: 12, padding: 16 }}>
-          <h4 style={{ fontSize: 14, marginBottom: 12 }}>📊 学习进度</h4>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>总体完成度 <span>65%</span></div>
-            <div style={{ height: 6, background: '#e2e8f0', borderRadius: 99 }}><div style={{ width: '65%', height: '100%', background: '#3b82f6', borderRadius: 99 }}></div></div>
-          </div>
-          <div style={{ fontSize: 12, color: '#64748b' }}>已完成 9/14 课程</div>
+          <h4 style={{ fontSize: 14, margin: '0 0 12px 0' }}>📅 今日任务</h4>
+          {tasks.map(task => (
+            <div
+              key={task.id}
+              onClick={() => toggleTask(task.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '6px 0', cursor: 'pointer', fontSize: 12,
+              }}
+            >
+              <div style={{
+                width: 16, height: 16, borderRadius: 4,
+                border: task.done ? '2px solid #10b981' : '2px solid #cbd5e1',
+                background: task.done ? '#10b981' : '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, color: '#fff', flexShrink: 0,
+              }}>{task.done && '✓'}</div>
+              <span style={{
+                textDecoration: task.done ? 'line-through' : 'none',
+                color: task.done ? '#94a3b8' : '#1e293b',
+              }}>{task.text}</span>
+            </div>
+          ))}
         </div>
 
         {/* 本周学习趋势 */}
         <div style={{ background: '#fff', borderRadius: 12, padding: 16 }}>
-          <h4 style={{ fontSize: 14, marginBottom: 12 }}>📈 本周学习趋势</h4>
-          <ResponsiveContainer width="100%" height={120}>
+          <h4 style={{ fontSize: 14, margin: '0 0 12px 0' }}>📈 本周学习趋势</h4>
+          <ResponsiveContainer width="100%" height={100}>
             <AreaChart data={weeklyData}>
-              <Tooltip />
-              <Area type="monotone" dataKey="时长" stroke="#3b82f6" fill="#93c5fd" fillOpacity={0.3} />
+              <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: 'none' }} />
+              <Area type="monotone" dataKey="时长" stroke="#3b82f6" fill="#93c5fd" fillOpacity={0.3} strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        {/* 今日任务 */}
-        <div style={{ background: '#fff', borderRadius: 12, padding: 16 }}>
-          <h4 style={{ fontSize: 14, marginBottom: 12 }}>📅 今日任务</h4>
-          <div style={{ fontSize: 13, marginBottom: 8 }}>• 可视化模型搭建</div>
-          <div style={{ fontSize: 13, marginBottom: 8 }}>• 查看学习方案</div>
-          <div style={{ fontSize: 13 }}>• 学习推荐课程</div>
-        </div>
-
         {/* 快捷入口 */}
         <div style={{ background: '#fff', borderRadius: 12, padding: 16 }}>
-          <h4 style={{ fontSize: 14, marginBottom: 12 }}>🚀 快捷入口</h4>
-          <Link to="/canvas"><button style={{ width: '100%', marginBottom: 8, padding: 8 }}>🎨 模型工坊</button></Link>
-          <Link to="/center"><button style={{ width: '100%', padding: 8, background: '#10b981' }}>📊 学情分析</button></Link>
+          <h4 style={{ fontSize: 14, margin: '0 0 12px 0' }}>🚀 快捷入口</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Link to="/canvas" style={{ textDecoration: 'none' }}>
+              <button style={{
+                width: '100%', padding: '8px 10px', fontSize: 12, background: '#f1f5f9', color: '#475569',
+                border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 500,
+              }}>🎨 模型工坊</button>
+            </Link>
+            <Link to="/center" style={{ textDecoration: 'none' }}>
+              <button style={{
+                width: '100%', padding: '8px 10px', fontSize: 12, background: '#eff6ff', color: '#3b82f6',
+                border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 500,
+              }}>📊 学情分析</button>
+            </Link>
+            <Link to="/resources" style={{ textDecoration: 'none' }}>
+              <button style={{
+                width: '100%', padding: '8px 10px', fontSize: 12, background: '#f0fdf4', color: '#10b981',
+                border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 500,
+              }}>📁 资源中心</button>
+            </Link>
+            <Link to="/tutor" style={{ textDecoration: 'none' }}>
+              <button style={{
+                width: '100%', padding: '8px 10px', fontSize: 12, background: '#fefce8', color: '#ca8a04',
+                border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 500,
+              }}>📚 知识辅导</button>
+            </Link>
+          </div>
         </div>
       </div>
 
+      {/* ═══════ styles ═══════ */}
       <style>{`
-        .dot { display: inline-block; width: 6px; height: 6px; background: #3b82f6; border-radius: 50%; margin: 0 2px; animation: pulse 1.2s infinite; }
+        .dot {
+          display: inline-block;
+          width: 6px; height: 6px;
+          background: #3b82f6;
+          border-radius: 50%;
+          margin: 0 2px;
+          animation: pulse 1.2s infinite;
+        }
         .dot:nth-child(2) { animation-delay: 0.2s; }
         .dot:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes pulse { 0%, 60%, 100% { opacity: 0.3; } 30% { opacity: 1; } }
+        @keyframes pulse {
+          0%, 60%, 100% { opacity: 0.3; }
+          30% { opacity: 1; }
+        }
+        .cursor-blink {
+          display: inline-block;
+          color: #3b82f6;
+          font-weight: bold;
+          animation: blink 1s step-end infinite;
+          margin-left: 1px;
+        }
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
       `}</style>
     </div>
   )
