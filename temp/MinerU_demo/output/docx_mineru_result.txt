@@ -1,0 +1,1551 @@
+# 数字逻辑与数字电路 完整课程报告
+
+**目 录**
+
+第1部分 知识要点整理- 1.1 数字逻辑基础 - 1.2 逻辑门电路 - 1.3 组合逻辑电路 - 1.4 触发器 - 1.5 时序逻辑电路 - 1.6 EDA与Verilog设计
+
+第2部分 重要习题整理- 2.1 基本理论和知识（填空、选择、简答） - 2.2 建模与分析（工程问题理论分析、EDA实践） - 2.3 设计与实现（工程问题理论设计、EDA实践）
+
+# 第1部分 知识要点整理
+
+## 1.1 数字逻辑基础
+
+### 一、模拟信号与数字信号
+
+#### *1.1 基本概念*
+
+- **模拟信号**：幅度随时间**连续变化**的信号，比如温度、声音这些自然界的信号
+- **数字信号**：幅度随时间**离散变化**的信号，只有0和1两种状态
+
+#### *1.2 数字电路的特点*
+
+<table><thead><tr><th><p>特点</p></th><th><p>说明</p></th></tr></thead><tbody><tr><td><p>稳定性好</p></td><td><p>抗干扰能力强，噪声不容易影响信号判断</p></td></tr><tr><td><p>精度高</p></td><td><p>想要多高的精度？增加位数就行</p></td></tr><tr><td><p>容易设计</p></td><td><p>逻辑关系明确，不像模拟电路那么玄学</p></td></tr><tr><td><p>便于存储</p></td><td><p>0和1直接存到存储器里</p></td></tr><tr><td><p>便于自动化设计</p></td><td><p>用EDA工具画个图就能生成电路</p></td></tr></tbody></table>
+
+### 二、数制与进制转换
+
+#### *2.1 数制的三要素*
+
+- **数码**：数制中用到的符号（比如二进制用0、1）
+- **基数**：数码的个数（二进制基数是2）
+- **位权**：每一位代表的数值大小
+
+#### *2.2 常用数制对照表*
+
+<table><thead><tr><th><p>进位制</p></th><th><p>基数</p></th><th><p>数码</p></th><th><p>表示符号</p></th></tr></thead><tbody><tr><td><p>二进制</p></td><td><p>2</p></td><td><p>0, 1</p></td><td><p>B</p></td></tr><tr><td><p>八进制</p></td><td><p>8</p></td><td><p>0~7</p></td><td><p>O</p></td></tr><tr><td><p>十进制</p></td><td><p>10</p></td><td><p>0~9</p></td><td><p>D</p></td></tr><tr><td><p>十六进制</p></td><td><p>16</p></td><td><p>0~9, A~F</p></td><td><p>H</p></td></tr></tbody></table>
+
+#### *2.3 进制转换方法*
+
+**（1）任意进制转十进制——按权展开**
+
+$(110101.101)_{2}$  转十进制：
+
+= 1×2⁵ + 1×2⁴ + 0×2³ + 1×2² + 0×2¹ + 1×2⁰ + 1×2⁻¹ + 0×2⁻² + 1×2⁻³
+= 32 + 16 + 0 + 4 + 0 + 1 + 0.5 + 0 + 0.125
+= 53.625
+
+**（2）十进制转二进制——整数除2取余，小数乘2取整**
+
+整数部分：**除基取余，余数倒置** 小数部分：**乘基取整，从上往下**
+
+**（3）二进制与十六进制转换——四位一组**
+
+### 三、编码
+
+#### *3.1 8421 BCD码*
+
+BCD码就是把十进制的每一位用四位二进制表示。
+
+**注意**：BCD码和二进制不一样！比如十进制12，二进制是1100，但BCD码是0001 0010。
+
+#### *3.2 带符号数的表示——原码、反码、补码*
+
+**（1）原码** - 最高位是符号位（0正1负），其余是数值位 - 8位原码表示范围：-127 \~ +127 - 缺点：0有两种表示（+0和-0），做加减法麻烦
+
+**（2）反码** - 正数的反码 = 原码 - 负数的反码 = 符号位不变，数值位按位取反 - 0还是有两种表示
+
+**（3）补码（重点！）** - 正数的补码 = 原码 - 负数的补码 = 反码 + 1 - **优点**：0的表示唯一，减法可以变加法做！
+
+#### *3.3 用补码进行二进制数计算*
+
+**补码运算公式**： - $[X+Y]_{补}=[X]_{补}+[Y]_{补}$  - $[X-Y]_{补}=[X]_{补}+[-Y]_{补}$
+
+**运算规则**： - 符号位和数值一起参加运算，不单独处理 - 若符号位产生进位，则将进位位**丢弃**
+
+#### *3.4 可靠性编码*
+
+**（1）奇偶校验码**
+
+在数据后面加一位校验位，检测传输错误。 - **奇校验**：数据中1的个数为奇数 - **偶校验**：数据中1的个数为偶数
+
+**（2）格雷码（Gray Code）**
+
+相邻两个代码只有一位不同。
+
+**二进制转格雷码**： - 格雷码最高位 = 二进制最高位 - 从次高位开始，格雷码的每一位 = 二进制本位 ⊕ 二进制高位
+
+## 1.2 逻辑代数基础
+
+### 一、逻辑代数的基本概念
+
+逻辑代数也叫布尔代数，是分析和设计数字电路的数学工具。
+
+**逻辑变量**只有两种取值：0 和 1。
+
+**逻辑函数**： $F=f(A,B,C,...)$
+
+### 二、基本逻辑运算
+
+### 三、复合逻辑运算
+
+### 四、逻辑运算规则
+
+#### *4.1 基本定律*
+
+#### *4.2 常用公式（化简神器）*
+
+### 五、逻辑函数的标准形式
+
+#### *5.1 最小项*
+
+**定义**：包含全部输入变量的乘积项，每个变量以原变量或反变量形式出现一次。
+
+- n 个变量有 $2^{n}$  个最小项
+- 用 $m_{i}$  表示，i 是使该最小项为1的变量取值对应的十进制数
+
+**三变量最小项表**：
+
+#### *5.2 最大项*
+
+用 $M_{i}$  表示，i 是使该最大项为0的变量取值对应的十进制数。
+
+**最小项与最大项的关系**： $m_{i}=\overline{M_{i}}$
+
+#### *5.3 标准与或式*
+
+$$
+F=\sum m(i,j,k,...)
+$$
+
+#### *5.4 标准或与式*
+
+$$
+F=\prod M(i,j,k,...)
+$$
+
+### 六、逻辑函数的化简方法
+
+#### *6.1 代数化简法*
+
+**（1）并项法**：利用 $AB+A\overline{B}=A$
+
+**（2）吸收法**： - $A+AB=A$  - $A+\overline{A}B=A+B$
+
+**（3）配项法**：通过添加冗余项，创造化简条件后再消去
+
+**（4）消项法**：利用 $AB+\overline{A}C+BC=AB+\overline{A}C$
+
+#### *6.2 卡诺图化简法*
+
+**化简步骤**： 1. 画出对应变量数的卡诺图 2. 将函数填入卡诺图（最小项填1，无关项填×） 3. 圈出相邻的1（圈的大小为 $2^{n}$ ） 4. 每个圈写一个乘积项 5. 将所有乘积项相加得最简与或式
+
+**圈选原则**： - 圈越大越好（消去的变量越多） - 圈的个数越少越好（项数越少） - 每个圈至少包含一个未被其他圈覆盖的1 - 可以重复覆盖
+
+**合并规律**： - 2个相邻 → 消去1个因子 - 4个相邻 → 消去2个因子 - 8个相邻 → 消去3个因子
+
+## 1.3 逻辑门电路
+
+### 一、分立元件逻辑门
+
+#### *1. 二极管门电路*
+
+- **与门**：二极管串联，全1出1，有0出0
+- **或门**：二极管并联，有1出1，全0出0
+
+#### *2. 三极管非门*
+
+- 输入高电平 → 三极管导通 → 输出低电平
+- 输入低电平 → 三极管截止 → 输出高电平
+
+### 二、CMOS集成逻辑门
+
+#### *1. MOS管工作原理*
+
+- **NMOS**：G和S加高电平，D和S导通（N管高电平导通）
+- **PMOS**：G和S加低电平，D和S导通（P管低电平导通）
+
+#### *2. CMOS反相器（非门）*
+
+- 由一个PMOS和一个NMOS组成
+- 输入低电平：P管导通，N管截止，输出高电平
+- 输入高电平：N管导通，P管截止，输出低电平
+- 特点：静态功耗几乎为0
+
+#### *3. CMOS门电路结构规律*
+
+**口诀：上并下串是与非，上串下并是或非**
+
+<table><thead><tr><th><p>门类型</p></th><th><p>上拉网络(PUN，PMOS)</p></th><th><p>下拉网络(PDN，NMOS)</p></th></tr></thead><tbody><tr><td><p>与非门</p></td><td><p>并联</p></td><td><p>串联</p></td></tr><tr><td><p>或非门</p></td><td><p>串联</p></td><td><p>并联</p></td></tr></tbody></table>
+
+#### *4. CMOS传输门*
+
+- 由一对PMOS和NMOS并联组成
+- 控制信号cn=0,c=1时导通，可以双向传输信号
+
+### 三、TTL集成逻辑门
+
+#### *1. TTL与非门*
+
+- 采用多发射极晶体管实现与逻辑
+- 速度比CMOS快，但功耗大
+
+#### *2. 集电极开路门（OC门）和漏极开路门（OD门）*
+
+- **特点**：输出级集电极/漏极是开路的，必须外接上拉电阻
+- **用途**：
+
+- 实现**线与**功能
+- 电平转换
+- 驱动大电流负载
+
+#### *3. 三态门（TS门）*
+
+- **三种输出状态**：高电平、低电平、高阻态
+- **控制方式**：通过使能端EN控制
+- **主要用途**：总线接口、数据双向传输
+
+## 1.4 触发器
+
+### 一、触发器概述
+
+触发器是数字电路里的”记忆单元”，能存住1位二进制信息（0或1）。跟组合电路不一样，它的输出不光看当前输入，还跟之前的状态有关。
+
+### 二、触发器的发展脉络
+
+基本RS → 钟控RS → 钟控D → 主从RS → 主从JK → 边沿D/JK
+  ↓         ↓        ↓        ↓         ↓         ↓
+无时钟   有空翻   有空翻   无空翻   一次翻转   性能最优
+有约束   有约束   无约束   有约束   无约束    无约束
+
+### 三、各种触发器详解
+
+#### *1. 基本RS触发器*
+
+<table><thead><tr><th><p>SD</p></th><th><p>RD</p></th><th><p>Q</p></th><th><p>功能</p></th></tr></thead><tbody><tr><td><p>0</p></td><td><p>1</p></td><td><p>1</p></td><td><p>置1</p></td></tr><tr><td><p>1</p></td><td><p>0</p></td><td><p>0</p></td><td><p>置0</p></td></tr><tr><td><p>1</p></td><td><p>1</p></td><td><p>保持</p></td><td><p>保持</p></td></tr><tr><td><p>0</p></td><td><p>0</p></td><td><p>不定</p></td><td><p>禁用</p></td></tr></tbody></table>
+
+**注意**：SD和RD不能同时为0！
+
+#### *2. 钟控RS触发器*
+
+- 加了个时钟控制门，只有CP=1时输入才有效
+- **问题**：CP=1期间，如果输入变化，输出会跟着变，这叫**空翻**
+
+#### *3. 钟控D触发器*
+
+- 只有一个输入端D，解决了约束问题
+- **特性**：Q^(n+1) = D（CP=1时）
+- **还是有空翻问题！**
+
+#### *4. 主从触发器*
+
+**核心思想**：分两步走，彻底消除空翻！
+
+- **CP=1期间**：主触发器接收信号，从触发器保持不动
+- **CP下降沿**：主触发器状态一次性传给从触发器
+
+<table><thead><tr><th><p>类型</p></th><th><p>触发沿</p></th><th><p>特点</p></th></tr></thead><tbody><tr><td><p>主从RS</p></td><td><p>下降沿</p></td><td><p>有约束条件（RS=0）</p></td></tr><tr><td><p>主从JK</p></td><td><p>下降沿</p></td><td><p>无约束，但有一次翻转问题</p></td></tr></tbody></table>
+
+#### *5. 边沿触发器（性能最优）*
+
+只在时钟的上升沿或下降沿那一瞬间触发。
+
+<table><thead><tr><th><p>类型</p></th><th><p>触发沿</p></th><th><p>特点</p></th></tr></thead><tbody><tr><td><p>边沿D</p></td><td><p>上升沿</p></td><td><p>无空翻、无约束、无一次翻转</p></td></tr><tr><td><p>边沿JK</p></td><td><p>下降沿</p></td><td><p>无空翻、无约束、无一次翻转</p></td></tr></tbody></table>
+
+### 四、两个重要概念
+
+#### *1. 空翻（Race-around）*
+
+**定义**：同一个时钟脉冲期间，触发器状态连续多次翻转。
+
+**发生在**：钟控RS、钟控JK这类电平触发触发器。
+
+**解决办法**：用主从结构或边沿触发器。
+
+#### *2. 一次翻转（One-time Flip）*
+
+**定义**：CP=1期间，如果J、K信号多次变化，主触发器最多只翻转一次。
+
+**发生在**：主从JK触发器。
+
+**解决办法**：用边沿JK触发器。
+
+### 五、触发器特性方程汇总
+
+<table><thead><tr><th><p>触发器</p></th><th><p>特性方程</p></th><th><p>约束条件</p></th></tr></thead><tbody><tr><td><p>RS</p></td><td><p>Q^(n+1) = S + R̅·Q^n</p></td><td><p>SR = 0</p></td></tr><tr><td><p>钟控D</p></td><td><p>Q^(n+1) = D</p></td><td><p>无</p></td></tr><tr><td><p>主从RS</p></td><td><p>Q^(n+1) = S + R̅·Q^n</p></td><td><p>SR = 0</p></td></tr><tr><td><p>主从JK</p></td><td><p>Q^(n+1) = J·Q̅^n + K̅·Q^n</p></td><td><p>无</p></td></tr><tr><td><p>边沿D</p></td><td><p>Q^(n+1) = D</p></td><td><p>无</p></td></tr><tr><td><p>边沿JK</p></td><td><p>Q^(n+1) = J·Q̅^n + K̅·Q^n</p></td><td><p>无</p></td></tr><tr><td><p>T</p></td><td><p>Q^(n+1) = T ⊕ Q^n</p></td><td><p>无</p></td></tr></tbody></table>
+
+## 1.5 时序逻辑电路
+
+### 一、时序逻辑电路概述
+
+#### *1. 什么是时序逻辑电路？*
+
+时序逻辑电路的输出不仅取决于当前的输入信号，还取决于电路原来的状态，具有记忆功能。
+
+#### *2. 时序电路的组成*
+
+- **组合电路**：实现逻辑功能
+- **存储电路**：存储状态（由触发器构成）
+
+#### *3. 时序电路的分类*
+
+<table><thead><tr><th><p>类型</p></th><th><p>特点</p></th></tr></thead><tbody><tr><td><p>同步时序电路</p></td><td><p>统一时钟控制，所有触发器同时翻转</p></td></tr><tr><td><p>异步时序电路</p></td><td><p>无统一时钟，触发器逐级翻转</p></td></tr></tbody></table>
+
+### 二、时序电路的分析方法
+
+#### *分析步骤*
+
+1. 写出驱动方程（各触发器输入端的逻辑表达式）
+        ↓
+2. 写出状态方程（将驱动方程代入触发器特性方程）
+        ↓
+3. 写出输出方程
+        ↓
+4. 列出状态转换表/状态转换图
+        ↓
+5. 分析电路功能
+
+### 三、计数器
+
+#### *1. 计数器的分类*
+
+<table><thead><tr><th><p>分类方式</p></th><th><p>类型</p></th></tr></thead><tbody><tr><td><p>按工作方式</p></td><td><p>同步计数器、异步计数器</p></td></tr><tr><td><p>按计数进制</p></td><td><p>二进制计数器、十进制计数器、任意进制计数器</p></td></tr><tr><td><p>按计数方向</p></td><td><p>加法计数器、减法计数器、可逆计数器</p></td></tr></tbody></table>
+
+#### *2. 同步计数器 vs 异步计数器*
+
+<table><thead><tr><th><p>特性</p></th><th><p>同步计数器</p></th><th><p>异步计数器</p></th></tr></thead><tbody><tr><td><p>时钟</p></td><td><p>所有触发器共用同一时钟</p></td><td><p>时钟逐级传递</p></td></tr><tr><td><p>速度</p></td><td><p>快</p></td><td><p>慢（存在累计延迟）</p></td></tr><tr><td><p>电路</p></td><td><p>较复杂</p></td><td><p>较简单</p></td></tr><tr><td><p>可靠性</p></td><td><p>高</p></td><td><p>低（可能出现毛刺）</p></td></tr></tbody></table>
+
+#### *3. 任意进制计数器的实现方法*
+
+**（1）反馈清零法**
+
+设定计数模为N，当计数到N时，对计数器发出清零信号。
+
+- **同步清零**：清零信号需等待时钟有效沿
+- **异步清零**：清零信号立即生效
+
+**（2）反馈置数法**
+
+当计数满到溢出时，控制计数器的加载预置端。
+
+- **同步置数**：需等待时钟有效沿才加载
+- **异步置数**：立即加载
+
+### 四、寄存器
+
+#### *1. 基本寄存器*
+
+用于存储多位二进制数据，由多个触发器并行组成。
+
+#### *2. 移位寄存器*
+
+<table><thead><tr><th><p>类型</p></th><th><p>功能</p></th></tr></thead><tbody><tr><td><p>左移寄存器</p></td><td><p>数据从右向左移动</p></td></tr><tr><td><p>右移寄存器</p></td><td><p>数据从左向右移动</p></td></tr><tr><td><p>双向移位寄存器</p></td><td><p>可左移也可右移</p></td></tr><tr><td><p>循环移位寄存器</p></td><td><p>移出的数据从另一端移入</p></td></tr></tbody></table>
+
+#### *3. 移位寄存器的应用*
+
+- 串行-并行数据转换
+- 并行-串行数据转换
+- 数据延迟
+- 构成计数器
+
+### 五、有限状态机（FSM）
+
+#### *1. Mealy机 vs Moore机*
+
+<table><thead><tr><th><p>特性</p></th><th><p>Mealy机</p></th><th><p>Moore机</p></th></tr></thead><tbody><tr><td><p>输出依赖</p></td><td><p>当前状态 + 输入</p></td><td><p>仅当前状态</p></td></tr><tr><td><p>输出时序</p></td><td><p>可能随输入变化</p></td><td><p>只在时钟沿变化</p></td></tr><tr><td><p>稳定性</p></td><td><p>相对较差</p></td><td><p>较好</p></td></tr></tbody></table>
+
+#### *2. 状态机设计步骤*
+
+1. 分析功能需求，确定输入输出
+        ↓
+2. 建立状态转换图/状态转换表
+        ↓
+3. 状态化简（合并等价状态）
+        ↓
+4. 状态分配（编码）
+        ↓
+5. 确定触发器类型和数量
+        ↓
+6. 导出驱动方程和输出方程
+        ↓
+7. 画出逻辑电路图
+
+## 1.6 EDA与Verilog设计
+
+### 一、EDA技术概述
+
+#### *1.1 EDA基本概念*
+
+**EDA（Electronic Design Automation，电子设计自动化）** 是以计算机为工作平台，以EDA软件工具为开发环境，以PLD器件或者ASIC专用集成电路为目标器件设计实现电路系统的一种技术。
+
+#### *1.2 EDA设计流程*
+
+设计输入 → 综合 → 适配 → 仿真 → 编程下载 → 硬件测试
+
+<table><thead><tr><th><p>步骤</p></th><th><p>说明</p></th></tr></thead><tbody><tr><td><p><strong>设计输入</strong></p></td><td><p>编辑输入电路原理图或HDL代码</p></td></tr><tr><td><p><strong>综合</strong></p></td><td><p>对输入的逻辑描述进行逻辑综合，生成网表文件</p></td></tr><tr><td><p><strong>适配</strong></p></td><td><p>对综合后的网表文件针对选定的PLD器件进行适配，生成下载文件和时序仿真数据</p></td></tr><tr><td><p><strong>仿真</strong></p></td><td><p>计算机根据一定的算法和仿真库对EDA设计进行模拟测试（功能仿真、时序仿真）</p></td></tr><tr><td><p><strong>编程下载</strong></p></td><td><p>将适配器生成的下载或配置文件向FPGA下载，以便进行硬件调试和验证</p></td></tr><tr><td><p><strong>硬件测试</strong></p></td><td><p>将含有载入了设计文件的FPGA或CPLD的硬件系统进行统一测试</p></td></tr></tbody></table>
+
+#### *1.3 设计方法对比*
+
+<table><thead><tr><th><p>特性</p></th><th><p>自底向上（传统）</p></th><th><p>自顶向下（EDA）</p></th></tr></thead><tbody><tr><td><p>应用</p></td><td><p>传统电子设计技术</p></td><td><p>FPGA开发的主要设计手段</p></td></tr><tr><td><p>流程</p></td><td><p>从底层电路模块开始，逐步向上递推</p></td><td><p>从自然语言说明开始，逐步求精到底层电路</p></td></tr><tr><td><p>效率</p></td><td><p>低效、低可靠性、费时费力</p></td><td><p>高效、高可靠性、修改方便</p></td></tr></tbody></table>
+
+#### *1.4 可编程逻辑器件对比*
+
+<table><thead><tr><th><p>器件</p></th><th><p>与阵列</p></th><th><p>或阵列</p></th><th><p>输出电路</p></th></tr></thead><tbody><tr><td><p><strong>PROM</strong></p></td><td><p>固定</p></td><td><p>可编程</p></td><td><p>固定</p></td></tr><tr><td><p><strong>PLA</strong></p></td><td><p>可编程</p></td><td><p>可编程</p></td><td><p>固定</p></td></tr><tr><td><p><strong>PAL</strong></p></td><td><p>可编程</p></td><td><p>固定</p></td><td><p>固定</p></td></tr><tr><td><p><strong>GAL</strong></p></td><td><p>可编程</p></td><td><p>固定</p></td><td><p>可组态</p></td></tr></tbody></table>
+
+#### *1.5 CPLD与FPGA对比*
+
+<table><thead><tr><th><p>特性</p></th><th><p>CPLD</p></th><th><p>FPGA</p></th></tr></thead><tbody><tr><td><p><strong>内部结构</strong></p></td><td><p>与或阵列（乘积项）</p></td><td><p>查找表（LUT）</p></td></tr><tr><td><p><strong>程序存储</strong></p></td><td><p>内部EEPROM</p></td><td><p>SRAM，外挂EPROM</p></td></tr><tr><td><p><strong>资源类型</strong></p></td><td><p>组合电路资源丰富</p></td><td><p>触发器资源丰富</p></td></tr><tr><td><p><strong>集成度</strong></p></td><td><p>低</p></td><td><p>高</p></td></tr><tr><td><p><strong>使用场合</strong></p></td><td><p>完成控制逻辑</p></td><td><p>能完成比较复杂的算法</p></td></tr><tr><td><p><strong>速度</strong></p></td><td><p>慢</p></td><td><p>快</p></td></tr><tr><td><p><strong>保密性</strong></p></td><td><p>可加密</p></td><td><p>一般不能保密</p></td></tr></tbody></table>
+
+### 二、Verilog HDL基础
+
+#### *2.1 模块基本结构*
+
+<strong>module</strong> 模块名 <strong>(</strong>端口名1<strong>,</strong> 端口名2<strong>,</strong> …<strong>);</strong>
+    <em>// 模块端口描述</em>
+    input<strong>/</strong>output<strong>/</strong>inout 端口名1<strong>,</strong> 端口名2<strong>,</strong> …<strong>;</strong>
+    wire<strong>/</strong>reg 变量名1<strong>,</strong> 变量名2<strong>,</strong> …<strong>;</strong>
+    parameter 变量名1<strong>,</strong> 变量名2<strong>,</strong> …<strong>;</strong>
+    
+    <em>// 模块功能描述</em>
+    <strong>always @ (</strong>敏感信号1<strong>,</strong> 敏感信号2<strong>,</strong> …<strong>) begin</strong>
+        <em>// 顺序语句</em>
+    <strong>end
+    
+    assign</strong> 目标变量名 <strong>=</strong> 驱动表达式<strong>;
+    
+    &lt;</strong>模块元件名<strong>&gt; &lt;</strong>例化元件名<strong>&gt; (</strong>.内部端口1<strong>(</strong>外接端口1<strong>),</strong> …<strong>);
+endmodule</strong>
+
+#### *2.2 数据类型*
+
+<table><thead><tr><th><p>类型</p></th><th><p>关键字</p></th><th><p>说明</p></th></tr></thead><tbody><tr><td><p><strong>寄存器型</strong></p></td><td><p>reg</p></td><td><p>表示暂时存储数据的变量，在always过程中被赋值的信号必须是reg型</p></td></tr><tr><td><p><strong>网线型</strong></p></td><td><p>wire</p></td><td><p>进程之间的物理互连，assign语句左侧必须是wire型，默认类型</p></td></tr><tr><td><p><strong>整数型</strong></p></td><td><p>integer</p></td><td><p>不必特指位数，默认为32位宽的二进制寄存器类型</p></td></tr><tr><td><p><strong>参数型</strong></p></td><td><p>parameter</p></td><td><p>定义常量，用标识符代表某个常量</p></td></tr><tr><td><p><strong>局部参数</strong></p></td><td><p>localparam</p></td><td><p>无法通过外部程序改变定义的常量</p></td></tr></tbody></table>
+
+#### *2.3 四种逻辑状态*
+
+<table><thead><tr><th><p>状态</p></th><th><p>含义</p></th></tr></thead><tbody><tr><td><p><strong>0</strong></p></td><td><p>二进制0、低电平、逻辑0、事件为伪的判断结果</p></td></tr><tr><td><p><strong>1</strong></p></td><td><p>二进制1、高电平、逻辑1、事件为真的判断结果</p></td></tr><tr><td><p><strong>z/Z</strong></p></td><td><p>高阻态，或高阻值，不区分大小写</p></td></tr><tr><td><p><strong>x/X</strong></p></td><td><p>不确定，或未知的逻辑状态，不区分大小写</p></td></tr></tbody></table>
+
+#### *2.4 数字表达形式*
+
+<位宽>'<进制><数字>
+
+- 进制：b/B二进制、o/O八进制、h/H十六进制、d/D十进制
+- 例：4'b1011（4位二进制1011）、8'hAC（8位十六进制AC）
+
+#### *2.5 逻辑操作符*
+
+<table><thead><tr><th><p>操作符</p></th><th><p>功能</p></th><th><p>示例</p></th></tr></thead><tbody><tr><td><p>~</p></td><td><p>逻辑取反</p></td><td><p>~A</p></td></tr><tr><td><p>\|</p></td><td><p>逻辑或</p></td><td><p>A \| B</p></td></tr><tr><td><p>&amp;</p></td><td><p>逻辑与</p></td><td><p>A &amp; B</p></td></tr><tr><td><p>^</p></td><td><p>逻辑异或</p></td><td><p>A ^ B</p></td></tr><tr><td><p>~^ 或 ^~</p></td><td><p>逻辑同或</p></td><td><p>A ~^ B</p></td></tr></tbody></table>
+
+#### *2.6 算术操作符*
+
+<table><thead><tr><th><p>操作符</p></th><th><p>功能</p></th><th><p>说明</p></th></tr></thead><tbody><tr><td><p>+</p></td><td><p>加</p></td><td><p>全部当无符号数处理</p></td></tr><tr><td><p>-</p></td><td><p>减</p></td><td><p>输出结果是补码</p></td></tr><tr><td><p>*</p></td><td><p>乘</p></td><td><p>无符号数直接乘，有符号数相乘结果为补码</p></td></tr><tr><td><p>/</p></td><td><p>除</p></td><td><p>小数抛弃</p></td></tr><tr><td><p>%</p></td><td><p>取余</p></td><td><p>求余数</p></td></tr></tbody></table>
+
+#### *2.7 等式操作符*
+
+<table><thead><tr><th><p>操作符</p></th><th><p>含义</p></th><th><p>说明</p></th></tr></thead><tbody><tr><td><p>==</p></td><td><p>等于</p></td><td><p>标准等于比较</p></td></tr><tr><td><p>!=</p></td><td><p>不等于</p></td><td><p>标准不等于比较</p></td></tr><tr><td><p>===</p></td><td><p>全等</p></td><td><p>将x或z都当成确定的值进行比较</p></td></tr><tr><td><p>!==</p></td><td><p>不全等</p></td><td><p>比较位数不等时直接判断数据不等</p></td></tr></tbody></table>
+
+#### *2.8 赋值方式*
+
+<table><thead><tr><th><p>赋值方式</p></th><th><p>符号</p></th><th><p>特点</p></th></tr></thead><tbody><tr><td><p><strong>阻塞式赋值</strong></p></td><td><p>=</p></td><td><p>一旦执行完当前赋值语句，赋值目标变量即刻获得计算值；若块中含多条阻塞赋值，执行到某条时其他语句被禁止执行</p></td></tr><tr><td><p><strong>非阻塞式赋值</strong></p></td><td><p>&lt;=</p></td><td><p>首先计算右侧表达式的值，进入等待时间段，允许块中其他赋值语句执行，直到块语句执行结束时才整体完成赋值</p></td></tr></tbody></table>
+
+**使用原则：时序逻辑放<=，组合逻辑放\`**
+
+#### *2.9 并位运算符*
+
+大括号{ }可以将两个或多个信号按二进制位拼接起来：
+
+<strong>{</strong>s1<strong>,</strong> s0<strong>}</strong>          <em>// 将s1、s0拼接为2位矢量</em>
+<strong>{</strong>a1<strong>,</strong> b1<strong>,</strong> 4<strong>{</strong>a2<strong>,</strong> b2<strong>}}</strong> <em>// 嵌套使用，等效于{a1, b1, a2, b2, a2, b2, a2, b2, a2, b2}</em>
+
+### 三、组合逻辑电路Verilog设计
+
+#### *3.1 基本描述方式*
+
+**（1）assign连续赋值语句（数据流描述）**
+
+<strong>module</strong> h\_adder<strong>(</strong>A<strong>,</strong> B<strong>,</strong> SO<strong>,</strong> CO<strong>);</strong>
+    input A<strong>,</strong> B<strong>;</strong>
+    output SO<strong>,</strong> CO<strong>;
+    assign</strong> SO <strong>=</strong> A <strong>^</strong> B<strong>;</strong>    <em>// 异或逻辑</em>
+    <strong>assign</strong> CO <strong>=</strong> A <strong>&amp;</strong> B<strong>;</strong>    <em>// 与逻辑</em>
+<strong>endmodule</strong>
+
+**（2）always过程语句（行为描述）**
+
+**module** MUX41a**(** a**,** b**,** c**,** d**,** s1**,** s0**,** y**);**
+    input a**,** b**,** c**,** d**,** s1**,** s0**;**
+    output y**;**
+    reg y**;
+    
+    always @(** a or b or c or d or s1 or s0**)
+        case({** s1**,** s0**})**
+            2'b00**:** y **<=** a**;**
+            2'b01**:** y **<=** b**;**
+            2'b10**:** y **<=** c**;**
+            2'b11**:** y **<=** d**;
+            default:** y **<=** a**;
+        endcase
+endmodule**
+
+**（3）条件赋值语句**
+
+wire AT <strong>=</strong> S0 <strong>?</strong> D <strong>:</strong> C<strong>;</strong>    <em>// 条件表达式 ? 表达式1 : 表达式2</em>
+wire BT <strong>=</strong> S0 <strong>?</strong> B <strong>:</strong> A<strong>;</strong>
+wire Y <strong>=</strong> S1 <strong>?</strong> AT <strong>:</strong> BT<strong>;</strong>
+
+#### *3.2 条件语句*
+
+**if-else语句**
+
+<strong>if (</strong>条件表达式<strong>)</strong> 语句1<strong>;
+else</strong> 语句2<strong>;</strong>
+
+<em>// 多条语句需用begin-end括起来</em>
+<strong>if (</strong>条件表达式<strong>) begin</strong>
+    语句1<strong>;</strong>
+    语句2<strong>;
+end
+else begin</strong>
+    语句3<strong>;</strong>
+    语句4<strong>;
+end</strong>
+
+**case语句**
+
+**case (** 表达式**)**
+    取值1**: begin** 语句1**;** 语句2**;** … **end**
+    取值2**: begin** 语句n**+** 1**;** 语句n**+** 2**;** … **end**
+    …
+    **default: begin** 语句n**+** m**+** 1**;** … **end
+endcase**
+
+**注意：case语句必须有default，避免综合器插入不必要的锁存器**
+
+#### *3.3 元件例化*
+
+**端口名关联法（推荐）**
+
+h\_adder U2 <strong>(</strong>.A<strong>(</strong>net1<strong>),</strong> .SO<strong>(</strong>sum<strong>),</strong> .B<strong>(</strong>cin<strong>),</strong> .CO<strong>(</strong>net3<strong>));</strong>
+<em>// 位置不影响连接结果</em>
+
+**位置关联法**
+
+h\_adder U1 <strong>(</strong>ain<strong>,</strong> bin<strong>,</strong> net1<strong>,</strong> net2<strong>);</strong>
+<em>// 端口顺序和位置必须一一对应</em>
+
+#### *3.4 门级原语*
+
+Verilog预先定义的基本逻辑单元：and、nand、or、nor、xor、xnor、not等。
+
+and U1 <strong>(</strong>net1<strong>,</strong> A<strong>,</strong> B<strong>);</strong>    <em>// 与门</em>
+or U2 <strong>(</strong>Y<strong>,</strong> net1<strong>,</strong> net2<strong>);</strong>  <em>// 或门</em>
+
+### 四、时序逻辑电路Verilog设计
+
+#### *4.1 基本时序元件*
+
+**（1）D触发器（边沿触发）**
+
+<strong>module</strong> DFF1<strong>(</strong>CLK<strong>,</strong> D<strong>,</strong> Q<strong>);</strong>
+    output Q<strong>;</strong>
+    input CLK<strong>,</strong> D<strong>;</strong>
+    reg Q<strong>;
+    
+    always @(posedge</strong> CLK<strong>)</strong>    <em>// CLK上升沿启动</em>
+        Q <strong>&lt;=</strong> D<strong>;</strong>               <em>// CLK有上升沿时，D被锁入Q</em>
+<strong>endmodule</strong>
+
+**（2）含异步复位和时钟使能的D触发器**
+
+<strong>module</strong> DFF2<strong>(</strong>CLK<strong>,</strong> D<strong>,</strong> Q<strong>,</strong> RST<strong>,</strong> EN<strong>);</strong>
+    output Q<strong>;</strong>
+    input CLK<strong>,</strong> D<strong>,</strong> RST<strong>,</strong> EN<strong>;</strong>
+    reg Q<strong>;
+    
+    always @(posedge</strong> CLK or <strong>negedge</strong> RST<strong>) begin
+        if (!</strong>RST<strong>)</strong> Q <strong>&lt;=</strong> 0<strong>;</strong>      <em>// 异步复位</em>
+        <strong>else if (</strong>EN<strong>)</strong> Q <strong>&lt;=</strong> D<strong>;</strong>   <em>// 时钟使能</em>
+    <strong>end
+endmodule</strong>
+
+**（3）锁存器（电平触发）**
+
+<strong>module</strong> LATCH1<strong>(</strong>CLK<strong>,</strong> D<strong>,</strong> Q<strong>);</strong>
+    output Q<strong>;</strong>
+    input CLK<strong>,</strong> D<strong>;</strong>
+    reg Q<strong>;
+    
+    always @(</strong>D or CLK<strong>)
+        if (</strong>CLK<strong>)</strong> Q <strong>&lt;=</strong> D<strong>;</strong>    <em>// CLK为高电平时，Q随D改变</em>
+<strong>endmodule</strong>
+
+**注意：if没有else会导致锁存器生成**
+
+#### *4.2 敏感信号表规则*
+
+<table><thead><tr><th><p>信号类型</p></th><th><p>敏感信号表</p></th><th><p>always内部</p></th></tr></thead><tbody><tr><td><p><strong>边沿触发时钟</strong></p></td><td><p>必须写posedge clk或negedge clk</p></td><td><p>不能再出现该时钟信号</p></td></tr><tr><td><p><strong>异步控制信号</strong></p></td><td><p>写posedge rst或negedge rst</p></td><td><p>必须明示该信号的逻辑行为</p></td></tr><tr><td><p><strong>同步控制信号</strong></p></td><td><p><strong>绝不可以出现</strong></p></td><td><p>写在if条件中</p></td></tr></tbody></table>
+
+**重要规则：** - 敏感信号表中不允许出现混合信号（一旦含有posedge/negedge，其他普通变量不能放入） - 若定义某变量为异步电平敏感信号，则在if条件句中应该对敏感信号表中的信号有匹配的表述 - 非复位或置位的独立于时钟的信号只能在其他过程中定义
+
+#### *4.3 计数器设计*
+
+**4位二进制计数器**
+
+**module** CNT4**(** CLK**,** Q**);**
+    output **[** 3**:** 0**]** Q**;**
+    input CLK**;**
+    reg **[** 3**:** 0**]** Q**;
+    
+    always @(posedge** CLK**)**
+        Q **<=** Q **+** 1**;
+endmodule**
+
+**异步复位同步计数使能可预置型十进制计数器**
+
+<strong>module</strong> CNT10<strong>(</strong>CLK<strong>,</strong> RST<strong>,</strong> EN<strong>,</strong> LOAD<strong>,</strong> COUT<strong>,</strong> DOUT<strong>,</strong> DATA<strong>);</strong>
+    input CLK<strong>,</strong> EN<strong>,</strong> RST<strong>,</strong> LOAD<strong>;</strong>
+    input <strong>[</strong>3<strong>:</strong>0<strong>]</strong> DATA<strong>;</strong>
+    output <strong>[</strong>3<strong>:</strong>0<strong>]</strong> DOUT<strong>;</strong>
+    output COUT<strong>;</strong>
+    reg <strong>[</strong>3<strong>:</strong>0<strong>]</strong> Q1<strong>;</strong>
+    reg COUT<strong>;
+    
+    assign</strong> DOUT <strong>=</strong> Q1<strong>;
+    
+    always @(posedge</strong> CLK or <strong>negedge</strong> RST<strong>) begin</strong>    <em>// 时序过程</em>
+        <strong>if (!</strong>RST<strong>)</strong> Q1 <strong>&lt;=</strong> 0<strong>;</strong>                         <em>// 异步清0</em>
+        <strong>else if (</strong>EN<strong>) begin</strong>                         <em>// 同步使能</em>
+            <strong>if (!</strong>LOAD<strong>)</strong> Q1 <strong>&lt;=</strong> DATA<strong>;</strong>                 <em>// 同步加载</em>
+            <strong>else if (</strong>Q1 <strong>&lt;</strong> 9<strong>)</strong> Q1 <strong>&lt;=</strong> Q1 <strong>+</strong> 1<strong>;
+            else</strong> Q1 <strong>&lt;=</strong> 4'b0000<strong>;
+        end
+    end
+    
+    always @(</strong>Q1<strong>)</strong>                                   <em>// 组合过程</em>
+        <strong>if (</strong>Q1 <strong>==</strong> 4'h9<strong>)</strong> COUT <strong>=</strong> 1'b1<strong>;
+        else</strong> COUT <strong>=</strong> 1'b0<strong>;
+endmodule</strong>
+
+#### *4.4 移位寄存器*
+
+**8位并行输入串行输出移位寄存器**
+
+<strong>module</strong> SHFT1<strong>(</strong>CLK<strong>,</strong> LOAD<strong>,</strong> DIN<strong>,</strong> QB<strong>);</strong>
+    output QB<strong>;</strong>
+    input CLK<strong>,</strong> LOAD<strong>;</strong>
+    input <strong>[</strong>7<strong>:</strong>0<strong>]</strong> DIN<strong>;</strong>
+    reg <strong>[</strong>7<strong>:</strong>0<strong>]</strong> REG8<strong>;
+    
+    always @(posedge</strong> CLK<strong>)
+        if (</strong>LOAD<strong>)</strong> REG8 <strong>&lt;=</strong> DIN<strong>;
+        else</strong> REG8<strong>[</strong>6<strong>:</strong>0<strong>] &lt;=</strong> REG8<strong>[</strong>7<strong>:</strong>1<strong>];</strong>    <em>// 右移</em>
+    
+    <strong>assign</strong> QB <strong>=</strong> REG8<strong>[</strong>0<strong>];
+endmodule</strong>
+
+### 五、有限状态机（FSM）设计
+
+#### *5.1 状态机结构*
+
+最常用的状态机结构包含： 1. **说明部分**：状态转换变量的定义和所有可能状态的说明 2. **主控时序过程**：负责状态机运转和在时钟驱动下负责状态转换 3. **主控组合过程**：根据当前状态和外部信号发出控制信号，确定下一状态走向 4. **辅助过程**：配合状态机工作的组合过程或时序过程
+
+#### *5.2 状态机模板*
+
+<strong>module</strong> FSM\_EXP<strong>(</strong>clk<strong>,</strong> reset<strong>,</strong> state\_inputs<strong>,</strong> comb\_outputs<strong>);</strong>
+    input clk<strong>;</strong>
+    input reset<strong>;</strong>
+    input <strong>[</strong>0<strong>:</strong>1<strong>]</strong> state\_inputs<strong>;</strong>
+    output <strong>[</strong>3<strong>:</strong>0<strong>]</strong> comb\_outputs<strong>;</strong>
+    reg <strong>[</strong>3<strong>:</strong>0<strong>]</strong> comb\_outputs<strong>;</strong>
+    
+    parameter s0<strong>=</strong>0<strong>,</strong> s1<strong>=</strong>1<strong>,</strong> s2<strong>=</strong>2<strong>,</strong> s3<strong>=</strong>3<strong>,</strong> s4<strong>=</strong>4<strong>;</strong>    <em>// 定义状态参数</em>
+    reg <strong>[</strong>4<strong>:</strong>0<strong>]</strong> c\_st<strong>,</strong> next\_state<strong>;</strong>                 <em>// 现态和次态变量
+    
+    // 主控时序过程</em>
+    <strong>always @(posedge</strong> clk or <strong>negedge</strong> reset<strong>) begin
+        if (!</strong>reset<strong>)</strong> c\_st <strong>&lt;=</strong> s0<strong>;</strong>                 <em>// 复位有效时进入初态</em>
+        <strong>else</strong> c\_st <strong>&lt;=</strong> next\_state<strong>;
+    end</strong>
+    
+    <em>// 主控组合过程</em>
+    <strong>always @(</strong>c\_st or state\_inputs<strong>) begin
+        case (</strong>c\_st<strong>)</strong>
+            s0: <strong>begin</strong>
+                comb\_outputs <strong>&lt;=</strong> 5<strong>;
+                if (</strong>state\_inputs <strong>==</strong> 2'b00<strong>)</strong> next\_state <strong>&lt;=</strong> s0<strong>;
+                else</strong> next\_state <strong>&lt;=</strong> s1<strong>;
+            end</strong>
+            s1: <strong>begin</strong>
+                comb\_outputs <strong>&lt;=</strong> 8<strong>;
+                if (</strong>state\_inputs <strong>==</strong> 2'b01<strong>)</strong> next\_state <strong>&lt;=</strong> s1<strong>;
+                else</strong> next\_state <strong>&lt;=</strong> s2<strong>;
+            end</strong>
+            <em>// ... 其他状态</em>
+            <strong>default:</strong> next\_state <strong>&lt;=</strong> s0<strong>;
+        endcase
+    end
+endmodule</strong>
+
+#### *5.3 状态机设计要点*
+
+<table><thead><tr><th><p>要点</p></th><th><p>说明</p></th></tr></thead><tbody><tr><td><p><strong>复位时的ns赋值</strong></p></td><td><p>复位只应改变当前状态(cs)，不应给次态(ns)赋值</p></td></tr><tr><td><p><strong>= vs &lt;=</strong></p></td><td><p>组合逻辑（always @(*)）中用阻塞赋值；时序逻辑中用非阻塞赋值</p></td></tr><tr><td><p><strong>默认赋值</strong></p></td><td><p>在每个状态中设置所有控制变量，防止生成锁存器</p></td></tr><tr><td><p><strong>case语句</strong></p></td><td><p>必须有default，避免综合出锁存器</p></td></tr></tbody></table>
+
+### 六、Tips与易错点
+
+#### *6.1 同步与异步判断*
+
+**如何判断一个数字电路是同步控制还是异步控制：** - 从左侧引出的就是**同步** - 从上下两侧引出的就是**异步**
+
+#### *6.2 敏感信号表与if判断*
+
+@() 里决定"什么时候触发"，if 里决定"触发后做什么"。
+
+<table><thead><tr><th><p>逻辑类型</p></th><th><p>@()里写什么</p></th><th><p>if里写什么</p></th></tr></thead><tbody><tr><td><p>时序逻辑</p></td><td><p>必须写时钟沿posedge clk；可选写复位沿or posedge rst_n（异步信号）</p></td><td><p>同步信号：复位判断、控制信号（load, en）、数据条件</p></td></tr></tbody></table>
+
+#### *6.3 常见错误*
+
+<table><thead><tr><th><p>错误类型</p></th><th><p>错误描述</p></th><th><p>正确做法</p></th></tr></thead><tbody><tr><td><p><strong>多驱动冲突</strong></p></td><td><p>对同一信号同时使用assign和always赋值</p></td><td><p>去掉assign，把加法逻辑放进always块，或用中间变量</p></td></tr><tr><td><p><strong>逻辑死锁</strong></p></td><td><p>在一个always语句里既读又写同一信号</p></td><td><p>不要在一个always里既读又写；assign是导线，reg是存储/逻辑块</p></td></tr><tr><td><p><strong>锁存器陷阱</strong></p></td><td><p>组合逻辑中if没有else，case没有default</p></td><td><p>组合逻辑必须完全由输入决定，所有分支都要有明确赋值</p></td></tr><tr><td><p><strong>同步信号位置错误</strong></p></td><td><p>同步信号出现在敏感信号表中</p></td><td><p>同步信号应写在if条件中，绝不可以出现在敏感信号表中</p></td></tr></tbody></table>
+
+#### *6.4 毛刺消除*
+
+**核心思路：** 1. **采用同步设计（最推荐）**：利用触发器对信号进行”打拍”（采样） 2. **引入选通/锁存信号**：信号完全稳定后才打开选通门 3. **逻辑设计优化**：卡诺图增加圈避免相切，改用格雷码计数器 4. **硬件滤波**：输出端并联小电容
+
+**Verilog中打两拍消除毛刺：**
+
+<strong>always @(posedge</strong> clk or <strong>negedge</strong> rst\_n<strong>) begin
+    if (!</strong>rst\_n<strong>) begin</strong>
+        din\_r1 <strong>&lt;=</strong> 1'b0<strong>;</strong>
+        dout   <strong>&lt;=</strong> 1'b0<strong>;
+    end else begin</strong>
+        din\_r1 <strong>&lt;=</strong> din<strong>;</strong>      <em>// 第一拍：可能采到毛刺</em>
+        dout   <strong>&lt;=</strong> din\_r1<strong>;</strong>   <em>// 第二拍：过滤毛刺，输出稳定信号</em>
+    <strong>end
+end</strong>
+
+#### *6.5 编程建议*
+
+1. **使用软件顺序执行+数据流的观念**，如果没有时序，将组合逻辑全部写在一个always语句里
+2. **一个时钟对应一个always语句**
+3. **assign语句要放在always外面**
+4. **避免使用for、while、repeat**：这些语句更接近计算机软件程序设计思维（串行），而非硬件描述思维（并行）
+5. **文件名与模块名一致**，后缀为.v，不要用中文或数字命名
+
+# 第2部分 重要习题整理
+
+## 2.1 基本理论和知识（25题，填空、选择、简答）
+
+**教学分目标1：** 掌握数制与编码、逻辑代数、门电路、组合电路及时序电路的基本理论和相关知识，具备数字逻辑与数字电路的计算思维。（支撑毕业要求1.2）–掌握硬件描述语言Verilog HDL
+
+### 1.1 数字逻辑基础
+
+**1.** 组合逻辑电路的输出只取决于\_\_\_\_\_\_，与电路原来的状态\_\_\_\_\_\_。
+
+**2.** 二进制数的基数是\_\_\_\_\_\_。
+
+**3.** 十进制数转二进制数，整数部分用\_\_\_\_\_\_法，小数部分用\_\_\_\_\_\_法。
+
+**4.** 8位补码表示的范围是\_\_\_\_\_\_。
+
+**5.** 格雷码的特点是相邻两个代码只有\_\_\_\_\_\_位不同。
+
+**6.** 将下列二进制数转换为十进制数： $(110101.101)_{2}$
+
+**7.** 用补码计算 7 - 5 和 4 - 6。
+
+### 1.2 逻辑门电路
+
+**8.** CMOS反相器由\_\_\_\_\_\_和\_\_\_\_\_\_组成。
+
+**9.** CMOS门电路中，与非门的上拉网络(PUN)是\_\_\_\_\_\_，下拉网络(PDN)是\_\_\_\_\_\_。
+
+**10.** 三态门的三种输出状态是\_\_\_\_\_\_、\_\_\_\_\_\_和\_\_\_\_\_\_。
+
+**11.** OC门必须外接\_\_\_\_\_\_才能正常工作。
+
+### 1.3 组合逻辑电路
+
+**12.** 74LS138是\_\_\_\_\_\_译码器，有\_\_\_\_\_\_个地址输入端，\_\_\_\_\_\_个输出端。
+
+**13.** 74LS138正常工作的条件是：G1=\_\_\_\_\_\_，G2A=\_\_\_\_\_\_，G2B=\_\_\_\_\_\_。
+
+**14.** 半加器有\_\_\_\_\_\_个输入，\_\_\_\_\_\_个输出；全加器有\_\_\_\_\_\_个输入，\_\_\_\_\_\_个输出。
+
+**15.** 竞争是指两个输入\_\_\_\_\_\_，冒险是指因竞争在输出产生\_\_\_\_\_\_。
+
+### 1.4 触发器
+
+**16.** 基本RS触发器的约束条件是\_\_\_\_\_\_。
+
+**17.** 钟控D触发器的特性方程是\_\_\_\_\_\_。
+
+**18.** JK触发器的特性方程是\_\_\_\_\_\_，当J=K=1时，触发器实现\_\_\_\_\_\_功能。
+
+**19.** 若想解决触发器的”振荡”与”空翻”现象，可采用（ **D** ） - A．高电平触发 - B．低电平触发 - C．主从触发 - D．边沿触发
+
+**20.** 欲使JK触发器按 $Q^{n+1}=\overline{Q^{n}}$  工作，可使JK触发器的输入端（ **A** ） - A. J=K=1 - B. J=0，K=1 - C. J=0，K=0 - D. J=1，K=0
+
+### 1.5 时序逻辑电路
+
+**21.** 时序逻辑电路与组合逻辑电路的根本区别是时序电路具有\_\_\_\_\_\_功能。
+
+**22.** 同步时序电路中，所有触发器的时钟端都接\_\_\_\_\_\_时钟信号。
+
+**23.** 用n个触发器构成的二进制计数器，最多可计\_\_\_\_\_\_个数。
+
+**24.** 反馈清零法构成N进制计数器时，当计数到\_\_\_\_\_\_时发出清零信号。
+
+**25.** 状态机分为\_\_\_\_\_\_机和\_\_\_\_\_\_机两种类型，Mealy型状态机的输出与\_\_\_\_\_\_和\_\_\_\_\_\_有关。
+
+**参考答案**
+
+## 2.2 建模与分析（6题，工程问题理论分析、EDA实践）
+
+**教学分目标2：** 能运用数字逻辑、组合电路及时序电路的分析方法，对数字系统领域中所涉及的复杂工程问题进行建模、分析。（支撑毕业要求2.2）–掌握硬件描述语言Verilog HDL
+
+### 2.2.1 分析时序逻辑电路（SR/T/D触发器）
+
+#### *题目要求*
+
+分析时序逻辑电路，要求： （1）写出各触发器的驱动方程； （2）写出各触发器的状态方程； （3）列出状态表； （4）画出完整的状态转换图。
+
+![](images/6c79b082a86cacf6587fbc599d3a5236a21fb2a754e2e21f777eec17998ec8ad.jpg)
+
+*image*
+
+#### *解答*
+
+**（1）驱动方程**
+
+$$
+\begin{array}{c}\&SR触发器FF_{0}:\\\&S_{0}=Q_{1}\cdot \overline{Q_{0}}\\\&R_{0}=Q_{1}\\\\\&T触发器FF_{1}:\\\&T_{1}=Q_{0}\\\\\&D触发器FF_{2}:\\\&D_{2}=Q_{1}\cdot Q_{0}\end{array}
+$$
+
+**（2）状态方程**
+
+$$
+\begin{array}{c}\&FF_{0}(SR):Q_{0}^{n+1}=S_{0}+\overline{R_{0}}Q_{0}^{n}=Q_{1}\overline{Q_{0}}+\overline{Q_{1}}Q_{0}=Q_{1}\oplus Q_{0}\\\&FF_{1}(T):Q_{1}^{n+1}=T_{1}\oplus Q_{1}^{n}=Q_{0}\oplus Q_{1}\\\&FF_{2}(D):Q_{2}^{n+1}=D_{2}=Q_{1}Q_{0}\end{array}
+$$
+
+**（3）状态表**
+
+**（4）状态转换图**
+
+000 → 000 (自循环)
+001 → 011 → 100 → 000
+010 → 011 → 100 → 000
+101 → 011 → 100 → 000
+110 → 011 → 100 → 000
+111 → 100 → 000
+
+有效循环：**000 → 000**（自保持状态）
+
+### 2.2.2 分析时序电路（D触发器+状态转移）
+
+#### *题目要求*
+
+分析时序电路，写出其状态转移方程和时钟方程，作出状态转移真值表，请说明该电路是否有自启动功能。
+
+![](images/49fbd71936b0399f82bc925db291ab7018368f4e52bb23de1759e918c8d0c93d.jpg)
+
+*image*
+
+#### *解答*
+
+**状态转移方程**
+
+$$
+\begin{array}{c}\&D_{0}=\overline{Q_{0}+Q_{1}}=\overline{Q_{0}}\cdot \overline{Q_{1}}\\\&D_{1}=Q_{0}\\\\\&Q_{0}^{n+1}=D_{0}=\overline{Q_{0}^{n}+Q_{1}^{n}}\\\&Q_{1}^{n+1}=D_{1}=Q_{0}^{n}\end{array}
+$$
+
+**时钟方程**
+
+$$
+CP_{0}=CP_{1}=CP
+$$
+
+（同步时序电路）
+
+**状态转移真值表**
+
+**状态转换关系**
+
+00 → 01 → 00 (循环)
+10 → 01 → 00 → 01 (进入循环)
+11 → 00 → 01 → 00 (进入循环)
+
+**自启动功能分析**
+
+**该电路具有自启动功能。**
+
+理由：无论电路初始状态为何（00、01、10、11），最终都能进入有效循环 00 ↔ 01。无效状态 10 和 11 都能在有限个时钟周期内自动进入有效循环，因此电路具有自启动能力。
+
+### 2.2.3 74LS161构成计数器分析
+
+#### *题目要求*
+
+使用74161（16进制计数器，同步置数，异步清零）构造计数器，分析计数器的状态转移图、模值。
+
+![](images/7f06c26565d7ffa4e94c4dc6db543d61755ddd46d1e615ca4333850e5d5fd76e.jpg)
+
+*image*
+
+#### *解答*
+
+**工作原理**
+
+74LS161为4位二进制同步计数器，根据电路图： - $\overline{R_{D}}=1$ （不清零） - $\overline{LD}=\overline{Q_{3}\cdot Q_{2}}$ （与非门输出） - $EP=ET=1$ （允许计数） - 置数输入 $D_{3}D_{2}D_{1}D_{0}=0000$
+
+当 $Q_{3}Q_{2}=11$ （即 $Q_{3}=1$ 且 $Q_{2}=1$ ）时， $\overline{LD}=0$ ，在下一个CLK上升沿同步置数，计数器回到0000。
+
+**状态转移分析**
+
+计数序列：
+
+0000 → 0001 → 0010 → 0011 → 0100 → 0101 → 0110 → 0111 → 
+1000 → 1001 → 1010 → 1011 → 1100 → (LD=0) → 0000
+
+有效状态：0000 \~ 1100（共13个状态）
+
+**状态转移图**
+
+0000 → 0001 → 0010 → 0011 → 0100 → 0101 → 0110 → 
+0111 → 1000 → 1001 → 1010 → 1011 → 1100 → ↻(回到0000)
+
+**模值**
+
+**模值 M = 13**（十三进制计数器）
+
+### 2.2.4 Verilog HDL代码填空（8421BCD到5421BCD转换）
+
+#### *题目要求*
+
+将Verilog HDL代码补充完整，以实现8421BCD码到5421BCD码的码制转换功能。
+
+![](images/b15556e8e95d78b174b3e540f4a2aa86e36e3638abbf81c6511ce66e0d23504c.jpg)
+
+*image*
+
+#### *解答*
+
+Module BCD8421to5421 <strong>(</strong>A<strong>,</strong>S<strong>);</strong>
+
+input <strong>[</strong>3<strong>:</strong>0<strong>]</strong> A<strong>;</strong>
+output <strong>[</strong>3<strong>:</strong>0<strong>]</strong> S<strong>;</strong>
+
+reg <strong>[</strong>3<strong>:</strong>0<strong>]</strong> S<strong>;</strong>  <em>// 填空1：输出需要定义为寄存器类型</em>
+
+<strong>always @(</strong>A<strong>) begin</strong>  <em>// 填空2：敏感列表为输入A</em>
+    <strong>if(</strong>A <strong>&gt;</strong> 4'b0100<strong>)</strong>  <em>// 当8421BCD码大于4时</em>
+        S <strong>=</strong> A <strong>+</strong> 4'b0011<strong>;</strong>  <em>// 填空3：加3（5421码=8421码+3）</em>
+    <strong>else</strong>
+        S <strong>=</strong> A<strong>;</strong>  <em>// 填空4：否则保持不变</em>
+<strong>end
+
+endmodule</strong>
+
+**转换原理**
+
+<table><thead><tr><th><p>十进制</p></th><th><p>8421BCD</p></th><th><p>5421BCD</p></th><th><p>转换规则</p></th></tr></thead><tbody><tr><td><p>0</p></td><td><p>0000</p></td><td><p>0000</p></td><td><p>不变</p></td></tr><tr><td><p>1</p></td><td><p>0001</p></td><td><p>0001</p></td><td><p>不变</p></td></tr><tr><td><p>2</p></td><td><p>0010</p></td><td><p>0010</p></td><td><p>不变</p></td></tr><tr><td><p>3</p></td><td><p>0011</p></td><td><p>0011</p></td><td><p>不变</p></td></tr><tr><td><p>4</p></td><td><p>0100</p></td><td><p>0100</p></td><td><p>不变</p></td></tr><tr><td><p>5</p></td><td><p>0101</p></td><td><p>1000</p></td><td><p>+0011</p></td></tr><tr><td><p>6</p></td><td><p>0110</p></td><td><p>1001</p></td><td><p>+0011</p></td></tr><tr><td><p>7</p></td><td><p>0111</p></td><td><p>1010</p></td><td><p>+0011</p></td></tr><tr><td><p>8</p></td><td><p>1000</p></td><td><p>1011</p></td><td><p>+0011</p></td></tr><tr><td><p>9</p></td><td><p>1001</p></td><td><p>1100</p></td><td><p>+0011</p></td></tr></tbody></table>
+
+**转换规则**：当8421BCD码≤4时，直接输出；当8421BCD码>4时，输出=输入+3。
+
+### 2.2.5 数据选择器逻辑电路分析
+
+#### *题目要求*
+
+用数据选择器组成的逻辑电路，要求： （1）写出输出函数F的表示式； （2）将函数F填入卡诺图。
+
+#### *解答*
+
+**（1）输出函数F的表示式**
+
+4选1数据选择器的输出表达式为：
+
+$$
+F=\overline{A_{1}}\overline{A_{0}}D_{0}+\overline{A_{1}}A_{0}D_{1}+A_{1}\overline{A_{0}}D_{2}+A_{1}A_{0}D_{3}
+$$
+
+代入电路连接： - $A_{1}=B$ ， $A_{0}=C$  - $D_{0}=A$ ， $D_{1}=0$ ， $D_{2}=A$ ， $D_{3}=1$
+
+$$
+\begin{array}{c}F\&=\overline{B}\overline{C}\cdot A+\overline{B}C\cdot 0+B\overline{C}\cdot A+BC\cdot 1\\\&=A\overline{B}\overline{C}+0+AB\overline{C}+BC\\\&=A\overline{C}(\overline{B}+B)+BC\\\&=A\overline{C}+BC\end{array}
+$$
+
+**最小项展开**：
+
+$$
+\begin{array}{c}F\&=A\overline{B}\overline{C}+AB\overline{C}+BC\\\&=A\overline{B}\overline{C}+AB\overline{C}+ABC+\overline{A}BC\\\&=m_{0}+m_{4}+m_{7}+m_{3}\\\&=\sum m(0,3,4,7)\end{array}
+$$
+
+**（2）卡诺图**
+
+**三变量卡诺图**（变量顺序：A、B、C）：
+
+AB
+C    00  01  11  10
+     ┌───┬───┬───┬───┐
+ 0   │ 1 │ 0 │ 1 │ 1 │
+     ├───┼───┼───┼───┤
+ 1   │ 0 │ 1 │ 1 │ 0 │
+     ───┴───┴──────┘
+
+**真值表**：
+
+<table><thead><tr><th><p>A</p></th><th><p>B</p></th><th><p>C</p></th><th><p>F</p></th></tr></thead><tbody><tr><td><p>0</p></td><td><p>0</p></td><td><p>0</p></td><td><p>1</p></td></tr><tr><td><p>0</p></td><td><p>0</p></td><td><p>1</p></td><td><p>0</p></td></tr><tr><td><p>0</p></td><td><p>1</p></td><td><p>0</p></td><td><p>0</p></td></tr><tr><td><p>0</p></td><td><p>1</p></td><td><p>1</p></td><td><p>1</p></td></tr><tr><td><p>1</p></td><td><p>0</p></td><td><p>0</p></td><td><p>1</p></td></tr><tr><td><p>1</p></td><td><p>0</p></td><td><p>1</p></td><td><p>0</p></td></tr><tr><td><p>1</p></td><td><p>1</p></td><td><p>0</p></td><td><p>1</p></td></tr><tr><td><p>1</p></td><td><p>1</p></td><td><p>1</p></td><td><p>1</p></td></tr></tbody></table>
+
+### 2.2.6 7483加法器代码转换电路分析
+
+#### *题目要求*
+
+7483是4位二进制加法器。请用一片7483和少量门设计一个代码转换电路： - 输入信号 $V_{3}V_{2}V_{1}V_{0}$  为8421BCD码 - 输出信号 $Z_{3}Z_{2}Z_{1}Z_{0}$  为转换后的代码
+
+#### *逻辑分析*
+
+**分析各输出位**：
+
+**逻辑表达式**：
+
+$$
+Z_{0}=\overline{V_{3}V_{2}V_{1}}+V_{3}\overline{V_{2}}\overline{V_{1}}V_{0}=\overline{8}+9
+$$
+
+$$
+Z_{1}=0
+$$
+
+$$
+Z_{2}=V_{2}+V_{3}
+$$
+
+$$
+Z_{3}=V_{3}+V_{2}V_{1}
+$$
+
+**使用7483实现的设计方案**
+
+设计思路：利用加法器实现代码转换，通过设置适当的加数来实现映射关系。
+
+计算 $Z-V$ 的差值：
+
+<table><thead><tr><th><p>V(十进制)</p></th><th><p>V(二进制)</p></th><th><p>Z(二进制)</p></th><th><p>Z(十进制)</p></th><th><p>差值Z-V</p></th></tr></thead><tbody><tr><td><p>0</p></td><td><p>0000</p></td><td><p>0011</p></td><td><p>3</p></td><td><p>+3</p></td></tr><tr><td><p>1</p></td><td><p>0001</p></td><td><p>0011</p></td><td><p>3</p></td><td><p>+2</p></td></tr><tr><td><p>2</p></td><td><p>0010</p></td><td><p>0101</p></td><td><p>5</p></td><td><p>+3</p></td></tr><tr><td><p>3</p></td><td><p>0011</p></td><td><p>0101</p></td><td><p>5</p></td><td><p>+2</p></td></tr><tr><td><p>4</p></td><td><p>0100</p></td><td><p>0111</p></td><td><p>7</p></td><td><p>+3</p></td></tr><tr><td><p>5</p></td><td><p>0101</p></td><td><p>0111</p></td><td><p>7</p></td><td><p>+2</p></td></tr><tr><td><p>6</p></td><td><p>0110</p></td><td><p>1001</p></td><td><p>9</p></td><td><p>+3</p></td></tr><tr><td><p>7</p></td><td><p>0111</p></td><td><p>1001</p></td><td><p>9</p></td><td><p>+2</p></td></tr><tr><td><p>8</p></td><td><p>1000</p></td><td><p>1100</p></td><td><p>12</p></td><td><p>+4</p></td></tr><tr><td><p>9</p></td><td><p>1001</p></td><td><p>1101</p></td><td><p>13</p></td><td><p>+4</p></td></tr></tbody></table>
+
+**发现规律**： - 当 $V_{0}=0$ 时，加3 - 当 $V_{0}=1$ 时，加2（除了8、9加4）
+
+**使用7483的具体连接**：
+
+设 $A=V$ ， $B$ 为控制值，则 $S=A+B+CI$ 。
+
+令： - $A_{3}A_{2}A_{1}A_{0}=V_{3}V_{2}V_{1}V_{0}$  - $B_{3}B_{2}B_{1}B_{0}=0V_{2}V_{1}1$  - $CI=\overline{V_{0}}$
+
+**最终逻辑表达式**：
+
+$$
+Z_{3}=V_{3}+V_{2}V_{1}
+$$
+
+$$
+Z_{2}=V_{2}+V_{3}
+$$
+
+$$
+Z_{1}=0
+$$
+
+$$
+Z_{0}=\overline{V_{3}V_{2}V_{1}}+V_{3}\overline{V_{2}}\overline{V_{1}}V_{0}=\overline{8}+9
+$$
+
+## 2.3 设计与实现（6题，工程问题理论设计、EDA实践）
+
+**教学分目标3：** 能利用编码器、译码器、数据选择器、加法和减法等运算电路、数值比较器和奇偶发生/检测器、D触发器、JK触发器、T触发器及FPGA等常用器件，设计实现复杂数字系统的指定功能。（支撑毕业要求3.1）–掌握硬件描述语言Verilog HDL
+
+### 2.3.1 报警控制电路设计
+
+#### *题目要求*
+
+某设备有开关A、B、C，要求： - 只有开关A接通的条件下，开关B才能接通； - 开关C只有在开关B接通的条件下才能接通； - 违反这一规程，则发出报警信号。
+
+设计一个报警控制电路并分别用下列方式实现： （1）用门电路； （2）用3线-8线译码器和与非门； （3）用4选1数据选择器和非门。
+
+![](images/1555bb8be3f5ba00292ad9f3d196cfe91a5c2e8c232d4a3f2c8581296fbd89ee.jpg)
+
+*image*
+
+#### *逻辑分析*
+
+设开关A、B、C为输入变量（1表示接通，0表示断开），F为输出报警信号（1表示报警，0表示正常）。
+
+**正常工作条件**： - B接通时，A必须接通： $B\rightarrow A$ ，即 $\overline{A}B=1$ 时违规 - C接通时，B必须接通： $C\rightarrow B$ ，即 $\overline{B}C=1$ 时违规
+
+**报警条件**：违反任一条件即报警
+
+$$
+F=\overline{A}B+\overline{B}C
+$$
+
+**真值表**
+
+<table><thead><tr><th><p>A</p></th><th><p>B</p></th><th><p>C</p></th><th><p>说明</p></th><th><p>F(报警)</p></th></tr></thead><tbody><tr><td><p>0</p></td><td><p>0</p></td><td><p>0</p></td><td><p>全断开，正常</p></td><td><p>0</p></td></tr><tr><td><p>0</p></td><td><p>0</p></td><td><p>1</p></td><td><p>C接通但B未通，<strong>违规</strong></p></td><td><p>1</p></td></tr><tr><td><p>0</p></td><td><p>1</p></td><td><p>0</p></td><td><p>B接通但A未通，<strong>违规</strong></p></td><td><p>1</p></td></tr><tr><td><p>0</p></td><td><p>1</p></td><td><p>1</p></td><td><p>B、C接通但A未通，<strong>违规</strong></p></td><td><p>1</p></td></tr><tr><td><p>1</p></td><td><p>0</p></td><td><p>0</p></td><td><p>仅A接通，正常</p></td><td><p>0</p></td></tr><tr><td><p>1</p></td><td><p>0</p></td><td><p>1</p></td><td><p>C接通但B未通，<strong>违规</strong></p></td><td><p>1</p></td></tr><tr><td><p>1</p></td><td><p>1</p></td><td><p>0</p></td><td><p>A、B接通，正常</p></td><td><p>0</p></td></tr><tr><td><p>1</p></td><td><p>1</p></td><td><p>1</p></td><td><p>全接通，正常</p></td><td><p>0</p></td></tr></tbody></table>
+
+#### *解答*
+
+**（1）用门电路实现**
+
+逻辑表达式：
+
+$$
+F=\overline{A}B+\overline{B}C
+$$
+
+**电路实现**： - 2个非门： $\overline{A}$ 、 $\overline{B}$  - 2个与门： $\overline{A}B$ 、 $\overline{B}C$  - 1个或门： $\overline{A}B+\overline{B}C$
+
+**（2）用3线-8线译码器（74LS138）和与非门实现**
+
+74LS138为3线-8线译码器，输出低电平有效。
+
+**输入连接**： - $A_{2}=A$ （高位） - $A_{1}=B$  - $A_{0}=C$ （低位） - 使能端： $ST_{A}=1$ ， $\overline{ST_{B}}=\overline{ST_{C}}=0$
+
+**输出分析**：
+
+需要报警的状态： $m_{1},m_{2},m_{3},m_{5}$
+
+**逻辑表达式**：
+
+$$
+F=m_{1}+m_{2}+m_{3}+m_{5}=\overline{\overline{Y_{1}}\cdot \overline{Y_{2}}\cdot \overline{Y_{3}}\cdot \overline{Y_{5}}}
+$$
+
+**电路连接**：译码器输出 $\overline{Y_{1}},\overline{Y_{2}},\overline{Y_{3}},\overline{Y_{5}}$ 接4输入与非门，与非门输出即为F。
+
+**（3）用4选1数据选择器（74HC153）和非门实现**
+
+**选择端连接**： - $A_{1}=B$ （高位选择） - $A_{0}=C$ （低位选择） - $\overline{ST}=0$ （使能）
+
+**数据输入端设计**：
+
+**电路连接**： - $A_{1}=B,A_{0}=C$  - $D_{0}=0$ （接地） - $D_{1}=1$ （接高电平） - $D_{2}=D_{3}=\overline{A}$ （A经非门后接入） - 输出F
+
+**逻辑验证**：
+
+$$
+\begin{array}{c}F\&=\overline{B}\overline{C}D_{0}+\overline{B}CD_{1}+B\overline{C}D_{2}+BCD_{3}\\\&=\overline{B}\overline{C}\cdot 0+\overline{B}C\cdot 1+B\overline{C}\cdot \overline{A}+BC\cdot \overline{A}\\\&=\overline{B}C+B\overline{A}\\\&=\overline{A}B+\overline{B}C\end{array}
+$$
+
+与要求的逻辑表达式一致。✓
+
+### 2.3.2 3位二进制数比较器设计
+
+#### *题目要求*
+
+设计一个3位二进制数比较器，比较两个3位二进制数 $A=A_{2}A_{1}A_{0}$ 和 $B=B_{2}B_{1}B_{0}$ ，输出三个信号： - $F_{A>B}$ ：当A > B时为1 - $F_{A=B}$ ：当A = B时为1 - $F_{A<B}$ ：当A < B时为1
+
+要求： （1）用数值比较器芯片74LS85实现； （2）用Verilog HDL实现该比较器。
+
+#### *解答*
+
+**（1）用74LS85数值比较器实现**
+
+74LS85为4位数值比较器，具有三个级联输入端和三个输出端。
+
+**连接方式**：
+
+由于比较的是3位数，需将74LS85的 $A_{3}$ 和 $B_{3}$ 接地： - $A_{3}=0$ ， $B_{3}=0$  - $A_{2}A_{1}A_{0}$ 接被比较数A的对应位 - $B_{2}B_{1}B_{0}$ 接被比较数B的对应位
+
+**级联输入设置**（单片使用时）： - $I_{A>B}=0$ （接低电平） - $I_{A=B}=1$ （接高电平） - $I_{A<B}=0$ （接低电平）
+
+**（2）用Verilog HDL实现**
+
+<strong>module</strong> Comparator\_3bit <strong>(</strong>
+    input  <strong>[</strong>2<strong>:</strong>0<strong>]</strong> A<strong>,</strong>      <em>// 3位二进制数A</em>
+    input  <strong>[</strong>2<strong>:</strong>0<strong>]</strong> B<strong>,</strong>      <em>// 3位二进制数B</em>
+    output reg A\_gt\_B<strong>,</strong>   <em>// A &gt; B 输出</em>
+    output reg A\_eq\_B<strong>,</strong>   <em>// A = B 输出</em>
+    output reg A\_lt\_B    <em>// A &lt; B 输出</em>
+<strong>);
+
+always @(</strong>A or B<strong>) begin
+    if (</strong>A <strong>&gt;</strong> B<strong>) begin</strong>
+        A\_gt\_B <strong>=</strong> 1'b1<strong>;</strong>
+        A\_eq\_B <strong>=</strong> 1'b0<strong>;</strong>
+        A\_lt\_B <strong>=</strong> 1'b0<strong>;
+    end
+    else if (</strong>A <strong>==</strong> B<strong>) begin</strong>
+        A\_gt\_B <strong>=</strong> 1'b0<strong>;</strong>
+        A\_eq\_B <strong>=</strong> 1'b1<strong>;</strong>
+        A\_lt\_B <strong>=</strong> 1'b0<strong>;
+    end
+    else begin</strong>
+        A\_gt\_B <strong>=</strong> 1'b0<strong>;</strong>
+        A\_eq\_B <strong>=</strong> 1'b0<strong>;</strong>
+        A\_lt\_B <strong>=</strong> 1'b1<strong>;
+    end
+end
+
+endmodule</strong>
+
+**逻辑表达式推导**（逐位比较）：
+
+$F_{A>B}$ **的逻辑表达式**：
+
+$$
+F_{A>B}=A_{2}\overline{B_{2}}+(A_{2}\odot B_{2})A_{1}\overline{B_{1}}+(A_{2}\odot B_{2})(A_{1}\odot B_{1})A_{0}\overline{B_{0}}
+$$
+
+$F_{A<B}$ **的逻辑表达式**：
+
+$$
+F_{A<B}=\overline{A_{2}}B_{2}+(A_{2}\odot B_{2})\overline{A_{1}}B_{1}+(A_{2}\odot B_{2})(A_{1}\odot B_{1})\overline{A_{0}}B_{0}
+$$
+
+$F_{A=B}$ **的逻辑表达式**：
+
+$$
+F_{A=B}=(A_{2}\odot B_{2})(A_{1}\odot B_{1})(A_{0}\odot B_{0})
+$$
+
+其中 $\odot$ 表示同或运算。
+
+### 2.3.3 同步可控进制计数器设计
+
+#### *题目要求*
+
+设计一个同步可控进制计数器，要求： - 当控制信号 $M=0$ 时，实现模6计数（000→001→010→011→100→101→000） - 当控制信号 $M=1$ 时，实现模8计数（000→001→010→011→100→101→110→111→000）
+
+要求： （1）用JK触发器设计该计数器，写出设计步骤； （2）用Verilog HDL实现该计数器（带异步清零和同步置数功能）。
+
+#### *解答*
+
+**（1）用JK触发器设计**
+
+**步骤1：确定触发器数量**
+
+模8计数需要3个触发器（ $2^{3}=8$ ），设输出为 $Q_{2}Q_{1}Q_{0}$ 。
+
+**步骤2：列出状态转换表**
+
+注：M=0时，状态110、111为无关项。
+
+**步骤3：求驱动方程**
+
+$FF_{0}$ **的驱动方程**： $Q_{0}$ 每拍翻转，故：
+
+$$
+J_{0}=1, \quad K_{0}=1
+$$
+
+$FF_{1}$ **的驱动方程**： 通过卡诺图化简：
+
+$$
+J_{1}=Q_{0}\cdot (\overline{Q_{2}}+M)
+$$
+
+$$
+K_{1}=Q_{0}
+$$
+
+$FF_{2}$ **的驱动方程**： 通过卡诺图化简：
+
+$$
+J_{2}=Q_{1}Q_{0}\cdot M
+$$
+
+$$
+K_{2}=Q_{1}Q_{0}
+$$
+
+**（2）用Verilog HDL实现**
+
+<strong>module</strong> Counter\_M6\_M8 <strong>(</strong>
+    input       CLK<strong>,</strong>        <em>// 时钟信号</em>
+    input       CLR<strong>,</strong>        <em>// 异步清零（低电平有效）</em>
+    input       LOAD<strong>,</strong>       <em>// 同步置数（低电平有效）</em>
+    input       M<strong>,</strong>          <em>// 模值控制：0=模6，1=模8</em>
+    input  <strong>[</strong>2<strong>:</strong>0<strong>]</strong> D<strong>,</strong>         <em>// 预置数据输入</em>
+    output reg <strong>[</strong>2<strong>:</strong>0<strong>]</strong> Q      <em>// 计数输出</em>
+<strong>);
+
+always @(posedge</strong> CLK or <strong>negedge</strong> CLR<strong>) begin
+    if (!</strong>CLR<strong>) begin</strong>
+        <em>// 异步清零</em>
+        Q <strong>&lt;=</strong> 3'b000<strong>;
+    end
+    else if (!</strong>LOAD<strong>) begin</strong>
+        <em>// 同步置数</em>
+        Q <strong>&lt;=</strong> D<strong>;
+    end
+    else begin</strong>
+        <em>// 计数功能</em>
+        <strong>if (</strong>M <strong>==</strong> 1'b0<strong>) begin</strong>
+            <em>// 模6计数</em>
+            <strong>if (</strong>Q <strong>&gt;=</strong> 3'b101<strong>) begin</strong>
+                Q <strong>&lt;=</strong> 3'b000<strong>;
+            end
+            else begin</strong>
+                Q <strong>&lt;=</strong> Q <strong>+</strong> 1'b1<strong>;
+            end
+        end
+        else begin</strong>
+            <em>// 模8计数</em>
+            <strong>if (</strong>Q <strong>&gt;=</strong> 3'b111<strong>) begin</strong>
+                Q <strong>&lt;=</strong> 3'b000<strong>;
+            end
+            else begin</strong>
+                Q <strong>&lt;=</strong> Q <strong>+</strong> 1'b1<strong>;
+            end
+        end
+    end
+end
+
+endmodule</strong>
+
+**状态转换图**：
+
+M = 0（模6）：
+000 → 001 → 010 → 011 → 100 → 101 → ↻000
+
+M = 1（模8）：
+000 → 001 → 010 → 011 → 100 → 101 → 110 → 111 → ↻000
+
+**功能说明**： - **异步清零**： $\overline{CLR}=0$ 时，无论时钟如何，立即清零 - **同步置数**： $\overline{LOAD}=0$ 时，在下一个时钟上升沿将D置入Q - **计数**：正常模式下根据M值选择模6或模8计数
+
+### 2.3.4 4位奇偶校验电路设计与FPGA实现
+
+#### *题目要求*
+
+设计一个4位数据奇偶校验电路，输入为4位二进制数据 $D_{3}D_{2}D_{1}D_{0}$ ，要求： - 当数据中1的个数为奇数时，奇校验输出 $P_{odd}=1$ ，偶校验输出 $P_{even}=0$  - 当数据中1的个数为偶数时，奇校验输出 $P_{odd}=0$ ，偶校验输出 $P_{even}=1$
+
+要求： （1）用异或门实现组合逻辑电路； （2）用Verilog HDL实现该奇偶校验器； （3）说明如何在FPGA中实现并测试该电路。
+
+#### *解答*
+
+**（1）用异或门实现**
+
+**逻辑表达式**：
+
+$$
+P_{odd}=D_{3}\oplus D_{2}\oplus D_{1}\oplus D_{0}
+$$
+
+$$
+P_{even}=\overline{P_{odd}}=\overline{D_{3}\oplus D_{2}\oplus D_{1}\oplus D_{0}}
+$$
+
+**电路实现**： - 3个2输入异或门级联实现 $P_{odd}$  - 1个非门对 $P_{odd}$ 取反得到 $P_{even}$
+
+**（2）用Verilog HDL实现**
+
+<strong>module</strong> Parity\_Checker\_4bit <strong>(</strong>
+    input  <strong>[</strong>3<strong>:</strong>0<strong>]</strong> D<strong>,</strong>        <em>// 4位数据输入</em>
+    output       P\_odd<strong>,</strong>    <em>// 奇校验输出</em>
+    output       P\_even    <em>// 偶校验输出</em>
+<strong>);</strong>
+
+<em>// 方法一：使用异或运算符</em>
+<strong>assign</strong> P\_odd <strong>= ^</strong>D<strong>;</strong>         <em>// 归约异或，对所有位进行异或</em>
+<strong>assign</strong> P\_even <strong>= \~</strong>P\_odd<strong>;</strong>    <em>// 偶校验为奇校验的反</em>
+
+<strong>endmodule</strong>
+
+**（3）FPGA实现与测试**
+
+**FPGA实现步骤**： 1. **综合**：Verilog代码综合为查找表（LUT）和触发器 2. **映射**：将逻辑映射到FPGA的逻辑单元 3. **布局布线**：确定物理位置和连线 4. **生成比特流**：下载至FPGA
+
+**测试平台（Testbench）**：
+
+\`timescale 1ns / 1ps
+
+<strong>module</strong> tb\_Parity\_Checker<strong>;</strong>
+
+    reg  <strong>[</strong>3<strong>:</strong>0<strong>]</strong> D<strong>;</strong>
+    wire       P\_odd<strong>;</strong>
+    wire       P\_even<strong>;</strong>
+    
+    <em>// 实例化被测模块</em>
+    Parity\_Checker\_4bit uut <strong>(</strong>
+        .D<strong>(</strong>D<strong>),</strong>
+        .P\_odd<strong>(</strong>P\_odd<strong>),</strong>
+        .P\_even<strong>(</strong>P\_even<strong>)
+    );
+    
+    initial begin</strong>
+        <em>// 测试所有16种输入组合</em>
+        D <strong>=</strong> 4'b0000<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b0001<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b0010<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b0011<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b0100<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b0101<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b0110<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b0111<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b1000<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b1001<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b1010<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b1011<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b1100<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b1101<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b1110<strong>;</strong> #10<strong>;</strong>
+        D <strong>=</strong> 4'b1111<strong>;</strong> #10<strong>;</strong>
+        
+        \$finish<strong>;
+    end
+
+endmodule</strong>
+
+### 2.3.5 D触发器与JK触发器转换的时序电路设计
+
+#### *题目要求*
+
+设计一个同步时序电路，使用D触发器实现JK触发器的功能。要求： （1）写出D触发器的激励表与JK触发器的激励表； （2）推导D输入的逻辑表达式； （3）画出逻辑电路图； （4）用Verilog HDL实现该转换电路。
+
+#### *解答*
+
+**（1）激励表**
+
+**D触发器激励表**：
+
+**JK触发器激励表**：
+
+**（2）推导D的逻辑表达式**
+
+根据JK触发器的状态方程：
+
+$$
+Q^{n+1}=J\overline{Q^{n}}+\overline{K}Q^{n}
+$$
+
+而D触发器的状态方程为：
+
+$$
+Q^{n+1}=D
+$$
+
+因此：
+
+$$
+D=J\overline{Q}+\overline{K}Q
+$$
+
+**（3）逻辑电路图**
+
+说明： - D输入端接收组合逻辑电路的输出 - 组合逻辑： $D=J\overline{Q}+\overline{K}Q$  - 需要1个非门、2个与门、1个或门
+
+**（4）用Verilog HDL实现**
+
+**行为级描述**：
+
+<strong>module</strong> JK\_FF\_Behavioral <strong>(</strong>
+    input      J<strong>,</strong>       <em>// J输入</em>
+    input      K<strong>,</strong>       <em>// K输入</em>
+    input      CLK<strong>,</strong>     <em>// 时钟</em>
+    input      CLR<strong>,</strong>     <em>// 异步清零（低电平有效）</em>
+    output reg Q<strong>,</strong>       <em>// 输出</em>
+    output     Q\_n      <em>// 反相输出</em>
+<strong>);
+
+assign</strong> Q\_n <strong>= \~</strong>Q<strong>;
+
+always @(posedge</strong> CLK or <strong>negedge</strong> CLR<strong>) begin
+    if (!</strong>CLR<strong>) begin</strong>
+        Q <strong>&lt;=</strong> 1'b0<strong>;
+    end
+    else begin
+        case ({</strong>J<strong>,</strong> K<strong>})</strong>
+            2'b00<strong>:</strong> Q <strong>&lt;=</strong> Q<strong>;</strong>        <em>// 保持</em>
+            2'b01<strong>:</strong> Q <strong>&lt;=</strong> 1'b0<strong>;</strong>     <em>// 置0</em>
+            2'b10<strong>:</strong> Q <strong>&lt;=</strong> 1'b1<strong>;</strong>     <em>// 置1</em>
+            2'b11<strong>:</strong> Q <strong>&lt;= \~</strong>Q<strong>;</strong>       <em>// 翻转</em>
+        <strong>endcase
+    end
+end
+
+endmodule</strong>
+
+**JK触发器功能表**：
+
+### 2.3.6 4位加法/减法器设计
+
+#### *题目要求*
+
+设计一个4位可控加法/减法器，输入为两个4位二进制数 $A=A_{3}A_{2}A_{1}A_{0}$ 和 $B=B_{3}B_{2}B_{1}B_{0}$ ，要求： - 当控制信号 $M=0$ 时，执行加法运算： $S=A+B$  - 当控制信号 $M=1$ 时，执行减法运算： $S=A-B$
+
+要求： （1）用全加器和异或门实现硬件电路； （2）用Verilog HDL实现该运算电路； （3）分析进位输出和溢出判断。
+
+#### *解答*
+
+**（1）用全加器和异或门实现**
+
+**减法原理**： $A-B=A+\overline{B}+1$ （补码运算）
+
+**电路结构**： - 4个全加器（FA）级联构成4位加法器 - 4个异或门用于控制B的取反
+
+**输入控制**： - $M=0$ 时： $B_{i}\oplus 0=B_{i}$ ，进位输入 $C_{0}=0$ ，执行 $A+B$  - $M=1$ 时： $B_{i}\oplus 1=\overline{B_{i}}$ ，进位输入 $C_{0}=1$ ，执行 $A+\overline{B}+1=A-B$
+
+**逻辑表达式**：
+
+$$
+S_{i}=A_{i}\oplus (B_{i}\oplus M)\oplus C_{i}
+$$
+
+$$
+C_{i+1}=A_{i}(B_{i}\oplus M)+C_{i}(A_{i}\oplus (B_{i}\oplus M))
+$$
+
+$$
+C_{0}=M
+$$
+
+**（2）用Verilog HDL实现**
+
+<strong>module</strong> Adder\_Subtractor\_4bit <strong>(</strong>
+    input  <strong>[</strong>3<strong>:</strong>0<strong>]</strong> A<strong>,</strong>        <em>// 4位操作数A</em>
+    input  <strong>[</strong>3<strong>:</strong>0<strong>]</strong> B<strong>,</strong>        <em>// 4位操作数B</em>
+    input        M<strong>,</strong>        <em>// 控制信号：0=加法，1=减法</em>
+    output <strong>[</strong>3<strong>:</strong>0<strong>]</strong> S<strong>,</strong>        <em>// 运算结果</em>
+    output       Cout<strong>,</strong>     <em>// 进位/借位输出</em>
+    output       Overflow  <em>// 溢出标志</em>
+<strong>);</strong>
+
+wire <strong>[</strong>3<strong>:</strong>0<strong>]</strong> B\_xor<strong>;</strong>      <em>// B经过异或门后的值</em>
+wire <strong>[</strong>4<strong>:</strong>0<strong>]</strong> Sum<strong>;</strong>        <em>// 5位和（含进位）
+
+// B的取反控制</em>
+<strong>assign</strong> B\_xor <strong>=</strong> B <strong>^ {</strong>4<strong>{</strong>M<strong>}};</strong>  <em>// M=0时B\_xor=B，M=1时B\_xor=\~B
+
+// 加法运算（包含补码减法）</em>
+<strong>assign</strong> Sum <strong>=</strong> A <strong>+</strong> B\_xor <strong>+</strong> M<strong>;</strong>
+
+<em>// 输出赋值</em>
+<strong>assign</strong> S <strong>=</strong> Sum<strong>[</strong>3<strong>:</strong>0<strong>];
+assign</strong> Cout <strong>=</strong> Sum<strong>[</strong>4<strong>];</strong>
+
+<em>// 溢出判断
+// 对于加法（M=0）：A、B同号，结果与A异号时溢出
+// 对于减法（M=1）：A、\~B同号，结果与A异号时溢出</em>
+<strong>assign</strong> Overflow <strong>= (</strong>A<strong>[</strong>3<strong>] ==</strong> B\_xor<strong>[</strong>3<strong>]) &amp;&amp; (</strong>S<strong>[</strong>3<strong>] !=</strong> A<strong>[</strong>3<strong>]);
+
+endmodule</strong>
+
+**（3）进位输出和溢出分析**
+
+**进位输出** $C_{out}$ ：
+
+**溢出判断（有符号数）**：
+
+溢出发生在： - 两个正数相加结果为负 - 两个负数相加结果为正
+
+**溢出公式**：
+
+$$
+Overflow=C_{4}\oplus C_{3}
+$$
+
+其中 $C_{4}$ 为最高位进位， $C_{3}$ 为次高位进位。
+
+**运算示例**：

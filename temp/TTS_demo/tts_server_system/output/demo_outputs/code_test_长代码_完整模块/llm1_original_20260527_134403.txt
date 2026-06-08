@@ -1,0 +1,214 @@
+======================================================================
+测试: 长代码_完整模块
+LLM1 原始输出 (含代码)
+======================================================================
+
+我来为您创建一个完整的数据库连接池模块，包含您要求的所有功能。
+
+```python
+"""
+数据库连接池模块 - Database Connection Pool Module
+支持连接池管理、查询执行、事务处理和性能监控
+"""
+
+import time
+import threading
+import queue
+import logging
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from typing import Any, Optional, Dict, List, Callable
+from enum import Enum
+import sqlite3
+from collections import defaultdict
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+class ConnectionStatus(Enum):
+    """连接状态枚举"""
+    IDLE = "idle"
+    ACTIVE = "active"
+    CLOSED = "closed"
+    ERROR = "error"
+
+@dataclass
+class ConnectionInfo:
+    """连接信息数据类"""
+    connection: Any
+    created_time: float
+    last_used_time: float
+    status: ConnectionStatus = ConnectionStatus.IDLE
+    query_count: int = 0
+    error_count: int = 0
+
+@dataclass
+class QueryStats:
+    """查询统计信息"""
+    query_count: int = 0
+    total_time: float = 0.0
+    error_count: int = 0
+    slow_queries: List[Dict] = field(default_factory=list)
+
+class DatabaseError(Exception):
+    """数据库操作异常"""
+    pass
+
+class ConnectionPoolError(Exception):
+    """连接池异常"""
+    pass
+
+class PerformanceMonitor:
+    """性能监控器"""
+    
+    def __init__(self, slow_query_threshold: float = 1.0):
+        self.slow_query_threshold = slow_query_threshold
+        self.stats = defaultdict(QueryStats)
+        self._lock = threading.Lock()
+        
+    def record_query(self, query_type: str, duration: float, success: bool):
+        """记录查询性能数据"""
+        with self._lock:
+            self.stats[query_type].query_count += 1
+            self.stats[query_type].total_time += duration
+            
+            if not success:
+                self.stats[query_type].error_count += 1
+                
+            if duration > self.slow_query_threshold:
+                self.stats[query_type].slow_queries.append({
+                    'duration': duration,
+                    'timestamp': time.time(),
+                    'type': query_type
+                })
+                
+    def get_stats(self) -> Dict[str, Dict]:
+        """获取性能统计信息"""
+        with self._lock:
+            result = {}
+            for query_type, stats in self.stats.items():
+                avg_time = stats.total_time / stats.query_count if stats.query_count > 0 else 0
+                result[query_type] = {
+                    'query_count': stats.query_count,
+                    'total_time': round(stats.total_time, 3),
+                    'avg_time': round(avg_time, 3),
+                    'error_count': stats.error_count,
+                    'slow_queries': stats.slow_queries[-10:]  # 保留最近10个慢查询
+                }
+            return result
+    
+    def reset_stats(self):
+        """重置统计数据"""
+        with self._lock:
+            self.stats.clear()
+
+class DatabaseConnectionPool:
+    """数据库连接池主类"""
+    
+    def __init__(
+        self,
+        db_path: str = ":memory:",
+        min_connections: int = 2,
+        max_connections: int = 10,
+        timeout: float = 30.0,
+        idle_timeout: float = 300.0,
+        max_retries: int = 3,
+        slow_query_threshold: float = 1.0
+    ):
+        """
+        初始化连接池
+        
+        Args:
+            db_path: 数据库文件路径
+            min_connections: 最小连接数
+            max_connections: 最大连接数
+            timeout: 获取连接超时时间
+            idle_timeout: 连接空闲超时时间
+            max_retries: 最大重试次数
+            slow_query_threshold: 慢查询阈值（秒）
+        """
+        self.db_path = db_path
+        self.min_connections = min_connections
+        self.max_connections = max_connections
+        self.timeout = timeout
+        self.idle_timeout = idle_timeout
+        self.max_retries = max_retries
+        
+        # 连接池管理
+        self._pool = queue.Queue(maxsize=max_connections)
+        self._active_connections: Dict[int, ConnectionInfo] = {}
+        self._connection_count = 0
+        self._lock = threading.Lock()
+        self._condition = threading.Condition(self._lock)
+        
+        # 性能监控
+        self.monitor = PerformanceMonitor(slow_query_threshold)
+        
+        # 关闭标志
+        self._closed = False
+        
+        # 初始化连接池
+        self._initialize_pool()
+        
+        # 启动维护线程
+        self._maintenance_thread = threading.Thread(
+            target=self._maintenance_worker,
+            daemon=True,
+            name="Pool-Maintenance"
+        )
+        self._maintenance_thread.start()
+        
+        logger.info(
+            f"数据库连接池初始化完成 - 路径: {db_path}, "
+            f"最小连接: {min_connections}, 最大连接: {max_connections}"
+        )
+    
+    def _create_connection(self) -> sqlite3.Connection:
+        """创建新的数据库连接"""
+        conn = sqlite3.connect(
+            self.db_path,
+            timeout=self.timeout,
+            check_same_thread=False
+        )
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
+    
+    def _initialize_pool(self):
+        """初始化连接池，创建最小连接数"""
+        for _ in range(self.min_connections):
+            conn = self._create_connection()
+            conn_info = ConnectionInfo(
+                connection=conn,
+                created_time=time.time(),
+                last_used_time=time.time()
+            )
+            self._pool.put(conn_info)
+            self._connection_count += 1
+    
+    def _get_connection(self) -> ConnectionInfo:
+        """从连接池获取连接"""
+        if self._closed:
+            raise ConnectionPoolError("连接池已关闭")
+        
+        try:
+            # 尝试从队列获取空闲连接
+            conn_info = self._pool.get(timeout=self.timeout)
+            
+            # 检查连接是否有效
+            if not self._validate_connection(conn_info.connection):
+                conn_info.connection.close()
+                conn_info.connection = self._create_connection()
+                conn_info.created_time = time.time()
+            
+            conn_info.status = ConnectionStatus.ACTIVE
+            conn_info.last_used_time = time.time()
+            
+            # 记录到活跃连接字典
+            with self._lock:
+                self

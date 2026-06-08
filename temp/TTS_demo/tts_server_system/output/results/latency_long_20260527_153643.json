@@ -1,0 +1,36 @@
+{
+  "stats": {
+    "text_type": "long",
+    "total_samples": 3,
+    "success_count": 1,
+    "success_rate": 33.33333333333333,
+    "avg_response_time": 96.55333065986633,
+    "min_response_time": 96.55333065986633,
+    "max_response_time": 96.55333065986633,
+    "median_response_time": 96.55333065986633,
+    "p95": 96.55333065986633
+  },
+  "details": [
+    {
+      "success": true,
+      "response_time": 96.55333065986633,
+      "text_length": 177,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:26:43.230914"
+    },
+    {
+      "success": false,
+      "response_time": 300.02311730384827,
+      "text_length": 171,
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8080): Read timed out. (read timeout=300)",
+      "timestamp": "2026-05-27T15:31:43.254344"
+    },
+    {
+      "success": false,
+      "response_time": 300.02411675453186,
+      "text_length": 177,
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8080): Read timed out. (read timeout=300)",
+      "timestamp": "2026-05-27T15:36:43.278673"
+    }
+  ]
+}

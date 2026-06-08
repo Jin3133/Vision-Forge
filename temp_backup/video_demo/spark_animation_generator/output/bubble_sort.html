@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>冒泡排序 - Bubble Sort Visualization</title>
+    <style>
+        :root {
+            --bg: #F7F5F2;
+            --bar-default: #8BB8D0;
+            --bar-compare: #F4A261;
+            --bar-swap: #E0554D;
+            --bar-sorted: #7BA891;
+            --text-primary: #3D3D3D;
+            --text-secondary: #6B6B6B;
+            --subtitle-bg: rgba(255, 252, 248, 0.9);
+            --grid-line: #E8E4DE;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #EBE7E1;
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #stage-wrapper {
+            position: relative;
+            transform-origin: center center;
+            flex-shrink: 0;
+        }
+
+        #main-container {
+            width: 2560px;
+            height: 1440px;
+            background: var(--bg);
+            position: relative;
+            overflow: hidden;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+        }
+
+        .bg-decor {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.04;
+            pointer-events: none;
+        }
+        .bg-decor.c1 {
+            width: 700px;
+            height: 700px;
+            background: #7BA891;
+            top: -180px;
+            right: -120px;
+        }
+        .bg-decor.c2 {
+            width: 500px;
+            height: 500px;
+            background: #8BB8D0;
+            bottom: -100px;
+            left: -80px;
+        }
+        .bg-decor.c3 {
+            width: 350px;
+            height: 350px;
+            background: #F4A261;
+            top: 500px;
+            left: 200px;
+            opacity: 0.03;
+        }
+
+        .title-area {
+            position: absolute;
+            top: 55px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 10;
+        }
+        .title-main {
+            font-size: 52px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 4px;
+            line-height: 1.2;
+        }
+        .title-sub {
+            font-size: 22px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            letter-spacing: 2px;
+            margin-top: 4px;
+        }
+        .title-divider {
+            width: 80px;
+            height: 3px;
+            background: #D5CFC6;
+            border-radius: 2px;
+            margin: 12px auto 0;
+        }
+
+        .legend {
+            position: absolute;
+            top: 130px;
+            right: 200px;
+            display: flex;
+            gap: 30px;
+            align-items: center;
+            z-index: 10;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 17px;
+            color: var(--text-secondary);
+            letter-spacing: 1px;
+        }
+        .legend-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+        .legend-dot.def {
+            background: var(--bar-default);
+        }
+        .legend-dot.cmp {
+            background: var(--bar-compare);
+        }
+        .legend-dot.swp {
+            background: var(--bar-swap);
+        }
+        .legend-dot.srt {
+            background: var(--bar-sorted);
+        }
+
+        #bars-area {
+            position: absolute;
+            bottom: 420px;
+            left: 0;
+            right: 0;
+            height: 680px;
+            z-index: 5;
+        }
+        .baseline {
+            position: absolute;
+            bottom: 0;
+            left: 280px;
+            right: 280px;
+            height: 2px;
+            background: #D8D3CA;
+            border-radius: 1px;
+        }
+        .baseline-dot {
+            position: absolute;
+            bottom: -6px;
+            width: 12px;
+            height: 12px;
+            background: #D8D3CA;
+            border-radius: 50%;
+        }
+
+        .bar-slot {
+            position: absolute;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            transition: none;
+        }
+        .bar-body {
+            width: 150px;
+            border-radius: 14px 14px 6px 6px;
+            background: var(--bar-default);
+            transition: height 0.38s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.28s ease;
+            position: relative;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.07);
+            cursor: default;
+        }
+        .bar-body::after {
+            content: '';
+            position: absolute;
+            top: 8px;
+            left: 18px;
+            right: 18px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.22);
+            border-radius: 20px 20px 8px 8px;
+            pointer-events: none;
+        }
+        .bar-body.comparing {
+            background: var(--bar-compare);
+            box-shadow: 0 8px 32px rgba(244, 162, 97, 0.35);
+        }
+        .bar-body.swapping {
+            background: var(--bar-swap);
+            box-shadow: 0 8px 32px rgba(224, 85, 77, 0.4);
+            animation: pulse-swap 0.45s ease;
+        }
+        .bar-body.sorted {
+            background: var(--bar-sorted);
+            box-shadow: 0 6px 24px rgba(123, 168, 145, 0.25);
+        }
+        @keyframes pulse-swap {
+            0%,
+            100% {
+                transform: scaleY(1);
+            }
+            30% {
+                transform: scaleY(1.04);
+            }
+            60% {
+                transform: scaleY(0.96);
+            }
+        }
+        .bar-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+            transition: color 0.3s;
+            z-index: 2;
+        }
+        .bar-index {
+            font-size: 15px;
+            font-weight: 500;
+            color: #A09890;
+            margin-top: 8px;
+            letter-spacing: 0.5px;
+        }
+        .sorted-star {
+            position: absolute;
+            top: -38px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 22px;
+            opacity: 0;
+            transition: opacity 0.4s;
+            pointer-events: none;
+            z-index: 3;
+        }
+        .sorted-star.visible {
+            opacity: 1;
+        }
+
+        .compare-arrow {
+            position: absolute;
+            bottom: -70px;
+            font-size: 36px;
+            color: #E8835A;
+            opacity: 0;
+            transition: opacity 0.25s;
+            pointer-events: none;
+            z-index: 6;
+            font-weight: bold;
+        }
+        .compare-arrow.active {
+            opacity: 1;
+            animation: bob-arrow 0.6s ease infinite alternate;
+        }
+        @keyframes bob-arrow {
+            from {
+                transform: translateY(0);
+            }
+            to {
+                transform: translateY(-10px);
+            }
+        }
+
+        #info-panel {
+            position: absolute;
+            bottom: 280px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 8;
+        }
+        #info-round {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 2px;
+        }
+        #info-detail {
+            font-size: 17px;
+            color: #8A8078;
+            margin-top: 6px;
+            letter-spacing: 1px;
+            min-height: 24px;
+        }
+
+        #subtitle-bar {
+            position: absolute;
+            bottom: 60px;
+            left: 200px;
+            right: 200px;
+            background: var(--subtitle-bg);
+            border-radius: 18px;
+            padding: 28px 40px;
+            text-align: center;
+            z-index: 10;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+        }
+        #subtitle-cn {
+            font-size: 26px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: 2px;
+            line-height: 1.4;
+            transition: opacity 0.35s;
+        }
+        #subtitle-en {
+            font-size: 18px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            letter-spacing: 1px;
+            margin-top: 6px;
+            font-style: italic;
+            transition: opacity 0.35s;
+        }
+
+        .step-counter {
+            position: absolute;
+            top: 140px;
+            left: 200px;
+            font-size: 18px;
+            color: #B0A89E;
+            letter-spacing: 2px;
+            z-index: 10;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div id="stage-wrapper">
+        <div id="main-container">
+            <div class="bg-decor c1"></div>
+            <div class="bg-decor c2"></div>
+            <div class="bg-decor c3"></div>
+
+            <div class="title-area">
+                <div class="title-main">冒泡排序</div>
+                <div class="title-sub">Bubble Sort Algorithm</div>
+                <div class="title-divider"></div>
+            </div>
+
+            <div class="legend">
+                <div class="legend-item"><span class="legend-dot def"></span> 未排序 Unsorted</div>
+                <div class="legend-item"><span class="legend-dot cmp"></span> 比较中 Comparing</div>
+                <div class="legend-item"><span class="legend-dot swp"></span> 交换中 Swapping</div>
+                <div class="legend-item"><span class="legend-dot srt"></span> 已排序 Sorted</div>
+            </div>
+
+            <div class="step-counter" id="step-counter">准备开始 Ready</div>
+
+            <div id="bars-area">
+                <div class="baseline"></div>
+            </div>
+
+            <div id="info-panel">
+                <div id="info-round"></div>
+                <div id="info-detail"></div>
+            </div>
+
+            <div id="subtitle-bar">
+                <div id="subtitle-cn">冒泡排序通过反复比较相邻元素并交换它们来工作</div>
+                <div id="subtitle-en">Bubble sort works by repeatedly comparing adjacent elements and swapping them</div>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function() {
+            const container = document.getElementById('main-container');
+            const barsArea = document.getElementById('bars-area');
+            const subtitleCN = document.getElementById('subtitle-cn');
+            const subtitleEN = document.getElementById('subtitle-en');
+            const infoRound = document.getElementById('info-round');
+            const infoDetail = document.getElementById('info-detail');
+            const stepCounter = document.getElementById('step-counter');
+            const stageWrapper = document.getElementById('stage-wrapper');
+
+            const INITIAL_ARRAY = [7, 3, 6, 1, 8, 2, 5, 4];
+            const N = INITIAL_ARRAY.length;
+            const BAR_WIDTH = 150;
+            const SLOT_SPACING = 200;
+            const TOTAL_WIDTH = BAR_WIDTH * N + SLOT_SPACING * (N - 1);
+            const START_X = (2560 - TOTAL_WIDTH) / 2;
+            const BASELINE_Y = 920;
+            const MAX_H = 600;
+            const MIN_H = 110;
+            const H_RANGE = MAX_H - MIN_H;
+
+            function getHeight(val) { return MIN_H + (val - 1) * (H_RANGE / (N - 1)); }
+
+            const slotPositions = [];
+            for (let i = 0; i < N; i++) {
+                slotPositions.push(START_X + i * (BAR_WIDTH + SLOT_SPACING));
+            }
+
+            let currentArray = [...INITIAL_ARRAY];
+            let barBodies = [];
+            let barValues = [];
+            let barIndices = [];
+            let sortedStars = [];
+            let sortedFlags = new Array(N).fill(false);
+
+            // Create bar slots
+            for (let i = 0; i < N; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'bar-slot';
+                slot.style.left = slotPositions[i] + 'px';
+                slot.style.width = BAR_WIDTH + 'px';
+                slot.style.bottom = '0px';
+                slot.style.height = MAX_H + 80 + 'px';
+
+                const star = document.createElement('div');
+                star.className = 'sorted-star';
+                star.textContent = '✦';
+                star.style.top = '-38px';
+                slot.appendChild(star);
+                sortedStars.push(star);
+
+                const valLabel = document.createElement('div');
+                valLabel.className = 'bar-value';
+                valLabel.textContent = currentArray[i];
+                slot.appendChild(valLabel);
+                barValues.push(valLabel);
+
+                const body = document.createElement('div');
+                body.className = 'bar-body';
+                body.style.height = getHeight(currentArray[i]) + 'px';
+                body.style.width = BAR_WIDTH + 'px';
+                slot.appendChild(body);
+                barBodies.push(body);
+
+                const idxLabel = document.createElement('div');
+                idxLabel.className = 'bar-index';
+                idxLabel.textContent = '索引 ' + i;
+                slot.appendChild(idxLabel);
+                barIndices.push(idxLabel);
+
+                barsArea.appendChild(slot);
+            }
+
+            // Compare arrows (one per adjacent pair position)
+            const compareArrows = [];
+            for (let i = 0; i < N - 1; i++) {
+                const arrow = document.createElement('div');
+                arrow.className = 'compare-arrow';
+                arrow.textContent = '↕';
+                arrow.style.left = (slotPositions[i] + BAR_WIDTH / 2 - 18) + 'px';
+                arrow.style.bottom = '-70px';
+                barsArea.appendChild(arrow);
+                compareArrows.push(arrow);
+            }
+
+            function updateBarVisuals() {
+                for (let i = 0; i < N; i++) {
+                    barBodies[i].style.height = getHeight(currentArray[i]) + 'px';
+                    barValues[i].textContent = currentArray[i];
+                    if (sortedFlags[i]) {
+                        barBodies[i].classList.add('sorted');
+                        sortedStars[i].classList.add('visible');
+                    } else {
+                        barBodies[i].classList.remove('sorted');
+                        sortedStars[i].classList.remove('visible');
+                    }
+                }
+            }
+
+            function clearHighlights() {
+                for (let i = 0; i < N; i++) {
+                    barBodies[i].classList.remove('comparing', 'swapping');
+                }
+                for (let i = 0; i < N - 1; i++) {
+                    compareArrows[i].classList.remove('active');
+                }
+            }
+
+            function setSubtitle(cn, en) {
+                subtitleCN.style.opacity = '0';
+                subtitleEN.style.opacity = '0';
+                setTimeout(() => {
+                    subtitleCN.textContent = cn;
+                    subtitleEN.textContent = en;
+                    subtitleCN.style.opacity = '1';
+                    subtitleEN.style.opacity = '1';
+                }, 180);
+            }
+
+            function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+            async function runBubbleSort() {
+                setSubtitle('冒泡排序开始——我们有一个未排序的数组需要整理',
+                    'Bubble sort begins — we have an unsorted array to organize');
+                infoRound.textContent = '';
+                infoDetail.textContent = '初始数组 · Initial Array';
+                stepCounter.textContent = '初始化 · Init';
+                clearHighlights();
+                sortedFlags.fill(false);
+                currentArray = [...INITIAL_ARRAY];
+                updateBarVisuals();
+                await sleep(1800);
+
+                for (let round = 0; round < N - 1; round++) {
+                    infoRound.textContent = '第 ' + (round + 1) + ' 轮 · Round ' + (round + 1);
+                    stepCounter.textContent = '轮次 ' + (round + 1) + '/' + (N - 1) + ' · Round';
+                    setSubtitle('开始第 ' + (round + 1) + ' 轮——我们将把剩余元素中最大的"冒泡"到正确位置',
+                        'Starting round ' + (round + 1) +
+                        ' — bubbling the largest remaining element to its correct position');
+                    await sleep(1000);
+
+                    let swappedThisRound = false;
+                    const limit = N - 1 - round;
+                    for (let j = 0; j < limit; j++) {
+                        clearHighlights();
+                        barBodies[j].classList.add('comparing');
+                        barBodies[j + 1].classList.add('comparing');
+                        compareArrows[j].classList.add('active');
+                        infoDetail.textContent = '比较索引 ' + j + ' 和 ' + (j + 1) + ' · Comparing indices ' + j +
+                            ' & ' + (j + 1);
+                        stepCounter.textContent = '比较 · Compare [' + j + '][' + (j + 1) + ']';
+                        setSubtitle('比较相邻元素：' + currentArray[j] + ' 和 ' + currentArray[j + 1] + '，看是否需要交换',
+                            'Comparing adjacent elements: ' + currentArray[j] + ' and ' + currentArray[j + 1] +
+                            ' — check if swap needed');
+                        await sleep(750);
+
+                        if (currentArray[j] > currentArray[j + 1]) {
+                            barBodies[j].classList.remove('comparing');
+                            barBodies[j + 1].classList.remove('comparing');
+                            barBodies[j].classList.add('swapping');
+                            barBodies[j + 1].classList.add('swapping');
+                            infoDetail.textContent = '交换！' + currentArray[j] + ' > ' + currentArray[j + 1] +
+                                ' · Swap!';
+                            stepCounter.textContent = '交换 · Swap';
+                            setSubtitle(currentArray[j] + ' 大于 ' + currentArray[j + 1] + '，交换它们的位置',
+                                currentArray[j] + ' is greater than ' + currentArray[j + 1] +
+                                ' — swapping them');
+                            await sleep(350);
+
+                            [currentArray[j], currentArray[j + 1]] = [currentArray[j + 1], currentArray[j]];
+                            updateBarVisuals();
+                            barBodies[j].classList.add('swapping');
+                            barBodies[j + 1].classList.add('swapping');
+                            swappedThisRound = true;
+                            await sleep(400);
+                            barBodies[j].classList.remove('swapping');
+                            barBodies[j + 1].classList.remove('swapping');
+                            await sleep(200);
+                        } else {
+                            infoDetail.textContent = '无需交换 ' + currentArray[j] + ' ≤ ' + currentArray[j + 1] +
+                                ' · No swap';
+                            stepCounter.textContent = '保持 · Keep';
+                            setSubtitle(currentArray[j] + ' 不大于 ' + currentArray[j + 1] + '，保持原位',
+                                currentArray[j] + ' is not greater than ' + currentArray[j + 1] +
+                                ' — keep positions');
+                            await sleep(500);
+                            barBodies[j].classList.remove('comparing');
+                            barBodies[j + 1].classList.remove('comparing');
+                            await sleep(250);
+                        }
+                        compareArrows[j].classList.remove('active');
+                    }
+
+                    // Mark the last unsorted element as sorted
+                    const sortedIdx = N - 1 - round;
+                    sortedFlags[sortedIdx] = true;
+                    updateBarVisuals();
+                    clearHighlights();
+                    infoDetail.textContent = '元素 ' + currentArray[sortedIdx] + ' 已到达正确位置 ✓';
+                    stepCounter.textContent = '完成轮次 · Round Complete';
+                    setSubtitle('第 ' + (round + 1) + ' 轮完成——元素 ' + currentArray[sortedIdx] +
+                        ' 已就位（索引 ' + sortedIdx + '）',
+                        'Round ' + (round + 1) + ' complete — element ' + currentArray[sortedIdx] +
+                        ' is now in place at index ' + sortedIdx);
+                    await sleep(1200);
+                }
+
+                // Mark remaining as sorted
+                sortedFlags.fill(true);
+                updateBarVisuals();
+                clearHighlights();
+                infoRound.textContent = '排序完成！· Sorted!';
+                infoDetail.textContent = '所有元素已按升序排列 ✓';
+                stepCounter.textContent = '完成 · Done';
+                setSubtitle('冒泡排序完成！所有元素已按升序排列。总轮次：' + (N - 1),
+                    'Bubble sort complete! All elements are now in ascending order. Total rounds: ' + (N - 1));
+                await sleep(3500);
+            }
+
+            async function mainLoop() {
+                while (true) {
+                    sortedFlags.fill(false);
+                    currentArray = [...INITIAL_ARRAY];
+                    clearHighlights();
+                    updateBarVisuals();
+                    for (let i = 0; i < N; i++) {
+                        sortedStars[i].classList.remove('visible');
+                        barBodies[i].classList.remove('sorted', 'comparing', 'swapping');
+                    }
+                    for (let i = 0; i < N - 1; i++) compareArrows[i].classList.remove('active');
+                    infoRound.textContent = '';
+                    infoDetail.textContent = '';
+                    stepCounter.textContent = '准备 · Ready';
+                    setSubtitle('冒泡排序可视化 — 即将开始新一轮演示',
+                        'Bubble Sort Visualization — a new demonstration will begin shortly');
+                    await sleep(1500);
+                    await runBubbleSort();
+                }
+            }
+
+            // Scale container to fit viewport
+            function resizeStage() {
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const scaleX = vw / 2560;
+                const scaleY = vh / 1440;
+                const scale = Math.min(scaleX, scaleY, 1) * 0.96;
+                stageWrapper.style.transform = 'scale(' + scale + ')';
+            }
+            window.addEventListener('resize', resizeStage);
+            resizeStage();
+
+            // Start
+            updateBarVisuals();
+            mainLoop();
+        })();
+    </script>
+</body>
+</html>

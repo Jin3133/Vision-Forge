@@ -1,0 +1,329 @@
+{
+  "loading": {
+    "method": "original",
+    "load_time_seconds": 86.5387351512909,
+    "success": true,
+    "gpu_memory_before_mb": 277.84765625,
+    "gpu_memory_after_mb": 8161.96484375,
+    "gpu_memory_used_mb": 7884.1171875,
+    "timestamp": "2026-05-27T19:51:25.866774"
+  },
+  "latency_short": {
+    "stats": {
+      "method": "original",
+      "text_type": "short",
+      "total_samples": 20,
+      "success_count": 20,
+      "success_rate": 100.0,
+      "avg_response_time": 6.178770303726196,
+      "min_response_time": 3.2282142639160156,
+      "max_response_time": 11.195141077041626,
+      "median_response_time": 5.200968503952026,
+      "p95": 11.195141077041626,
+      "std_dev": 1.9032130066847202
+    },
+    "details": [
+      {
+        "sample": 1,
+        "text": "你好，我是AI助手。",
+        "text_length": 10,
+        "response_time": 11.195141077041626,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_001.wav"
+      },
+      {
+        "sample": 2,
+        "text": "今天天气不错。",
+        "text_length": 7,
+        "response_time": 6.370071649551392,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_002.wav"
+      },
+      {
+        "sample": 3,
+        "text": "请帮我查一下资料。",
+        "text_length": 9,
+        "response_time": 8.2328462600708,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_003.wav"
+      },
+      {
+        "sample": 4,
+        "text": "谢谢你的帮助。",
+        "text_length": 7,
+        "response_time": 6.933105707168579,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_004.wav"
+      },
+      {
+        "sample": 5,
+        "text": "再见！",
+        "text_length": 3,
+        "response_time": 3.2282142639160156,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_005.wav"
+      },
+      {
+        "sample": 6,
+        "text": "早上好！",
+        "text_length": 4,
+        "response_time": 5.068687438964844,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_006.wav"
+      },
+      {
+        "sample": 7,
+        "text": "晚上好！",
+        "text_length": 4,
+        "response_time": 4.907129764556885,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_007.wav"
+      },
+      {
+        "sample": 8,
+        "text": "吃了吗？",
+        "text_length": 4,
+        "response_time": 4.96001672744751,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_008.wav"
+      },
+      {
+        "sample": 9,
+        "text": "最近怎么样？",
+        "text_length": 6,
+        "response_time": 4.872344732284546,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_009.wav"
+      },
+      {
+        "sample": 10,
+        "text": "很高兴见到你。",
+        "text_length": 7,
+        "response_time": 6.62971568107605,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_010.wav"
+      },
+      {
+        "sample": 11,
+        "text": "你好，我是AI助手。",
+        "text_length": 10,
+        "response_time": 8.870136260986328,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_011.wav"
+      },
+      {
+        "sample": 12,
+        "text": "今天天气不错。",
+        "text_length": 7,
+        "response_time": 5.116349220275879,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_012.wav"
+      },
+      {
+        "sample": 13,
+        "text": "请帮我查一下资料。",
+        "text_length": 9,
+        "response_time": 7.438569068908691,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_013.wav"
+      },
+      {
+        "sample": 14,
+        "text": "谢谢你的帮助。",
+        "text_length": 7,
+        "response_time": 8.01707649230957,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_014.wav"
+      },
+      {
+        "sample": 15,
+        "text": "再见！",
+        "text_length": 3,
+        "response_time": 4.532952785491943,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_015.wav"
+      },
+      {
+        "sample": 16,
+        "text": "早上好！",
+        "text_length": 4,
+        "response_time": 5.255587339401245,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_016.wav"
+      },
+      {
+        "sample": 17,
+        "text": "晚上好！",
+        "text_length": 4,
+        "response_time": 4.926142454147339,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_017.wav"
+      },
+      {
+        "sample": 18,
+        "text": "吃了吗？",
+        "text_length": 4,
+        "response_time": 5.146349668502808,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_018.wav"
+      },
+      {
+        "sample": 19,
+        "text": "最近怎么样？",
+        "text_length": 6,
+        "response_time": 4.482885360717773,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_019.wav"
+      },
+      {
+        "sample": 20,
+        "text": "很高兴见到你。",
+        "text_length": 7,
+        "response_time": 7.392084121704102,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\short_020.wav"
+      }
+    ]
+  },
+  "latency_medium": {
+    "stats": {
+      "method": "original",
+      "text_type": "medium",
+      "total_samples": 15,
+      "success_count": 15,
+      "success_rate": 100.0,
+      "avg_response_time": 26.978510046005248,
+      "min_response_time": 15.887795448303223,
+      "max_response_time": 42.07383108139038,
+      "median_response_time": 25.510387897491455,
+      "p95": 42.07383108139038,
+      "std_dev": 5.988942890983671
+    },
+    "details": [
+      {
+        "sample": 1,
+        "text": "人工智能是计算机科学的一个分支，它企图了解智能的实质。",
+        "text_length": 27,
+        "response_time": 15.887795448303223,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_001.wav"
+      },
+      {
+        "sample": 2,
+        "text": "机器学习是人工智能的核心技术之一，它使计算机能够从数据中学习。",
+        "text_length": 31,
+        "response_time": 24.493277311325073,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_002.wav"
+      },
+      {
+        "sample": 3,
+        "text": "深度学习是机器学习的一个子集，它使用多层神经网络来模拟人脑的工作方式。",
+        "text_length": 35,
+        "response_time": 27.27234148979187,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_003.wav"
+      },
+      {
+        "sample": 4,
+        "text": "自然语言处理是人工智能的重要应用领域，它使计算机能够理解和生成人类语言。",
+        "text_length": 36,
+        "response_time": 29.117704391479492,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_004.wav"
+      },
+      {
+        "sample": 5,
+        "text": "计算机视觉技术使机器能够识别和理解图像和视频内容，这在自动驾驶和医疗诊断中有广泛应用。",
+        "text_length": 43,
+        "response_time": 33.49538540840149,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_005.wav"
+      },
+      {
+        "sample": 6,
+        "text": "Python是一种解释型、面向对象、动态数据类型的高级程序设计语言。",
+        "text_length": 34,
+        "response_time": 21.905802249908447,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_006.wav"
+      },
+      {
+        "sample": 7,
+        "text": "数据分析是指用适当的统计分析方法对收集来的大量数据进行分析，提取有用信息。",
+        "text_length": 37,
+        "response_time": 28.843852758407593,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_007.wav"
+      },
+      {
+        "sample": 8,
+        "text": "云计算是一种基于互联网的计算方式，通过这种方式，共享的软硬件资源和信息可以按需提供给计算机和其他设备。",
+        "text_length": 51,
+        "response_time": 42.07383108139038,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_008.wav"
+      },
+      {
+        "sample": 9,
+        "text": "人工智能是计算机科学的一个分支，它企图了解智能的实质。",
+        "text_length": 27,
+        "response_time": 24.474474668502808,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_009.wav"
+      },
+      {
+        "sample": 10,
+        "text": "机器学习是人工智能的核心技术之一，它使计算机能够从数据中学习。",
+        "text_length": 31,
+        "response_time": 23.16787815093994,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_010.wav"
+      },
+      {
+        "sample": 11,
+        "text": "深度学习是机器学习的一个子集，它使用多层神经网络来模拟人脑的工作方式。",
+        "text_length": 35,
+        "response_time": 25.510387897491455,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_011.wav"
+      },
+      {
+        "sample": 12,
+        "text": "自然语言处理是人工智能的重要应用领域，它使计算机能够理解和生成人类语言。",
+        "text_length": 36,
+        "response_time": 24.642202377319336,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_012.wav"
+      },
+      {
+        "sample": 13,
+        "text": "计算机视觉技术使机器能够识别和理解图像和视频内容，这在自动驾驶和医疗诊断中有广泛应用。",
+        "text_length": 43,
+        "response_time": 31.946070671081543,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_013.wav"
+      },
+      {
+        "sample": 14,
+        "text": "Python是一种解释型、面向对象、动态数据类型的高级程序设计语言。",
+        "text_length": 34,
+        "response_time": 23.330764293670654,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_014.wav"
+      },
+      {
+        "sample": 15,
+        "text": "数据分析是指用适当的统计分析方法对收集来的大量数据进行分析，提取有用信息。",
+        "text_length": 37,
+        "response_time": 28.51588249206543,
+        "success": true,
+        "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\detailed_comparison\\audio\\original\\medium_015.wav"
+      }
+    ]
+  },
+  "latency_long": {
+    "skipped": true,
+    "reason": "显存不足"
+  }
+}

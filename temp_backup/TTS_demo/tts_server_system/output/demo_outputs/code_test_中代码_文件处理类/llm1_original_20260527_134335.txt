@@ -1,0 +1,140 @@
+======================================================================
+测试: 中代码_文件处理类
+LLM1 原始输出 (含代码)
+======================================================================
+
+我来创建一个完整的配置文件管理类，包含所有要求的功能：
+
+```python
+import json
+import yaml
+import logging
+import os
+from typing import Any, Dict, Optional, Union
+from datetime import datetime
+
+
+class ConfigManager:
+    """
+    配置文件管理类，支持JSON和YAML格式的配置文件读写。
+    包含异常处理、日志记录和类型检查功能。
+    """
+    
+    def __init__(self, config_path: str, log_level: int = logging.INFO):
+        """
+        初始化配置管理器
+        
+        参数:
+            config_path: 配置文件路径
+            log_level: 日志级别，默认为INFO
+        """
+        self.config_path = config_path
+        self.config_data: Dict[str, Any] = {}
+        
+        # 设置日志记录器
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(log_level)
+        
+        # 创建控制台处理器
+        if not self.logger.handlers:
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(log_level)
+            
+            # 设置日志格式
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
+        
+        self.logger.info(f"配置管理器初始化完成，配置文件路径: {config_path}")
+    
+    def load_config(self) -> bool:
+        """
+        加载配置文件
+        
+        返回:
+            bool: 加载成功返回True，失败返回False
+        """
+        try:
+            # 检查文件是否存在
+            if not os.path.exists(self.config_path):
+                self.logger.error(f"配置文件不存在: {self.config_path}")
+                return False
+            
+            # 获取文件扩展名
+            file_ext = os.path.splitext(self.config_path)[1].lower()
+            
+            # 根据文件格式选择解析方法
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                if file_ext in ['.json']:
+                    self.config_data = json.load(f)
+                    self.logger.info("成功加载JSON配置文件")
+                elif file_ext in ['.yaml', '.yml']:
+                    self.config_data = yaml.safe_load(f)
+                    self.logger.info("成功加载YAML配置文件")
+                else:
+                    self.logger.error(f"不支持的配置文件格式: {file_ext}")
+                    return False
+            
+            return True
+            
+        except json.JSONDecodeError as e:
+            self.logger.error(f"JSON解析错误: {str(e)}")
+            return False
+        except yaml.YAMLError as e:
+            self.logger.error(f"YAML解析错误: {str(e)}")
+            return False
+        except PermissionError as e:
+            self.logger.error(f"文件权限错误: {str(e)}")
+            return False
+        except Exception as e:
+            self.logger.error(f"加载配置文件时发生未知错误: {str(e)}")
+            return False
+    
+    def save_config(self) -> bool:
+        """
+        保存配置到文件
+        
+        返回:
+            bool: 保存成功返回True，失败返回False
+        """
+        try:
+            # 获取文件扩展名
+            file_ext = os.path.splitext(self.config_path)[1].lower()
+            
+            # 根据文件格式选择保存方法
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                if file_ext in ['.json']:
+                    json.dump(self.config_data, f, indent=4, ensure_ascii=False)
+                    self.logger.info("成功保存JSON配置文件")
+                elif file_ext in ['.yaml', '.yml']:
+                    yaml.dump(self.config_data, f, default_flow_style=False, allow_unicode=True)
+                    self.logger.info("成功保存YAML配置文件")
+                else:
+                    self.logger.error(f"不支持的配置文件格式: {file_ext}")
+                    return False
+            
+            return True
+            
+        except PermissionError as e:
+            self.logger.error(f"文件权限错误: {str(e)}")
+            return False
+        except Exception as e:
+            self.logger.error(f"保存配置文件时发生未知错误: {str(e)}")
+            return False
+    
+    def get(self, key: str, default: Any = None) -> Any:
+        """
+        获取配置项的值，支持点号分隔的嵌套键
+        
+        参数:
+            key: 配置项键名，如 "database.host"
+            default: 如果键不存在时返回的默认值
+            
+        返回:
+            Any: 配置项的值
+        """
+        try:
+            # 支持嵌套键访问
+            keys = key

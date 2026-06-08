@@ -1,0 +1,445 @@
+Full Length Article
+
+# TDAG: A multi-agent framework based on dynamic Task Decomposition and Agent Generation
+
+<!-- image-->
+
+Yaoxiang Wang a, Zhiyong Wu b, Junfeng Yao a, Jinsong Su a,∗
+
+a Xiamen University, Xiamen, 361005, China
+
+b Shanghai AI Laboratory, Shanghai, China
+
+## A R T I C L E I N F O
+
+Keywords:   
+Large Language Model   
+AI Agent   
+Travel Planning   
+Task Decomposition
+
+## A B S T R A C T
+
+The emergence of Large Language Models (LLMs) like ChatGPT has inspired the development of LLM-based agents capable of addressing complex, real-world tasks. However, these agents often struggle during task execution due to methodological constraints, such as error propagation and limited adaptability. To address this issue, we propose a multi-agent framework based on dynamic Task Decomposition and Agent Generation (TDAG). This framework dynamically decomposes complex tasks into smaller subtasks and assigns each to a specifically generated subagent, thereby enhancing adaptability in diverse and unpredictable real-world tasks. Simultaneously, existing benchmarks often lack the granularity needed to evaluate incremental progress in complex, multi-step tasks. In response, we introduce ItineraryBench in the context of travel planning, featuring interconnected, progressively complex tasks with a fine-grained evaluation system. ItineraryBench is designed to assess agents’ abilities in memory, planning, and tool usage across tasks of varying complexity. Our experimental results reveal that TDAG significantly outperforms established baselines, showcasing its superior adaptability and context awareness in complex task scenarios.
+
+## 1. Introduction
+
+The emergence of Large Language Models (LLMs) (OpenAI, 2023; Zhang et al., 2022), such as ChatGPT, represents a noteworthy milestone in artificial intelligence, laying the groundwork for the creation of LLM-based agents (Nakajima, 2023; Significant-Gravitas, 2023) with the capacity to automate tasks on behalf of humans.
+
+Despite advancements, LLM-based agents face substantial challenges in real-world tasks that demand complex planning, multi-stage reasoning, and tool utilization (Crispino et al., 2023; Qin et al., 2023). For instance, in a recent agent benchmark (Mialon et al., 2023), even GPT4 falls short with a success rate of 14%, while humans effortlessly exceed 92%. Empowering agents to effectively address real-world tasks is challenging, arising from difficulties in both benchmark and methodological perspectives.
+
+From a benchmark perspective, we have witnessed lots of agentrelated benchmarks in the passing year, covering domains like web manipulation (Yao et al., 2022), gaming (Wang et al., 2023), and software control (Li et al., 2023). However, the evaluation metrics in current benchmarks often lack the granularity needed to accurately reflect the incremental progress of agents. In complex multi-step tasks, even if an agent fails to achieve the ultimate targets, it might successfully accomplish some of the subtasks. It is essential to include these partial successes in evaluation metrics to faithfully capture the capabilities of agents. Reporting only a binary score (success or failure) can lead to misconceptions such as emergent abilities (Wei et al., 2022).
+
+From a methodological perspective, existing approaches (Prasad et al., 2023; Sun et al., 2023a; Wang et al., 2023) aim to break down a complex request into a sequence of subtasks to reduce complexity and address the challenge of excessively long input. However, they encounter two notable drawbacks: error propagation and limited adaptability. In many studies, after the decomposition of the problem, all subtasks become fixed and unalterable. In such a setup, if an early subtask encounters failure, the error propagates, resulting in the failure of the entire task. Regarding subtask execution, prevailing efforts often involve the manual construction of hard-coded subagents. This static design tends to lack generality and is unable to scale effectively to handle diverse real-world tasks, given its labor and time-intensive nature.
+
+To bridge the gap and facilitate research on complex reasoning and planning in LLM-based agents, we have made two contributions. First, we developed a benchmark that supports fine-grained evaluation of agents’ progress. Concurrently, we developed a multi-agent framework for real-world problem-solving. This framework distinguishes itself through dynamic task decomposition and automatic subagent creation.
+
+Our benchmark focuses on agent-assisted travel planning. Concretely, agents in our benchmark are required to act as personal assistants, leveraging computer tools like the databases and the code interpreter to execute tasks. To provide a holistic evaluation, our benchmark encompasses a spectrum of tasks, each varying in complexity. We also develop a simulator to mimic dynamic real-world scenarios, encompassing the entire pipeline of travel planning—from ticket booking to route/time planning. With the simulator, we are able to assess agents’ partial task completion and deliver a nuanced score, which offers a more accurate and fair reflection of agents’ capabilities.
+
+Our multi-agent framework decomposes complex tasks into smaller, more manageable subtasks, while dynamically adjusting subsequent subtasks based on the completion status of preceding ones. For each subtask, a subtask-tailored subagent is generated using LLMs, which differs our design from conventional approaches that rely on a single agent or a set of manually designed subagents. Furthermore, these subagents are equipped with an evolving and adaptable skill library, designed to meet the challenges of varied and unpredictable environments.
+
+Our contributions are summarized as follows:
+
+• We develop ItineraryBench, featuring interconnected, progressively complex tasks and a fine-grained evaluation system.
+
+• We introduce a multi-agent framework based on dynamic Task Decomposition and Agent Generation (TDAG), which decomposes a complex task into smaller subtasks, each managed by a specifically generated subagent.
+
+• We conduct experiments on ItineraryBench, validating the effectiveness of the TDAG framework and highlighting the benefits of fine-grained evaluation.
+
+## 2. Related work
+
+## 2.1. Large language model-based agents
+
+Large language models (LLMs) have demonstrated exceptional capabilities in language understanding, cognition, and reasoning (OpenAI, 2023; Ouyang et al., 2022; Zhang et al., 2022), inspiring the development of LLM-based agents (Park et al., 2023; Sun et al., 2023b; Wang et al., 2023). These agents integrate LLMs as their core processing units, enabling them to efficiently tackle complex tasks (Xi et al., 2023; Zhang et al., 2023). Their widespread application in various domains, from software development to scientific research, demonstrates their versatility (Boiko et al., 2023; Qian et al., 2023; Wu et al., 2024). This versatility is further exemplified by innovative open-source projects such as AutoGPT (Significant-Gravitas, 2023), BabyAGI (Nakajima, 2023), and Xagent (XAgent Team, 2023), which leverage LLMs for automated task execution by simply being provided with a task description and a set of available tools.
+
+## 2.2. Enhancing agent planning with large language models
+
+To enhance the reasoning and planning capabilities of LLM-based agents, various techniques like Chain-of-Thought prompting and task decomposition are employed. Typically, ReAct (Yao et al., 2023) uses an iterative process where a LLM generates thoughts and actions based on current observations until task completion. Reflexion (Shinn et al., 2023) introduces a self-reflection mechanism to improve reasoning quality. Meanwhile, ADAPT (Prasad et al., 2023) employs a recursive strategy that breaks down tasks into subtasks and allows further decomposition when necessary. We extend these capabilities further by introducing a multi-agent framework where the task is dynamically decomposed and each subtask is then assigned to specially generated subagent. This approach allows for more flexible and efficient task management, especially in complex and unpredictable scenarios.
+
+## 2.3. Evaluating LLM-based agents
+
+Recently, various benchmarks have been developed to evaluate the foundational abilities of these agents, such as decision-making, tool utilization, and embodied action capabilities (Liang et al., 2023; Lin et al., 2023; Qin et al., 2023; Xu et al., 2023). Additionally, there has been a focus on evaluating agents in specific real-world scenarios. For instance, AgentBench (Liu et al., 2023) has compiled a series of tasks set in multiple real-world scenarios to assess the performance of agents in completing a variety of tasks, including code, web (Yao et al., 2022), and game (Shridhar et al., 2021). Beyond scenario-specific evaluations, there is a growing interest in assessing the comprehensive abilities of agents. OpenAGI (Ge et al., 2023) is an open-source AGI research and development platform designed for solving multi-step, real-world tasks. GAIA (Mialon et al., 2023) introduces hundreds of real-world questions that necessitate fundamental abilities like reasoning, multi-modality handling. Different from existing studies, ItineraryBench uniquely assesses partial task completions, offering a more refined assessment framework for LLM-based agents. ItineraryBench focuses on travel planning, a scenario that offers a realistic and dynamic environment where tasks vary in complexity and require an agent to demonstrate abilities such as memory, planning, and tool usage, making it an ideal scenario to test agents’ adaptability and incremental progress in completing complex, multi-step tasks.
+
+## 3. Itinerarybench
+
+In this section, we first provide an overview of ItineraryBench (Section 3.1), then explain the dataset construction (Section 3.2), discuss the multi-level evaluation metrics (Section 3.3), and highlight key features of our benchmark (Section 3.4).
+
+## 3.1. Overview
+
+We introduce ItineraryBench, a benchmark designed for evaluating agents in complex real-world scenarios, with a particular focus on travel planning. The core task for agents is to plan a trip that involves visits to multiple cities and attractions, while adhering to various constraints such as time and budget. This requires agents to interact with tools to access detailed information about transportation, accommodation, and attractions, as well as to facilitate planning.
+
+As illustrated in Fig. 1, agents receive a task and are expected to produce a detailed itinerary that outlines activities for each segment of the trip. Formally, the itinerary comprises a sequence of predefined actions, including moving between places and cities, visiting spots, and staying in cities, as summarized in Table 1.
+
+## 3.2. Dataset construction
+
+We gathered information of 83 tourist attractions across 15 cities, 846 intra-city and 3903 inter-city transportation routes. Based on this foundation, we employed a combination of manual curation and codeassisted method to construct 364 distinct samples, exclusively reserved as the test set. Each sample represents a unique travel planning scenario, encompassing various combinations of cities, attractions, transportation modes, and scheduling constraints. Detailed statistics can be found in Appendix A.
+
+Our benchmark encompasses three distinct task types, each anchored by a central storyline from which numerous data samples emerge. These types provide a comprehensive assessment of the agents’ capabilities in handling varying complexities and real-world variables.
+
+## Type 1: Inter-city travel planning
+
+The primary storyline of this type involves the user planning a journey that spans multiple cities, focusing on determining the order of cities to visit, the duration of stays, and the inter-city transportation. The final itinerary involves ‘go_to_city’ and ‘stay_in’ actions. There are variations in cities to visit, lengths of stay, and available activity hours, etc.
+
+<!-- image-->  
+Fig. 1. Example of a travel planning task. The task specifies initial conditions and constraints for generating a travel itinerary.
+
+## Type 2: Intra-city travel planning
+
+In this type of task, the user starts from a fixed location and plans to visit various attractions within a city. The final itinerary involves ‘go_to_place’ and ‘visit’ actions, incorporating constraints such as limited attraction opening hours and designated time allocations for meals and activities.
+
+## Type 3: Combined intra- and inter-city travel planning
+
+This type of task is a composite of Types 1 and 2, involving planning visits to attractions within multiple cities. The itinerary involves ‘go_to_city’, ‘go_to_place’, and ‘visit’ actions, representing a more complex version of travel planning.
+
+Tools. To facilitate these tasks, agents have access to a database and a Python interpreter environment. The database contains information on transportation and attractions across cities and the Python interpreter can be used for calculation and numerical optimization
+
+## 3.3. Evaluation metrics
+
+To comprehensively evaluate the performance of agents, we develop a simulated environment that closely resembles real-world scenarios, assessing agents at three levels: Executability, Constraint Satisfaction, and Time and Cost Efficiency. Unlike traditional benchmarks that rely on a singular ground truth, we do not require a predefined ground truth. Instead, agents’ plans are executed within the simulator, which provides real-time feedback by validating the correctness of the actions performed. This allows us to directly score the plans based on their performance within the environment, ensuring that multiple correct answers are accommodated.
+
+Level 1 - Executability. Itineraries are evaluated on their basic feasibility. For example, ‘go_to_city(Shanghai, Beijing, 07-01 14:40, 07-01 20:30, G2305)’ is assessed to ensure that the train’s schedule matches the action’s timing requirements. In the simulator, specific scoring items are designated to calculate the score. The scoring for Level 1 is calculated as follows:
+
+$$
+s _ { 1 } = w _ { 1 } \times \frac { A _ { 1 } } { B _ { 1 } } ,\tag{1}
+$$
+
+where $w _ { 1 }$ is the weight of Level 1 (60 points), ?? is the number of successfully completed scoring items, and $B _ { 1 }$ is the total number of scoring items in Level 1.
+
+Level 2 - Constraint Satisfaction. This level assesses the itinerary’s adherence to specified constraints like budget limits, stay durations, and opening hours of tourist spots. The scoring for Level 2 is calculated as follows:
+
+$$
+s _ { 2 } = w _ { 2 } \times \frac { A _ { 2 } } { B _ { 2 } } ,\tag{2}
+$$
+
+where $w _ { 2 }$ is the weight of Level 2 (20 points), $A _ { 2 }$ is the number of successfully completed scoring items, and $B _ { 2 }$ is the total number of scoring items in Level 2.
+
+Level 3 - Time and Cost Efficiency. This level evaluates the itinerary based on its efficiency in terms of time and cost, while also considering the criteria from the previous levels. Efficiency is assessed against a predefined spending range [??, ??]. A higher score is awarded for lower expenditures within this range, with a full score for expenses at or below the lower limit $^ { a , }$ and no score for exceeding the upper limit ??. The scoring formula is as follows:
+
+$$
+\begin{array} { r } { s _ { 3 } = \left\{ \begin{array} { l l } { w _ { 3 } } & { \mathrm { i f ~ } s \leq a } \\ { w _ { 3 } \times \left( 1 - \frac { s - a } { b - a } \right) } & { \mathrm { i f ~ } a < s < b } \\ { 0 } & { \mathrm { i f ~ } s \geq b } \end{array} \right. , } \end{array}\tag{3}
+$$
+
+where $w _ { 3 }$ is the weight of Level 3 (20 points) and ?? is the actual cost or time spent.
+
+The values of ?? and ?? are determined by generating a large number of candidate itineraries and executing them within the simulator. This ensures that only the correct and executable itineraries are considered. From this pool, we randomly select 50 valid itineraries, and their time and cost values are used to calculate the mean and standard deviation. We set $a = \mu - \sigma$ and $b = \mu + \sigma ,$ , where ?? is the mean and ?? is the standard deviation. This ensures that the range [??, ??] reflects realistic and achievable time and cost efficiency based on the performance of valid itineraries in the simulator.
+
+These metrics provide a nuanced assessment of an agent’s performance, especially in scenarios where only partial task completion is achieved. This approach ensures a more accurate reflection of an agent’s capabilities in handling complex and layered tasks.
+
+<!-- image-->  
+Fig. 2. Overview of TDAG framework. It shows the process of decomposing a complex task into multiple subtasks, which are then dynamically updated based on the completion status of preceding subtasks. Each subtask is assigned to a specially generated subagent, ensuring targeted and efficient task execution.
+
+Sequential Evaluation Process. It is important to note that the evaluation for higher levels only proceeds after the complete attainment of scores in the lower levels. For instance, an itinerary must first be feasible (Level 1) before it can be evaluated for compliance with specific constraints (Level 2) and its efficiency in terms of time and cost (Level 3) This approach reinforces the importance of a strong base in practical execution, as advanced optimizations are irrelevant if basic executability is not achieved.
+
+## 3.4. Feature highlights
+
+The features of ItineraryBench are summarized as follows:
+
+1. Multi-Faceted and Fine-Grained Evaluation. Moving beyond binary success-failure assessments, our benchmark employs a nuanced scoring system, which recognizes varying degrees of task completion and evaluates agents at multiple levels, reflecting their overall performance in realistic applications.
+
+2. Interconnected Tasks and Progressive Complexity. The tasks center around travel planning and are designed to increase in complexity through a series of evolving objectives and constraints. Each task is an extension of the previous one, simulating the interconnected nature of real-world problem-solving.
+
+3. Integration of Tools. The benchmark incorporates tools like the Python interpreter and the database to evaluate agents’ abilities to utilize tools and handle external information. The Python interpreter can be used for planning optimization and the database provides access to additional information, such as transportation and attraction details.
+
+## 4. A multi-agent framework based on dynamic task decomposition and agent generation
+
+In this section, we introduce a multi-agent framework based on dynamic Task Decomposition and Agent Generation (TDAG), as illustrated in Fig. 2. The framework is structured around two key components: (1) an advanced task decomposition strategy that dynamically adapts to the evolving requirements of complex tasks (Section 4.1), and (2) a flexible agent generation process that customizes agents for specific subtasks, enhancing adaptability and efficiency in varied scenarios (Section 4.2).
+
+## 4.1. Dynamic task decomposition
+
+In our framework, complex tasks are decomposed into smaller, more manageable subtasks, addressing the challenge of excessive irrelevant contexts that may hinder LLM performance.
+
+The main agent decomposes the task, and each subagent is assigned a subtask, the process of which is represented as:
+
+$$
+( t _ { 1 } , t _ { 2 } , \ldots , t _ { n } ) = \mathrm { M a i n A g e n t } ( T ) ,\tag{4}
+$$
+
+where $t _ { i }$ is the ??th subtask and ?? is the original task.
+
+The ??th subtask is performed by the corresponding subagent??, with the result as
+
+$$
+\boldsymbol { r } _ { i } = \mathrm { S u b A g e n t } _ { i } ( t _ { 1 } , t _ { 2 } , \dots , t _ { i } , r _ { 1 } , r _ { 2 } , \dots , r _ { i - 1 } ) .\tag{5}
+$$
+
+Note that each subagent focuses on a specific subtask, reducing the potential for noise of irrelevant information, thereby enhancing performance.
+
+Crucially, these decomposed subtasks are not static, but will be dynamically adjusted based on the outcomes of preceding tasks, which is represented as:
+
+$$
+t _ { i } ^ { \prime } = \mathrm { U p d a t e } ( t _ { i } , r _ { 1 } , r _ { 2 } , \ldots , r _ { i - 1 } ) ,\tag{6}
+$$
+
+where $t _ { i } ^ { \prime }$ is the updated ??th subtask, redefined based on the results $r _ { 1 } , r _ { 2 } , \ldots , r _ { i - 1 }$ of preceding subtasks. This dynamic adjustment accounts for unexpected results (such as failures) or new information obtained during the execution of earlier subtasks, allowing for real-time recalibration and enhancement of the task-solving strategy.
+
+## 4.2. Agent generation
+
+Differing from previous methods (Prasad et al., 2023; Sun et al., 2023a), where tasks are assigned to predefined, fixed subagents, our framework allows for dynamic customization of subagents. This customization is achieved through LLM prompting, reflected in two aspects: generation of the tool document and an incremental skill library. By doing so, our framework significantly reduces the human effort required for agent setup and adaptation, making it more efficient in handling complex tasks.
+
+## 4.2.1. Tool document generation
+
+In standard tool documents, there are often issues of redundancy, unclear descriptions, which may mislead the agent into making inappropriate attempts to handle the task. Our framework involves generating an enhanced version of the original document by restructuring, clarifying and enriching the original content. By doing so, we aim to ensure that every piece of information presented to the agent is not only relevant but also optimally formatted for effective comprehension and application, thereby enhancing the agent’s efficiency in task execution.
+
+Algorithm 1 Multi-Agent Framework Operation   
+1: Input: Task ?? , Tool document $D ,$ Skill library ??   
+2: Output: Updated Skill library $L ,$ Task results ??   
+3: ??_???????? ← MainAgent.Decompose(?? ) ⊳ Decompose task T   
+4: for $t _ { i }$ in $t \_ l i s t$ do   
+5: ?????????????????? ← AgentGenerator.Generate( $D , L , t _ { i } )$ ⊳ Generate subagent   
+6: $r _ { i } \gets$ ?????????????????? $. E x e c u t e ( t _ { 1 } , t _ { 2 } , \dots , t _ { i - 1 } , t _ { i } , r _ { 1 } , r _ { 2 } , \dots , r _ { i - 1 } )$ ⊳ Execute subtask   
+7: $\textbf { i f } t _ { i }$ is successfully completed then   
+8: ?? ← ??????????????????.???????????????????? ????????????() ⊳ Summarize process   
+9: ?? ← Processor.UpdateSkillLibrary(??, ??) ⊳ Update Skill library   
+10: end if   
+11: $t \_ l i s t$ ← MainAgent.UpdateTasks(??_????????, ????) ⊳ Update task list   
+12: end for   
+13: ?? ← MainAgent.Submi $\mathsf { t } ( t _ { 1 } , t _ { 2 } , \ldots , t _ { n } , r _ { 1 } , r _ { 2 } , \ldots , r _ { n } )$ ⊳ Get the final result   
+14: return $L , R$ ⊳ Return updated library and results
+
+## 4.2.2. Incremental skill library
+
+Our framework generates skills for subagents based on the agent behavior during task execution. These skills are then stored in a skill library, available for reference when agents face similar objectives in future tasks. The concept of a skill library is inspired by voyager (Wang et al., 2023), but with crucial adaptations. Unlike the environment of voyager, where the correctness of skills are directly verifiable through environmental feedback, our benchmark environment cannot guarantee the correctness of a skill. Therefore, the skills our agents develop are subject to continuous refinement in response to variable tasks and environmental conditions. When employing a skill, we use a small SentenceBERT model to retrieve the most relevant skill from the library based on the subtask’s content. Once a subagent completes a subtask, it is prompted to summarize its process, which is then used to update the skill library. The format for skills is as follows:
+
+• Name: The name of the skill.
+
+• Detail: The details of the subtask.
+
+• Solution: The solution for the subtask.
+
+An agent dedicated to skill modification oversees the library, updating existing skills based on new data and experiences. This continuous cycle of generation, application, and refinement ensures that the skills in our library remain effective and adaptable to a wide range of scenarios. Algorithm 1 illustrates the step-by-step process of the overall framework.
+
+## 5. Experiments
+
+## 5.1. Settings
+
+Our experiments are conducted across the three types of tasks of the Itinerary Bench as mentioned in Section 3. We employ the finegrained evaluation system previously described, which allows scoring for partial completions of tasks. The baseline methodologies we have employed are:
+
+• ReAct (Yao et al., 2023). A single agent iteratively completes the task, with each step involving the agent giving out thoughts and actions based on current observations.
+
+• P&S (Wang et al., 2023). In this setting, the agent first creates a plan with multiple steps and then follows the ReAct pattern to solve the problem step by step.
+
+• P&E (Sun et al., 2023a). The task is initially broken down into multiple subtasks, which are then sequentially assigned to a predefined executor. This decomposition strategy is commonly utilized in mainstream multi-agent frameworks such as MetaGPT (Hong et al., 2023) and AutoGen (Wu et al., 2023).
+
+• ADAPT (Prasad et al., 2023). This method employs a recursive strategy to break down tasks into subtasks, which are then assigned to specific subagents. Subtasks can be further decomposed if not completed successfully.
+
+To further explore the contributions of the dynamic decomposition and agent generation components in our TDAG framework, we conducted ablation studies by individually removing these features. Specifically, we evaluated the performance of our model without the dynamic decomposition process, using a static planner as in P&E method, and without the customization of subagents, relying instead on predefined subagents.
+
+## 5.2. Main results
+
+In our experiments, we use GPT-3.5-turbo-16k as the foundational model, and the results are shown in Table 2. Our method, TDAG, demonstrates superior performance compared to the established baselines. Furthermore, the ablation results confirm that the integration of both dynamic task decomposition and agent generation is crucial for optimizing task execution in complex, unpredictable environments.
+
+Interestingly, the P&E approach, while allocating specific subtasks to designated subagents, does not outperform ReAct, where a single agent executes the entire task. This observation can be primarily attributed to the fixed nature of task assignments in P&E, as discussed in Section 5.3. Once subtasks are assigned, subagents lack the capacity to alter the plan, leading to challenges when initial subtasks do not produce expected results. This rigidity can make subsequent subtasks unexecutable, which is a critical limitation in dynamic and unpredictable environments. On the other hand, TDAG maintains the flexibility to adjust its execution strategy based on evolving task conditions, a key advantage in complex environments.
+
+## 5.3. Error analysis
+
+In our analysis, we identified and categorized the primary error types encountered by the different methods. These error types are as follows:
+
+• Cascading Task Failure (CTF): The entire task fails due to the failure of intermediate subtasks, often as a result of error propagation.
+
+• Commonsense Knowledge Error (CKE): Errors in basic understanding of real-world common sense, such as mismatch between the origin in go_to_place and the character’s current location.
+
+Table 2  
+Experimental results for each method on three task types of ItineraryBench. Numbers in bold indicate the highest score among all methods.
+<table><tr><td>Method</td><td>Type 1</td><td>Type 2</td><td>Type3</td><td>Avg.</td></tr><tr><td>ReAct</td><td>43.84</td><td>42.69</td><td>42.54</td><td>43.02</td></tr><tr><td>P&amp;S</td><td>41.28</td><td>46.48</td><td>43.27</td><td>43.68</td></tr><tr><td>P&amp;E</td><td>39.09</td><td>47.44</td><td>42.03</td><td>42.85</td></tr><tr><td>ADAPT</td><td>42.73</td><td>48.58</td><td>42.92</td><td>44.74</td></tr><tr><td>TDAG (Ours)</td><td>49.78</td><td>50.96</td><td>46.51</td><td>49.08</td></tr><tr><td>w/o Agent Generation</td><td>47.2</td><td>47.1</td><td>45.78</td><td>46.69</td></tr><tr><td>w/o Dynamic Decomposition</td><td>44.7</td><td>50.04</td><td>43.94</td><td>46.23</td></tr></table>
+
+Table 3
+
+Percentage of each type of errors encountered by different methods. The values in the table represent the percentage of each type of errors made by a method relative to the total number of that type of errors.
+<table><tr><td>Method</td><td>CTF</td><td>CKE</td><td>EIM</td><td>CNC</td></tr><tr><td>ReAct</td><td>32.61</td><td>19.75</td><td>17.32</td><td>20.34</td></tr><tr><td>P&amp;S</td><td>8.70</td><td>21.97</td><td>19.46</td><td>21.91</td></tr><tr><td>P&amp;E</td><td>34.78</td><td>20.94</td><td>22.14</td><td>21.05</td></tr><tr><td>ADAPT</td><td>19.57</td><td>18.47</td><td>21.74</td><td>18.07</td></tr><tr><td>TDAG</td><td>4.35</td><td>18.87</td><td>19.33</td><td>18.63</td></tr></table>
+
+<!-- image-->  
+Fig. 3. Comparison of method performance using binary scoring and fine-grained evaluation.
+
+• External Information Misalignment (EIM): Errors in using external information, mainly stemming from the hallucination phenomenon (Ji et al., 2022), such as inconsistencies between database-provided ticket information and the travel plan.
+
+• Constraint Non-compliance (CNC): Errors related to not adhering to specific constraints of the task. This includes exceeding budget or time limits, etc.
+
+As represented in Table 3, methods with fixed plans, such as P&E, are particularly prone to Cascading Task Failures, suggesting a lack of flexibility in adapting to unforeseen issues within a task. This type of error, where an early mistake can lead to the failure of an entire sequence of tasks, underscores the critical need for dynamic task decomposition. Regarding other types of errors, our analysis indicates that the TDAG method generally exhibits low error rates across CKE, EIM and CNC errors. This improvement is attributed to the ability of dynamically generated subagents to focus on specific subtasks, leveraging their tailored capabilities to navigate the intricacies of each challenge effectively. Notably, ReAct outperforms more complex approaches in minimizing
+
+Table 4  
+Experimental Results for WebShop and TextCraft. Following Prasad et al. (2023), we report the reward score and success rate (%) for WebShop and success rate for TextCraft.
+<table><tr><td rowspan="2">Method</td><td colspan="2">WebShop</td><td>TextCraft</td></tr><tr><td>Reward score</td><td>Success rate</td><td>Success rate</td></tr><tr><td>ReAct</td><td>42.1</td><td>29.0</td><td>19.0</td></tr><tr><td>P&amp;S</td><td>58.2</td><td>23.0</td><td>18.5</td></tr><tr><td>P&amp;E</td><td>27.7</td><td>17.0</td><td>27.0</td></tr><tr><td>ADAPT</td><td>60.0</td><td>44.0</td><td>52.0</td></tr><tr><td>TDAG</td><td>64.5</td><td>45.0</td><td>73.5</td></tr></table>
+
+EIM errors. A possible reason could be that complex methods generate excessive context, which may increase the likelihood of hallucination phenomena.
+
+## 5.4. Binary scoring v.s. Fine-grained evaluation
+
+To highlight the significance of the fine-grained evaluation, we conducted an experiment comparing it with the traditional binary scoring method. Given the complexity of tasks, a full score in Level 1 - Executability was used as the criterion for successful task completion, with the results presented in Fig. 3. It reveals that in challenging tasks with a low probability of completion, binary scoring fails to distinguish between different methods effectively. On the other hand, the fine-grained evaluation method provides a more detailed insight, reflecting the extent of task completion even when perfect execution is not achieved.
+
+## 5.5. Generalizability
+
+To further assess the generalizability of our TDAG method, we conducted additional experiments on the following datasets:
+
+• WebShop (Yao et al., 2022). Developed as a simulated e-commerce environment, WebShop requires agents to navigate through various webpage types, reformulate queries, comprehend and interact with text-heavy webpages. Following Shinn et al. (2023), we report performance on 100 user instructions.
+
+• TextCraft (Prasad et al., 2023). As a text-only environment mirroring the crafting component of Minecraft, TextCraft presents tasks with a natural compositional structure akin . Agents in TextCraft aim to craft target items using available resources and a set of defined actions. The test split contains 200 samples.
+
+Following Prasad et al. (2023), we employed GPT-3.5-turbo for Web-Shop and gpt-3.5-turbo-instruct for TextCraft. Due to the lack of tool document and the monotonous nature of the tasks, we did not engage in agent generation. Instead, we utilized the predefined agents from ADAPT.
+
+The experimental results, as illustrated in Table 4, demonstrate that our method outperforms the baseline methods in both reward score and success rate metrics. The results reinforce our assertion that TDAG is not only effective in complex, multifaceted tasks but also excels in more monotonous and straightforward scenarios.
+
+## 6. Conclusion
+
+In this paper, we first present ItineraryBench, a benchmark for evaluating LLM-based agents in complex, real-world tasks, particularly in travel planning. It stands out with its interconnected, progressively challenging tasks and a nuanced evaluation system that goes beyond binary scoring. This approach allows for a more precise assessment of an agent’s capabilities, especially in partial task completions. Additionally, we introduce the TDAG framework, enhancing adaptability and success in diverse tasks by dynamically decomposing complex tasks into manageable subtasks, each handled by a custom-generated subagent. Our experimental results show that TDAG significantly outperforms existing baselines across several benchmarks.
+
+<!-- image-->  
+Fig. 4. City Number Distribution. The horizontal axis in the figure represents the number of cities, and the vertical axis represents the number of tasks that contain a certain number of cities.
+
+<!-- image-->  
+Fig. 5. Attraction Number Distribution. The horizontal axis in the figure represents the number of attractions, and the vertical axis represents the number of tasks that contain a certain number of attractions.
+
+## CRediT authorship contribution statement
+
+Yaoxiang Wang: Writing – original draft, Methodology, Data curation, Conceptualization. Zhiyong Wu: Writing – review & editing, Project administration, Conceptualization. Junfeng Yao: Writing – review & editing. Jinsong Su: Writing – review & editing, Project administration.
+
+## Declaration of competing interest
+
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper.
+
+## Acknowledgments
+
+The project was supported by National Natural Science Foundation of China (No. 62036004, No. 62276219), Natural Science Foundation of Fujian Province of China (No. 2024J011001), and the Public Technology Service Platform Project of Xiamen (No. 3502Z20231043). We also thank the reviewers for their insightful comments.
+
+## Appendix A. Benchmark details
+
+In this appendix, we provide detailed insights into the composition and characteristics of the ItineraryBench, focusing on the distribution
+
+<!-- image-->  
+Fig. 6. Prompt used by the MainAgent for managing the entire task decomposition and execution flow in the travel planning task.
+
+<table><tr><td>Distribution of task types in ItineraryBench.</td></tr><tr><td>Type Number</td></tr><tr><td>Type 1 96</td></tr><tr><td>Type 2 95</td></tr><tr><td>Type3 173</td></tr></table>
+
+of task types, city and attraction number distributions, and the various constraints that define the travel planning scenarios.
+
+## A.1. Task type distribution
+
+Table 5 presents the distribution of task types within the benchmark. The tasks are categorized into three types, each representing a distinct travel planning scenario. Type 1 tasks involve inter-city travel planning, focusing on arranging city visits and transportation. Type 2 tasks are centered around intra-city navigation, requiring planning visits to various attractions within a single city. Type 3 combines elements of both Type 1 and Type 2, presenting a more complex scenario of navigating through multiple cities and their attractions. The distribution of these task types is designed to ensure a comprehensive evaluation of agents’ capabilities across different planning complexities.
+
+<!-- image-->  
+Fig. 7. Prompt used for refining tool documents to ensure accurate execution.
+
+<!-- image-->  
+Fig. 8. Prompt used for skill updates, ensuring that the agent efficiently merges relevant solutions while maintaining simplicity and clarity.
+
+Types of constraints in travel planning.
+<table><tr><td>Constraint</td><td>Description</td></tr><tr><td>Time limit</td><td>The travel must be completed within a certain period.</td></tr><tr><td>Budget</td><td>A budget for the trip.</td></tr><tr><td>Transportation</td><td>Includes both intra-city and inter-city transportation.</td></tr><tr><td>City duration</td><td>A specific duration of stay in a city.</td></tr><tr><td>Spot duration</td><td>A specific duration of stay at a tourist spot.</td></tr><tr><td>Specific hotel</td><td>Staying in a specified hotel.</td></tr><tr><td>Activity time</td><td>Designated times when the user is allowed to engage in activities.</td></tr><tr><td>Spot opening hours</td><td>The operating hours of tourist attractions.</td></tr><tr><td>Rest time</td><td>Designated times when the user must rest.</td></tr></table>
+
+## A.2. City and attraction distribution
+
+The distributions of cities and attractions within the dataset are visualized in Figs. 4 and 5, respectively. These distributions highlight the benchmark’s diversity and the range of scenarios that agents must navigate. The city distribution figure shows the number of times each city appears across the dataset, reflecting the geographical spread and frequency of visits required in various tasks. Similarly, the attraction distribution figure illustrates the variety and frequency of tourist spots that must be considered in the travel plans.
+
+<!-- image-->  
+Fig. 9. Prompt used by sub-agents for handling subtasks, ensuring independent decision-making and efficient task completion while following structured rules and workflows.
+
+## A.3. Constraints in travel planning
+
+Table 6 outlines the various constraints incorporated into the travel planning tasks. These constraints simulate real-world conditions and challenges, requiring agents to optimize their plans while adhering to limitations such as time, budget, transportation options, and specific requirements for city and spot durations. Including constraints such as specific hotel stays, designated activity times, and rest periods further enhances the benchmark’s realism, pushing the boundaries of agents’ problem-solving abilities.
+
+It is noteworthy that all attraction and transportation information were either obtained from public websites or self-edited, ensuring that there are no issues related to privacy, copyright, or ethics.
+
+## Appendix B. Experimental details
+
+## B.1. Implementation of the incremental skill library
+
+The Incremental Skill Library includes skill generation, storage, retrieval and update. Skills are organized into three fields: ‘Name’, ‘Detail’, and ‘Solution’. After completing a subtask, subagents use LLM prompting to summarize their solution as a skill. The storage and update process is detailed in Algorithm 2. To maintain uniqueness, we check for redundancy using the SentenceBERT model ‘all-mpnet-basev2’ to generate embeddings for the skill details. A similarity threshold, ?? = 0.7, is set to identify potential duplicates. A new skill is considered redundant and excluded from the library if there are already ?? or more skills in the library with a similarity greater than ??, where $k \ = \ 2 .$ . However, instead of exclusion, when the maximum number of similar skills is reached, the LLM automatically update the existing skills according to the redundant one. For retrieving skills, the same SentenceBERT model is employed. When a subagent is assigned a new subtask, the model finds the top ?? most relevant skills by comparing the embeddings of the subtask’s name to those in the library. These skills are then provided to the subagent in textual form, aiding in the execution of the task.
+
+Algorithm 2 Skill Storage and Update in Incremental Skill Library   
+1: Input: New skill $s _ { n e w } ,$ Skill library ??, Similarity threshold ??, Similarity limit ??   
+2: Output: Updated Skill library ??   
+3: ?????????????????? $\mathbf { \Delta } _ { n e w } \gets \mathfrak { s }$ SentenceBERT.GenerateEmbedding $\scriptstyle { s _ { n e w } }$ .????????????) ⊳ Generate embedding for the new skill   
+4: ??????????????_?????????? ← 0 ⊳ Initialize similarity counter   
+5: for $s _ { i }$ in ?? do   
+6: ???????????????????? ← SentenceBERT.GenerateEmbedding(????.????????????) ⊳ Generate embedding for existing skill   
+7: ???????????????????? ← ComputeCosineSimilarity(?????????? $i i n g _ { n e w } ,$ ????????????????????) ⊳ Compute similarity   
+8: if ???????????????????? > ?? then   
+9: ??????????????_?????????? ← ??????????????_?????????? + 1 ⊳ Increment similarity count   
+10: if ??????????????_?????????? $\geq k$ then   
+11: ?? ← LLM.UpdateSkills(?? $, s _ { n e w } )$ ⊳ Update the existing skills in the library   
+12: return ?? ⊳ Return updated library   
+13: end if   
+14: end if   
+15: end for   
+16: $L \gets L \cup s _ { n e w }$ ⊳ Add new skill to the library if not redundant   
+17: return ?? ⊳ Return updated library
+
+## B.2. Models and hyperparameters
+
+For the experiments on ItineraryBench, we deploy the gpt-3.5-turbo-16k. Given the complex nature and the lengthy process required to solve tasks in this benchmark, methods lacking a task decomposition strategy, such as ReAct, require long context length to achieve task completion. For WebShop and TextCraft, we adhere to the configurations recommended by Prasad et al. (2023), utilizing the gpt-3.5- turbo and gpt-3.5-turbo-instruct respectively. To ensure experimental consistency and replicability, we set the temperature to 0.
+
+## B.3. Related prompts
+
+As shown in Fig. 6, our main agent is responsible for dynamically decomposing tasks, assigning subtasks to specialized sub-agents, and controlling the overall task flow. The main agent follows a structured workflow, ensuring that each subtask is executed step by step, with adjustments made as necessary based on the success or failure of individual subtasks. This approach allows for flexible task management and dynamic adaptation to the challenges posed by complex, multistep tasks. Fig. 7 shows the prompt used for document refinement. This prompt ensures that the agent refines and optimizes the tool documents related to each subtask, allowing the agent to accurately perform the required actions without unnecessary steps or omissions. In addition, Fig. 8 shows the prompt used for skill updates, which allows the agent to analyze and compare solutions from different tasks and determine whether any enhancements or updates should be made to the existing skill set based on the new information. Fig. 9 shows the prompt used by sub-agents to handle and complete their assigned subtasks. This prompt guides the sub-agent through its workflow, ensuring that it takes appropriate actions and submits the task results with consideration for the task’s success and future planning.
+
+## Data availability
+
+Data will be made available on request.
+
+## References
+
+Boiko, D. A., MacKnight, R., & Gomes, G. (2023). Emergent autonomous scientific research capabilities of large language models. arxiv e-prints arXiv:2304.05332.
+
+Crispino, N., Montgomery, K., Zeng, F., Song, D., & Wang, C. (2023). Agent instructs large language models to be general zero-shot reasoners. arXiv e-prints arXiv: 2310.03710.
+
+Ge, Y., Hua, W., & Mei (2023). OpenAGI: When LLM meets domain experts. NeurIPS 2023, http://dx.doi.org/10.48550/arXiv.2304.04370.
+
+Hong, S., Zhuge, M., Chen, J., Zheng, X., Cheng, Y., Zhang, C., Wang, J., Wang, Z., Yau, S. K. S., Lin, Z., Zhou, L., Ran, C., Xiao, L., Wu, C., & Schmidhuber, J. (2023). MetaGPT: Meta programming for a multi-agent collaborative framework. arXiv:2308.00352.
+
+Ji, Z., Lee, N., Frieske, R., Yu, T., & Su (2022). Survey of Hallucination in natural language generation. arXiv e-prints arXiv:2202.03629.
+
+Li, H., Su, J., Chen, Y., Li, Q., & Zhang, Z. (2023). SheetCopilot: Bringing software productivity to the next level through large language models. NeurIPS 2023, http://dx.doi.org/10.48550/arXiv.2305.19308.
+
+Liang, Y., Zhu, L., & Yang, Y. (2023). Tachikuma: Understading complex interactions with multi-character and novel objects by large language models. arXiv e-prints arXiv:2307.12573.
+
+Lin, J., Tomlin, N., Andreas, J., & Eisner, J. (2023). Decision-oriented dialogue for human-AI collaboration. arxiv e-prints arXiv:2305.20076.
+
+Liu, X., Yu, H., Zhang, H., Xu, Y., Lei, X., Lai, H., Gu, Y., & Ding (2023). AgentBench: Evaluating LLMs as agents. arxiv e-prints arXiv:2308.03688.
+
+Mialon, G., Fourrier, C., Swift, C., Wolf, T., LeCun, Y., & Scialom, T. (2023). GAIA: a benchmark for general AI assistants. arxiv e-prints arXiv:2311.12983.
+
+Nakajima, Y. (2023). Babyagi. URL https://github.com/yoheinakajima/babyagi.
+
+OpenAI (2023). GPT-4 technical report. arxiv e-prints arXiv:2303.08774.
+
+Ouyang, L., Wu, J., Jiang, X., Almeida, D., Wainwright, C., Mishkin, P., Zhang, C., & Agarwal (2022). Training language models to follow instructions with human feedback. In S. Koyejo, S. Mohamed, A. Agarwal, D. Belgrave, K. Cho, & A. Oh (Eds.), 35, Advances in neural information processing systems (pp. 27730–27744). Curran Associates, Inc..
+
+Park, J. S., OBrien,´ J. C., Cai, C. J., Ringel Morris, M., Liang, P., & Bernstein, M. S. (2023). Generative agents: Interactive simulacra of human behavior. arXiv e-prints arXiv:2304.03442.
+
+Prasad, A., Koller, A., Hartmann, M., Clark, P., Sabharwal, A., Bansal, M., & Khot, T. (2023). Adapt: As-needed decomposition and planning with language models. arXiv e-prints arXiv:2311.05772.
+
+Qian, C., Cong, X., Liu, W., Yang, C., Chen, W., & Su (2023). Communicative agents for software development. arXiv e-prints arXiv:2307.07924.
+
+Qin, Y., Hu, S., Lin, Y., & Chen (2023). Tool learning with foundation models. arXiv preprint arXiv:2304.08354.
+
+Shinn, N., Cassano, F., Berman, E., Gopinath, A., Narasimhan, K., & Yao, S. (2023). Reflexion: Language agents with verbal reinforcement learning. NeurIPS 2023, http://dx.doi.org/10.48550/arXiv.2303.11366.
+
+Shridhar, M., Yuan, X., Côté, M.-A., Bisk, Y., Trischler, A., & Hausknecht, M. (2021). ALFWorld: Aligning Text and Embodied Environments for Interactive Learning. In ICLR.
+
+Significant-Gravitas (2023). Auto-GPT: An autonomous GPT-4 experiment. https:// github.com/Significant-Gravitas/Auto-GPT.
+
+Sun, S., Liu, Y., Wang, S., Zhu, C., & Iyyer, M. (2023). PEARL: Prompting large language models to plan and execute actions over long documents. arXiv e-prints arXiv:2305.14564.
+
+Sun, Q., Yin, Z., Li, X., Wu, Z., Qiu, X., & Kong, L. (2023). Corex: Pushing the boundaries of complex reasoning through multi-model collaboration. arXiv:2310. 00280.
+
+Wang, G., Xie, Y., Jiang, Y., Mandlekar, A., Xiao, C., Zhu, Y., Fan, L., & Anandkumar, A. (2023). Voyager: An open-ended embodied agent with large language models. In Intrinsically-motivated and open-ended learning workshop @neurIPS2023.
+
+Wang, L., Xu, W., Lan, Y., Hu, Z., Lan, Y., Lee, R. K.-W., & Lim, E.-P. (2023). Plan-andsolve prompting: Improving zero-shot chain-of-thought reasoning by large language models. ACL 2023.
+
+Wei, J., Tay, Y., Bommasani, R., Raffel, C., Zoph, B., & Borgeaud (2022). Emergent abilities of large language models. arXiv e-prints arXiv:2206.07682.
+
+Wu, Q., Bansal, G., Zhang, J., Wu, Y., Li, B., Zhu, E., Jiang, L., Zhang, X., Zhang, S., Liu, J., Awadallah, A. H., White, R. W., Burger, D., & Wang, C. (2023). AutoGen: Enabling next-gen LLM applications via multi-agent conversation framework. arXiv: 2308.08155.
+
+Wu, Z., Han, C., Ding, Z., Weng, Z., Liu, Z., Yao, S., Yu, T., & Kong, L. (2024). OScopilot: Towards generalist computer agents with self-improvement. arXiv e-prints arXiv:2402.07456.
+
+XAgent Team (2023). XAgent: An autonomous agent for complex task solving.
+
+Xi, Z., Chen, W., Guo, X., He, W., Ding, Y., & Hong (2023). The rise and potential of large language model based agents: A survey. arXiv e-prints arXiv:2309.07864.
+
+Xu, B., Liu, X., Shen, H., & Han (2023). Gentopia: A collaborative platform for tool-augmented LLMs. arXiv e-prints arXiv:2308.04030.
+
+Yao, S., Chen, H., Yang, J., & Narasimhan, K. (2022). WebShop: Towards scalable real-world web interaction with grounded language agents. arXiv e-prints arXiv: 2207.01206.
+
+Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan, K., & Cao, Y. (2023). ReAct: Synergizing reasoning and acting in language models. In ICLR 2023.
+
+Zhang, S., Roller, S., Goyal, N., & Artetxe (2022). OPT: Open pre-trained transformer language models. arXiv e-prints arXiv:2205.01068.
+
+Zhang, Z., Yao, Y., Zhang, A., Tang, X., & Ma (2023). Igniting language intelligence: The Hitchhiker’s guide from chain-of-thought reasoning to language agents. arXiv e-prints arXiv:2311.11797.

@@ -1,0 +1,114 @@
+{
+  "latency_short": {
+    "text_type": "short",
+    "total_samples": 15,
+    "success_count": 15,
+    "success_rate": 100.0,
+    "avg_response_time": 6.572332986195883,
+    "min_response_time": 3.0889527797698975,
+    "max_response_time": 8.942574977874756,
+    "median_response_time": 6.896582126617432,
+    "p95": 8.942574977874756
+  },
+  "latency_medium": {
+    "text_type": "medium",
+    "total_samples": 10,
+    "success_count": 10,
+    "success_rate": 100.0,
+    "avg_response_time": 30.271945786476135,
+    "min_response_time": 24.367270469665527,
+    "max_response_time": 43.933785915374756,
+    "median_response_time": 29.333860993385315,
+    "p95": 43.933785915374756
+  },
+  "latency_long": {
+    "text_type": "long",
+    "total_samples": 5,
+    "success_count": 5,
+    "success_rate": 100.0,
+    "avg_response_time": 122.99632863998413,
+    "min_response_time": 111.64193105697632,
+    "max_response_time": 135.01996397972107,
+    "median_response_time": 119.08121919631958,
+    "p95": 135.01996397972107
+  },
+  "concurrency": [
+    {
+      "concurrency": 1,
+      "duration": 60,
+      "actual_duration": 65.00859999656677,
+      "total_requests": 8,
+      "success_count": 8,
+      "success_rate": 100.0,
+      "rps": 0.12306064121397008,
+      "success_rps": 0.12306064121397008,
+      "avg_response_time": 7.330836236476898
+    },
+    {
+      "concurrency": 2,
+      "duration": 60,
+      "actual_duration": 64.11749053001404,
+      "total_requests": 10,
+      "success_count": 10,
+      "success_rate": 100.0,
+      "rps": 0.15596368350253664,
+      "success_rps": 0.15596368350253664,
+      "avg_response_time": 12.46081337928772
+    },
+    {
+      "concurrency": 3,
+      "duration": 60,
+      "actual_duration": 70.02434086799622,
+      "total_requests": 9,
+      "success_count": 9,
+      "success_rate": 100.0,
+      "rps": 0.12852673639536308,
+      "success_rps": 0.12852673639536308,
+      "avg_response_time": 19.224732822842068
+    }
+  ],
+  "stability": {
+    "duration_minutes": 5,
+    "actual_duration": 330.61869621276855,
+    "total_requests": 7,
+    "success_count": 7,
+    "success_rate": 100.0,
+    "avg_rps": 0.0211724263636173,
+    "time_segments": [
+      {
+        "segment": 1,
+        "avg_response_time": 37.93097257614136,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 2,
+        "avg_response_time": 37.162353515625,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 3,
+        "avg_response_time": 30.933353662490845,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 4,
+        "avg_response_time": 35.62883186340332,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 5,
+        "avg_response_time": 38.169517993927,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 6,
+        "avg_response_time": 40.39511477947235,
+        "success_rate": 100.0
+      }
+    ],
+    "avg_response_time": 37.23075131007603,
+    "min_response_time": 30.933353662490845,
+    "max_response_time": 41.02388119697571,
+    "performance_degradation": 6.496385502334688
+  }
+}
