@@ -1,0 +1,120 @@
+{
+  "stats": {
+    "text_type": "short",
+    "total_samples": 15,
+    "success_count": 15,
+    "success_rate": 100.0,
+    "avg_response_time": 6.572332986195883,
+    "min_response_time": 3.0889527797698975,
+    "max_response_time": 8.942574977874756,
+    "median_response_time": 6.896582126617432,
+    "p95": 8.942574977874756
+  },
+  "details": [
+    {
+      "success": true,
+      "response_time": 8.644598007202148,
+      "text_length": 10,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:23:49.133075"
+    },
+    {
+      "success": true,
+      "response_time": 6.896582126617432,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:23:56.031495"
+    },
+    {
+      "success": true,
+      "response_time": 6.802403211593628,
+      "text_length": 9,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:24:02.834788"
+    },
+    {
+      "success": true,
+      "response_time": 5.725395441055298,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:24:08.560534"
+    },
+    {
+      "success": true,
+      "response_time": 4.390883207321167,
+      "text_length": 3,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:24:12.951852"
+    },
+    {
+      "success": true,
+      "response_time": 8.942574977874756,
+      "text_length": 10,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:24:21.894693"
+    },
+    {
+      "success": true,
+      "response_time": 6.935031414031982,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:24:28.830060"
+    },
+    {
+      "success": true,
+      "response_time": 5.712611675262451,
+      "text_length": 9,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:24:34.543054"
+    },
+    {
+      "success": true,
+      "response_time": 7.808690071105957,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:24:42.352114"
+    },
+    {
+      "success": true,
+      "response_time": 3.665442943572998,
+      "text_length": 3,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:24:46.017942"
+    },
+    {
+      "success": true,
+      "response_time": 8.764674425125122,
+      "text_length": 10,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:24:54.783058"
+    },
+    {
+      "success": true,
+      "response_time": 6.425383567810059,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:25:01.208748"
+    },
+    {
+      "success": true,
+      "response_time": 7.128023862838745,
+      "text_length": 9,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:25:08.337203"
+    },
+    {
+      "success": true,
+      "response_time": 7.653747081756592,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:25:15.991456"
+    },
+    {
+      "success": true,
+      "response_time": 3.0889527797698975,
+      "text_length": 3,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:25:19.080835"
+    }
+  ]
+}

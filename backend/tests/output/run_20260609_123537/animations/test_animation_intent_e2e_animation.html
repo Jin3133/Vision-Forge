@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>梯度下降算法 - 动态演示</title>
+    <style>
+        :root {
+            --bg: #0a0a18;
+            --surface: #111128;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Georgia', 'Noto Serif SC', 'STSong', 'Songti SC', 'SimSun', 'KaiTi', serif;
+            overflow: hidden;
+            cursor: default;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .container {
+            position: relative;
+            width: 920px;
+            height: 600px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            border-radius: 16px;
+            box-shadow:
+                0 0 80px rgba(100, 140, 255, 0.15),
+                0 0 200px rgba(80, 60, 180, 0.1),
+                0 20px 60px rgba(0, 0, 0, 0.5);
+            background: var(--surface);
+            display: block;
+        }
+
+        .glow-ring {
+            position: absolute;
+            pointer-events: none;
+            border-radius: 50%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(120, 160, 255, 0.06) 0%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: breathe 4s ease-in-out infinite;
+        }
+
+        .glow-ring.second {
+            width: 400px;
+            height: 400px;
+            animation-delay: -2s;
+            background: radial-gradient(circle, rgba(200, 140, 255, 0.04) 0%, transparent 70%);
+        }
+
+        @keyframes breathe {
+            0%,
+            100% {
+                opacity: 0.6;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.15);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="glow-ring"></div>
+        <div class="glow-ring second"></div>
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <script>
+        (function() {
+            const canvas = document.getElementById('mainCanvas');
+            const ctx = canvas.getContext('2d');
+
+            const W = 920;
+            const H = 560;
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+            canvas.width = W * dpr;
+            canvas.height = H * dpr;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            // ──────────────────────────────────────
+            // 坐标映射
+            // ──────────────────────────────────────
+            const MATH_X_MIN = -5.5;
+            const MATH_X_MAX = 5.5;
+            const MATH_Y_MAX = 27;
+            const MATH_Y_MIN = -1.5;
+
+            const PLOT_LEFT = 75;
+            const PLOT_RIGHT = 845;
+            const PLOT_TOP = 50;
+            const PLOT_BOTTOM = 490;
+            const PLOT_WIDTH = PLOT_RIGHT - PLOT_LEFT;
+            const PLOT_HEIGHT = PLOT_BOTTOM - PLOT_TOP;
+
+            function mathToCanvasX(mx) {
+                return PLOT_LEFT + (mx - MATH_X_MIN) / (MATH_X_MAX - MATH_X_MIN) * PLOT_WIDTH;
+            }
+
+            function mathToCanvasY(my) {
+                return PLOT_BOTTOM - (my - MATH_Y_MIN) / (MATH_Y_MAX - MATH_Y_MIN) * PLOT_HEIGHT;
+            }
+
+            function canvasToMathX(cx) {
+                return MATH_X_MIN + (cx - PLOT_LEFT) / PLOT_WIDTH * (MATH_X_MAX - MATH_X_MIN);
+            }
+
+            function canvasToMathY(cy) {
+                return MATH_Y_MIN + (PLOT_BOTTOM - cy) / PLOT_HEIGHT * (MATH_Y_MAX - MATH_Y_MIN);
+            }
+
+            // ──────────────────────────────────────
+            // 损失函数
+            // ──────────────────────────────────────
+            function lossFunction(x) {
+                return x * x;
+            }
+
+            function gradientFunction(x) {
+                return 2 * x;
+            }
+
+            // ──────────────────────────────────────
+            // 粒子系统
+            // ──────────────────────────────────────
+            class Particle {
+                constructor(x, y, color, life) {
+                    this.x = x;
+                    this.y = y;
+                    this.vx = (Math.random() - 0.5) * 0.8;
+                    this.vy = (Math.random() - 0.5) * 0.8 - 0.4;
+                    this.color = color;
+                    this.life = life || 1.0;
+                    this.maxLife = this.life;
+                    this.size = 0.8 + Math.random() * 2.5;
+                }
+                update(dt) {
+                    this.x += this.vx * dt * 60;
+                    this.y += this.vy * dt * 60;
+                    this.life -= dt * 0.9;
+                    this.size *= 0.995;
+                }
+                draw(ctx) {
+                    const alpha = Math.max(0, this.life / this.maxLife);
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = this.color;
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = this.size * 3;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+                get alive() {
+                    return this.life > 0.02;
+                }
+            }
+
+            let particles = [];
+
+            function spawnParticles(x, y, count, color) {
+                for (let i = 0; i < count; i++) {
+                    particles.push(new Particle(x, y, color, 0.6 + Math.random() * 1.2));
+                }
+            }
+
+            // ──────────────────────────────────────
+            // 背景星星
+            // ──────────────────────────────────────
+            class Star {
+                constructor() {
+                    this.reset();
+                    this.y = Math.random() * H;
+                    this.phase = Math.random() * Math.PI * 2;
+                }
+                reset() {
+                    this.x = Math.random() * W;
+                    this.y = -10;
+                    this.size = 0.3 + Math.random() * 1.2;
+                    this.speed = 0.15 + Math.random() * 0.5;
+                    this.opacity = 0.2 + Math.random() * 0.6;
+                    this.twinkleSpeed = 0.5 + Math.random() * 2.5;
+                }
+                update(dt) {
+                    this.y += this.speed * dt * 60;
+                    this.phase += this.twinkleSpeed * dt;
+                    if (this.y > H + 15) {
+                        this.reset();
+                        this.y = -10;
+                    }
+                }
+                draw(ctx) {
+                    const alpha = this.opacity * (0.55 + 0.45 * Math.sin(this.phase));
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = '#d0d8ff';
+                    ctx.shadowColor = '#a0b8ff';
+                    ctx.shadowBlur = this.size * 2;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            let stars = [];
+            const STAR_COUNT = 90;
+            for (let i = 0; i < STAR_COUNT; i++) {
+                const s = new Star();
+                s.y = Math.random() * H;
+                stars.push(s);
+            }
+
+            // ──────────────────────────────────────
+            // 动画状态
+            // ──────────────────────────────────────
+            const TOTAL_DURATION = 14.0; // 总循环时长（秒）
+            const INITIAL_PHASE_END = 2.2;
+            const STEP_DURATION = 0.75;
+            const NUM_STEPS = 10;
+            const DESCENT_START = INITIAL_PHASE_END;
+            const DESCENT_END = DESCENT_START + NUM_STEPS * STEP_DURATION;
+            const CONCLUSION_START = DESCENT_END;
+            const CONCLUSION_END = TOTAL_DURATION;
+
+            const LR_GOOD = 0.13; // 合适的学习率
+            const LR_BAD = 0.88; // 过大的学习率
+            const INITIAL_X = 4.35;
+
+            // 预计算轨迹
+            let goodTrajectory = [];
+            let badTrajectory = [];
+            {
+                let xg = INITIAL_X;
+                let xb = INITIAL_X;
+                goodTrajectory.push({ x: xg, step: -1 });
+                badTrajectory.push({ x: xb, step: -1 });
+                for (let s = 0; s < NUM_STEPS; s++) {
+                    xg = xg - LR_GOOD * gradientFunction(xg);
+                    xb = xb - LR_BAD * gradientFunction(xb);
+                    goodTrajectory.push({ x: xg, step: s });
+                    badTrajectory.push({ x: xb, step: s });
+                }
+            }
+
+            // ──────────────────────────────────────
+            // 缓动函数
+            // ──────────────────────────────────────
+            function easeOutCubic(t) {
+                return 1 - Math.pow(1 - t, 3);
+            }
+
+            function easeInOutCubic(t) {
+                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            }
+
+            function easeOutBack(t) {
+                const c1 = 1.70158;
+                const c3 = c1 + 1;
+                return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+            }
+
+            function smoothstep(t) {
+                t = Math.max(0, Math.min(1, t));
+                return t * t * (3 - 2 * t);
+            }
+
+            // ──────────────────────────────────────
+            // 获取当前动画状态
+            // ──────────────────────────────────────
+            function getAnimationState(totalTime) {
+                const t = totalTime % TOTAL_DURATION;
+                let phase;
+                let stepIndex = -1;
+                let stepProgress = 0;
+                let goodX = INITIAL_X;
+                let badX = INITIAL_X;
+                let showGradientIndicator = false;
+                let gradientAlpha = 0;
+                let glowPulse = 0;
+
+                if (t < INITIAL_PHASE_END) {
+                    phase = 'initial';
+                    goodX = INITIAL_X;
+                    badX = INITIAL_X;
+                    const prog = t / INITIAL_PHASE_END;
+                    glowPulse = Math.sin(prog * Math.PI) * 0.5;
+                } else if (t < DESCENT_END) {
+                    phase = 'descent';
+                    const descentTime = t - DESCENT_START;
+                    const rawStep = descentTime / STEP_DURATION;
+                    stepIndex = Math.floor(rawStep);
+                    stepProgress = rawStep - stepIndex;
+                    stepIndex = Math.min(stepIndex, NUM_STEPS - 1);
+                    stepProgress = Math.min(stepProgress, 1.0);
+
+                    const easedProgress = easeOutCubic(stepProgress);
+
+                    const prevGood = goodTrajectory[stepIndex + 1]; // +1 because index 0 is initial
+                    const currGood = goodTrajectory[Math.min(stepIndex + 2, goodTrajectory.length - 1)];
+                    const prevBad = badTrajectory[stepIndex + 1];
+                    const currBad = badTrajectory[Math.min(stepIndex + 2, badTrajectory.length - 1)];
+
+                    if (prevGood && currGood) {
+                        goodX = prevGood.x + (currGood.x - prevGood.x) * easedProgress;
+                    } else if (prevGood) {
+                        goodX = prevGood.x;
+                    }
+                    if (prevBad && currBad) {
+                        badX = prevBad.x + (currBad.x - prevBad.x) * easedProgress;
+                    } else if (prevBad) {
+                        badX = prevBad.x;
+                    }
+
+                    // 梯度指示器在每步开始时显示
+                    const stepStartFraction = stepProgress;
+                    if (stepStartFraction < 0.22) {
+                        showGradientIndicator = true;
+                        gradientAlpha = 1 - (stepStartFraction / 0.22);
+                    }
+                    glowPulse = (stepStartFraction < 0.3) ? (1 - stepStartFraction / 0.3) * 0.7 : 0;
+                } else {
+                    phase = 'conclusion';
+                    const finalGood = goodTrajectory[goodTrajectory.length - 1];
+                    const finalBad = badTrajectory[badTrajectory.length - 1];
+                    goodX = finalGood.x;
+                    badX = finalBad.x;
+                    const conclProg = (t - CONCLUSION_START) / (CONCLUSION_END - CONCLUSION_START);
+                    glowPulse = Math.sin(conclProg * Math.PI * 1.5) * 0.35;
+                }
+
+                return {
+                    phase,
+                    stepIndex,
+                    stepProgress,
+                    goodX,
+                    badX,
+                    showGradientIndicator,
+                    gradientAlpha,
+                    glowPulse,
+                    t,
+                    totalTime,
+                };
+            }
+
+            // ──────────────────────────────────────
+            // 旁白文字
+            // ──────────────────────────────────────
+            function getNarration(state) {
+                const { phase, stepIndex, t } = state;
+                if (phase === 'initial') {
+                    const subPhase = t / INITIAL_PHASE_END;
+                    if (subPhase < 0.45) {
+                        return '这是我们的损失函数 f(x)=x²，一个简单的凸函数。';
+                    } else {
+                        return '目标：找到使损失最小的参数 x。我们从 x=4.35 开始。';
+                    }
+                } else if (phase === 'descent') {
+                    if (stepIndex === 0) {
+                        return '计算当前位置的梯度 ∇f=2x，它指向损失增长最快的方向。';
+                    } else if (stepIndex === 1) {
+                        return '沿梯度反方向更新：x←x−η·∇f。学习率 η 控制步长大小。';
+                    } else if (stepIndex <= 4) {
+                        return '蓝色小球使用合适的 η=0.13，稳步向最小值靠近……';
+                    } else if (stepIndex <= 7) {
+                        return '红色小球 η=0.88 过大，在最小值附近剧烈震荡！';
+                    } else {
+                        return '对比鲜明：合适的学习率平稳收敛，过大的学习率反复横跳。';
+                    }
+                } else {
+                    const subPhase = (t - CONCLUSION_START) / (CONCLUSION_END - CONCLUSION_START);
+                    if (subPhase < 0.5) {
+                        return '蓝色小球几乎到达最小值。红色小球仍在震荡，难以收敛。';
+                    } else {
+                        return '选择合适的学习率，是梯度下降成功的关键。';
+                    }
+                }
+            }
+
+            // ──────────────────────────────────────
+            // 绘制函数
+            // ──────────────────────────────────────
+            function drawBackground(ctx) {
+                // 深色渐变背景
+                const bgGrad = ctx.createRadialGradient(W / 2, H * 0.35, 50, W / 2, H * 0.5, 700);
+                bgGrad.addColorStop(0, '#1a1a40');
+                bgGrad.addColorStop(0.5, '#0f0f28');
+                bgGrad.addColorStop(1, '#060612');
+                ctx.fillStyle = bgGrad;
+                ctx.fillRect(0, 0, W, H);
+
+                // 微妙的网格
+                ctx.strokeStyle = 'rgba(255,255,255,0.015)';
+                ctx.lineWidth = 0.5;
+                const gridSpacing = 35;
+                for (let x = PLOT_LEFT; x <= PLOT_RIGHT; x += gridSpacing) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, PLOT_TOP);
+                    ctx.lineTo(x, PLOT_BOTTOM);
+                    ctx.stroke();
+                }
+                for (let y = PLOT_TOP; y <= PLOT_BOTTOM; y += gridSpacing) {
+                    ctx.beginPath();
+                    ctx.moveTo(PLOT_LEFT, y);
+                    ctx.lineTo(PLOT_RIGHT, y);
+                    ctx.stroke();
+                }
+            }
+
+            function drawCurveFill(ctx) {
+                // 曲线下方的热力填充
+                const fillGrad = ctx.createLinearGradient(0, PLOT_TOP, 0, PLOT_BOTTOM);
+                fillGrad.addColorStop(0, '#ff5c3a');
+                fillGrad.addColorStop(0.18, '#f07b3f');
+                fillGrad.addColorStop(0.4, '#c24d6e');
+                fillGrad.addColorStop(0.65, '#6b3d8c');
+                fillGrad.addColorStop(0.85, '#2d2d60');
+                fillGrad.addColorStop(1, '#141430');
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(PLOT_LEFT, PLOT_BOTTOM);
+                ctx.lineTo(PLOT_LEFT, mathToCanvasY(lossFunction(MATH_X_MIN)));
+
+                const steps = 300;
+                for (let i = 0; i <= steps; i++) {
+                    const mx = MATH_X_MIN + (MATH_X_MAX - MATH_X_MIN) * (i / steps);
+                    const cx = mathToCanvasX(mx);
+                    const cy = mathToCanvasY(lossFunction(mx));
+                    ctx.lineTo(cx, cy);
+                }
+
+                ctx.lineTo(PLOT_RIGHT, PLOT_BOTTOM);
+                ctx.closePath();
+                ctx.fillStyle = fillGrad;
+                ctx.fill();
+                ctx.restore();
+
+                // 底部柔和过渡
+                const bottomFade = ctx.createLinearGradient(0, PLOT_BOTTOM - 60, 0, PLOT_BOTTOM);
+                bottomFade.addColorStop(0, 'rgba(10,10,24,0)');
+                bottomFade.addColorStop(1, 'rgba(10,10,24,0.85)');
+                ctx.fillStyle = bottomFade;
+                ctx.fillRect(PLOT_LEFT, PLOT_BOTTOM - 60, PLOT_WIDTH, 60);
+            }
+
+            function drawCurveLine(ctx) {
+                // 发光外层
+                ctx.save();
+                ctx.beginPath();
+                const steps = 300;
+                for (let i = 0; i <= steps; i++) {
+                    const mx = MATH_X_MIN + (MATH_X_MAX - MATH_X_MIN) * (i / steps);
+                    const cx = mathToCanvasX(mx);
+                    const cy = mathToCanvasY(lossFunction(mx));
+                    if (i === 0) ctx.moveTo(cx, cy);
+                    else ctx.lineTo(cx, cy);
+                }
+                ctx.strokeStyle = 'rgba(255,200,140,0.25)';
+                ctx.lineWidth = 7;
+                ctx.shadowColor = 'rgba(255,160,80,0.5)';
+                ctx.shadowBlur = 18;
+                ctx.stroke();
+                ctx.restore();
+
+                // 中层
+                ctx.save();
+                ctx.beginPath();
+                for (let i = 0; i <= steps; i++) {
+                    const mx = MATH_X_MIN + (MATH_X_MAX - MATH_X_MIN) * (i / steps);
+                    const cx = mathToCanvasX(mx);
+                    const cy = mathToCanvasY(lossFunction(mx));
+                    if (i === 0) ctx.moveTo(cx, cy);
+                    else ctx.lineTo(cx, cy);
+                }
+                ctx.strokeStyle = 'rgba(255,210,160,0.6)';
+                ctx.lineWidth = 3;
+                ctx.shadowColor = 'rgba(255,180,100,0.7)';
+                ctx.shadowBlur = 10;
+                ctx.stroke();
+                ctx.restore();
+
+                // 高光线
+                ctx.save();
+                ctx.beginPath();
+                for (let i = 0; i <= steps; i++) {
+                    const mx = MATH_X_MIN + (MATH_X_MAX - MATH_X_MIN) * (i / steps);
+                    const cx = mathToCanvasX(mx);
+                    const cy = mathToCanvasY(lossFunction(mx));
+                    if (i === 0) ctx.moveTo(cx, cy);
+                    else ctx.lineTo(cx, cy);
+                }
+                ctx.strokeStyle = 'rgba(255,235,200,0.85)';
+                ctx.lineWidth = 1.6;
+                ctx.shadowColor = 'rgba(255,220,170,0.9)';
+                ctx.shadowBlur = 4;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            function drawAxes(ctx) {
+                // X轴
+                const axisY = mathToCanvasY(0);
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([6, 12]);
+                ctx.beginPath();
+                ctx.moveTo(PLOT_LEFT, axisY);
+                ctx.lineTo(PLOT_RIGHT, axisY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Y轴
+                const axisX = mathToCanvasX(0);
+                ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+                ctx.lineWidth = 0.8;
+                ctx.setLineDash([4, 10]);
+                ctx.beginPath();
+                ctx.moveTo(axisX, PLOT_TOP);
+                ctx.lineTo(axisX, PLOT_BOTTOM);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 标签
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.font = '13px Georgia, "Noto Serif SC", serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('参数 x', PLOT_RIGHT - 40, axisY + 28);
+                ctx.fillText('损失 f(x)', axisX - 32, PLOT_TOP + 20);
+
+                // 原点标记
+                ctx.fillStyle = 'rgba(255,255,255,0.55)';
+                ctx.font = '12px Georgia, "Noto Serif SC", serif';
+                ctx.textAlign = 'right';
+                ctx.fillText('0', axisX - 8, axisY + 16);
+
+                // X轴刻度
+                for (let mx = -5; mx <= 5; mx++) {
+                    if (mx === 0) continue;
+                    const cx = mathToCanvasX(mx);
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                    ctx.fillText(mx, cx, axisY + 16);
+                    ctx.beginPath();
+                    ctx.moveTo(cx, axisY - 3);
+                    ctx.lineTo(cx, axisY + 3);
+                    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                    ctx.lineWidth = 0.6;
+                    ctx.stroke();
+                }
+            }
+
+            function drawBall(ctx, mathX, colorBase, glowColor, size, glowPulse) {
+                const cx = mathToCanvasX(mathX);
+                const cy = mathToCanvasY(lossFunction(mathX));
+                const pulseSize = size + glowPulse * size * 0.5;
+
+                // 大光晕
+                const outerGlow = ctx.createRadialGradient(cx, cy, pulseSize * 0.3, cx, cy, pulseSize * 2.2);
+                outerGlow.addColorStop(0, glowColor);
+                outerGlow.addColorStop(0.4, glowColor.replace('0.9', '0.35').replace('1)', '0.35)'));
+                outerGlow.addColorStop(1, 'transparent');
+                ctx.fillStyle = outerGlow;
+                ctx.beginPath();
+                ctx.arc(cx, cy, pulseSize * 2.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 中层光晕
+                const midGlow = ctx.createRadialGradient(cx, cy, pulseSize * 0.15, cx, cy, pulseSize * 1.3);
+                midGlow.addColorStop(0, 'rgba(255,255,255,0.9)');
+                midGlow.addColorStop(0.5, glowColor.replace('0.9', '0.5').replace('1)', '0.5)'));
+                midGlow.addColorStop(1, 'transparent');
+                ctx.fillStyle = midGlow;
+                ctx.beginPath();
+                ctx.arc(cx, cy, pulseSize * 1.3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 球体主体
+                const bodyGrad = ctx.createRadialGradient(cx - pulseSize * 0.25, cy - pulseSize * 0.3, pulseSize * 0.08,
+                    cx, cy, pulseSize);
+                bodyGrad.addColorStop(0, '#ffffff');
+                bodyGrad.addColorStop(0.3, colorBase);
+                bodyGrad.addColorStop(1, 'rgba(20,20,50,0.8)');
+                ctx.fillStyle = bodyGrad;
+                ctx.beginPath();
+                ctx.arc(cx, cy, pulseSize, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 高光点
+                ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                ctx.beginPath();
+                ctx.arc(cx - pulseSize * 0.3, cy - pulseSize * 0.35, pulseSize * 0.28, 0, Math.PI * 2);
+                ctx.fill();
+
+                return { cx, cy };
+            }
+
+            function drawTrajectory(ctx, trajectory, color, alpha, maxSteps) {
+                const stepsToDraw = Math.min(trajectory.length, maxSteps || trajectory.length);
+                ctx.strokeStyle = color.replace('0.8', String(alpha)).replace('0.9', String(alpha));
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 6]);
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                let first = true;
+                for (let i = Math.max(0, trajectory.length - stepsToDraw); i < trajectory.length; i++) {
+                    const pt = trajectory[i];
+                    const cx = mathToCanvasX(pt.x);
+                    const cy = mathToCanvasY(lossFunction(pt.x));
+                    if (first) {
+                        ctx.moveTo(cx, cy);
+                        first = false;
+                    } else {
+                        ctx.lineTo(cx, cy);
+                    }
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 轨迹点
+                for (let i = Math.max(0, trajectory.length - stepsToDraw); i < trajectory.length; i++) {
+                    const pt = trajectory[i];
+                    const cx = mathToCanvasX(pt.x);
+                    const cy = mathToCanvasY(lossFunction(pt.x));
+                    const dotAlpha = alpha * (0.5 + 0.5 * ((i - Math.max(0, trajectory.length - stepsToDraw)) / Math.max(1,
+                        stepsToDraw - 1)));
+                    ctx.fillStyle = color.replace('0.8', String(dotAlpha)).replace('0.9', String(dotAlpha));
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 2.8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            function drawGradientArrow(ctx, mathX, alpha, color) {
+                if (alpha <= 0.01) return;
+                const cx = mathToCanvasX(mathX);
+                const cy = mathToCanvasY(lossFunction(mathX));
+                const grad = gradientFunction(mathX);
+                const arrowLength = Math.min(Math.abs(grad) * 12, 80);
+                const dirX = Math.sign(grad); // 梯度正方向（远离最小值）
+                const arrowDx = dirX * arrowLength;
+
+                // 切线方向在曲线上
+                const tangentDx = 1;
+                const tangentDy = grad; // df/dx = 2x
+                const tangentLen = Math.sqrt(tangentDx * tangentDx + tangentDy * tangentDy);
+                const normDx = tangentDx / tangentLen;
+                const normDy = tangentDy / tangentLen;
+
+                const canvasDx = normDx * arrowLength;
+                const canvasDy = -normDy * arrowLength * (PLOT_HEIGHT / (MATH_Y_MAX - MATH_Y_MIN)) / (PLOT_WIDTH / (
+                    MATH_X_MAX - MATH_X_MIN));
+
+                const totalLen = Math.sqrt(canvasDx * canvasDx + canvasDy * canvasDy);
+                if (totalLen < 1) return;
+                const unitX = canvasDx / totalLen;
+                const unitY = canvasDy / totalLen;
+                const displayLen = Math.min(totalLen, 75);
+
+                const endX = cx + unitX * displayLen;
+                const endY = cy + unitY * displayLen;
+
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2.5;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 8;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+
+                // 箭头尖端
+                const arrowSize = 10;
+                const angle = Math.atan2(endY - cy, endX - cx);
+                const tipX = endX;
+                const tipY = endY;
+                ctx.fillStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 6;
+                ctx.beginPath();
+                ctx.moveTo(tipX, tipY);
+                ctx.lineTo(
+                    tipX - arrowSize * Math.cos(angle - 0.7),
+                    tipY - arrowSize * Math.sin(angle - 0.7)
+                );
+                ctx.lineTo(
+                    tipX - arrowSize * Math.cos(angle + 0.7),
+                    tipY - arrowSize * Math.sin(angle + 0.7)
+                );
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+
+            function drawInfoPanel(ctx, state) {
+                const goodY = lossFunction(state.goodX);
+                const badY = lossFunction(state.badX);
+
+                // 右上角信息面板
+                const panelX = PLOT_RIGHT - 175;
+                const panelY = PLOT_TOP + 8;
+                const panelW = 165;
+                const panelH = 105;
+
+                ctx.fillStyle = 'rgba(15,15,35,0.75)';
+                ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.roundRect(panelX, panelY, panelW, panelH, 10);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 13px Georgia, "Noto Serif SC", serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('📊 实时数据', panelX + 12, panelY + 22);
+
+                // 蓝色小球数据
+                ctx.fillStyle = '#7ec8f8';
+                ctx.font = '11px Georgia, "Noto Serif SC", serif';
+                ctx.fillText('● 合适 η=0.13', panelX + 12, panelY + 44);
+                ctx.fillStyle = '#cde8fa';
+                ctx.fillText(`x=${state.goodX.toFixed(3)}  loss=${goodY.toFixed(3)}`, panelX + 22, panelY + 60);
+
+                // 红色小球数据
+                ctx.fillStyle = '#f8907e';
+                ctx.fillText('● 过大 η=0.88', panelX + 12, panelY + 78);
+                ctx.fillStyle = '#fad5ce';
+                ctx.fillText(`x=${state.badX.toFixed(3)}  loss=${badY.toFixed(3)}`, panelX + 22, panelY + 94);
+            }
+
+            function drawNarrationBar(ctx, state) {
+                const narration = getNarration(state);
+                const barY = PLOT_BOTTOM + 18;
+                const barH = 38;
+                const barX = PLOT_LEFT + 10;
+                const barW = PLOT_WIDTH - 20;
+
+                // 半透明背景条
+                ctx.fillStyle = 'rgba(10,10,28,0.8)';
+                ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.roundRect(barX, barY, barW, barH, 8);
+                ctx.fill();
+                ctx.stroke();
+
+                // 旁白标签
+                ctx.fillStyle = 'rgba(255,200,140,0.8)';
+                ctx.font = 'italic 11px Georgia, "Noto Serif SC", serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('📝 解说', barX + 14, barY + 16);
+
+                // 旁白文字
+                ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                ctx.font = '14px Georgia, "Noto Serif SC", "KaiTi", serif';
+                ctx.fillText(narration, barX + 62, barY + 25);
+            }
+
+            function drawLegend(ctx) {
+                const lx = PLOT_LEFT + 10;
+                const ly = PLOT_TOP + 10;
+
+                // 图例背景
+                ctx.fillStyle = 'rgba(15,15,35,0.7)';
+                ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.roundRect(lx, ly, 148, 56, 8);
+                ctx.fill();
+                ctx.stroke();
+
+                // 蓝色图例
+                const glowG1 = ctx.createRadialGradient(lx + 18, ly + 18, 1, lx + 18, ly + 18, 7);
+                glowG1.addColorStop(0, '#ffffff');
+                glowG1.addColorStop(0.5, '#7ec8f8');
+                glowG1.addColorStop(1, 'rgba(30,80,140,0.6)');
+                ctx.fillStyle = glowG1;
+                ctx.beginPath();
+                ctx.arc(lx + 18, ly + 18, 7, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(lx + 15, ly + 15, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                ctx.font = '12px Georgia, "Noto Serif SC", serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('合适学习率 η=0.13', lx + 32, ly + 22);
+
+                // 红色图例
+                const glowG2 = ctx.createRadialGradient(lx + 18, ly + 42, 1, lx + 18, ly + 42, 7);
+                glowG2.addColorStop(0, '#ffffff');
+                glowG2.addColorStop(0.5, '#f8907e');
+                glowG2.addColorStop(1, 'rgba(180,50,40,0.6)');
+                ctx.fillStyle = glowG2;
+                ctx.beginPath();
+                ctx.arc(lx + 18, ly + 42, 7, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(lx + 15, ly + 39, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                ctx.fillText('过大学习率 η=0.88', lx + 32, ly + 46);
+            }
+
+            function drawFormulaHint(ctx, state) {
+                if (state.phase === 'initial' && state.t / INITIAL_PHASE_END > 0.55) return;
+                if (state.phase === 'conclusion') return;
+
+                const fx = PLOT_LEFT + (PLOT_WIDTH) / 2;
+                const fy = PLOT_TOP - 6;
+                const alpha = state.phase === 'initial' ?
+                    Math.min(1, state.t / INITIAL_PHASE_END * 2) :
+                    0.75;
+
+                ctx.fillStyle = `rgba(255,225,180,${alpha})`;
+                ctx.font = 'italic 16px Georgia, "Noto Serif SC", serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('f(x) = x²    ∇f = 2x    x ← x − η·∇f', fx, fy);
+            }
+
+            // ──────────────────────────────────────
+            // 主渲染循环
+            // ──────────────────────────────────────
+            let recordedGoodTrajectory = [];
+            let recordedBadTrajectory = [];
+            let lastStepIndex = -1;
+            let lastParticleSpawnGood = 0;
+            let lastParticleSpawnBad = 0;
+            const PARTICLE_SPAWN_INTERVAL = 0.08;
+
+            function render(timestamp) {
+                const totalTime = timestamp / 1000;
+                const dt = Math.min(0.1, 1 / 60);
+
+                const state = getAnimationState(totalTime);
+
+                // 更新录制的轨迹
+                if (state.phase === 'descent' && state.stepIndex !== lastStepIndex) {
+                    if (state.stepIndex >= 0 && state.stepIndex < NUM_STEPS) {
+                        const gi = state.stepIndex + 1;
+                        if (gi < goodTrajectory.length && gi < badTrajectory.length) {
+                            recordedGoodTrajectory.push({ x: goodTrajectory[gi].x });
+                            recordedBadTrajectory.push({ x: badTrajectory[gi].x });
+                        }
+                    }
+                    lastStepIndex = state.stepIndex;
+                }
+                if (state.phase === 'initial') {
+                    recordedGoodTrajectory = [{ x: INITIAL_X }];
+                    recordedBadTrajectory = [{ x: INITIAL_X }];
+                    lastStepIndex = -1;
+                }
+
+                // 粒子生成
+                if (state.phase === 'descent') {
+                    const goodCx = mathToCanvasX(state.goodX);
+                    const goodCy = mathToCanvasY(lossFunction(state.goodX));
+                    const badCx = mathToCanvasX(state.badX);
+                    const badCy = mathToCanvasY(lossFunction(state.badX));
+
+                    if (totalTime - lastParticleSpawnGood > PARTICLE_SPAWN_INTERVAL) {
+                        spawnParticles(goodCx, goodCy, 2, '#7ec8f8');
+                        lastParticleSpawnGood = totalTime;
+                    }
+                    if (totalTime - lastParticleSpawnBad > PARTICLE_SPAWN_INTERVAL) {
+                        spawnParticles(badCx, badCy, 2, '#f8907e');
+                        lastParticleSpawnBad = totalTime;
+                    }
+                }
+
+                // 更新粒子和星星
+                for (let p of particles) p.update(dt);
+                particles = particles.filter(p => p.alive);
+                for (let s of stars) s.update(dt);
+
+                // ── 绘制 ──
+                ctx.clearRect(0, 0, W, H);
+                drawBackground(ctx);
+                for (let s of stars) s.draw(ctx);
+                drawCurveFill(ctx);
+                drawCurveLine(ctx);
+                drawAxes(ctx);
+
+                // 轨迹
+                if (recordedGoodTrajectory.length > 1) {
+                    drawTrajectory(ctx, recordedGoodTrajectory, 'rgba(126,200,248,0.8)', 0.7, 20);
+                }
+                if (recordedBadTrajectory.length > 1) {
+                    drawTrajectory(ctx, recordedBadTrajectory, 'rgba(248,144,126,0.8)', 0.7, 20);
+                }
+
+                // 梯度箭头
+                if (state.showGradientIndicator && state.phase === 'descent') {
+                    const gAlpha = state.gradientAlpha;
+                    drawGradientArrow(ctx, state.goodX, gAlpha * 0.9, '#ffcc44');
+                    drawGradientArrow(ctx, state.badX, gAlpha * 0.7, '#ff8844');
+                }
+
+                // 小球
+                const goodPos = drawBall(ctx, state.goodX, '#5db8f0', 'rgba(126,200,248,0.9)', 8.5, state.glowPulse);
+                const badPos = drawBall(ctx, state.badX, '#e8705c', 'rgba(248,144,126,0.9)', 8.5, state.glowPulse);
+
+                // 粒子
+                for (let p of particles) p.draw(ctx);
+
+                // UI元素
+                drawLegend(ctx);
+                drawInfoPanel(ctx, state);
+                drawFormulaHint(ctx, state);
+                drawNarrationBar(ctx, state);
+
+                // 最小值标记
+                const minCx = mathToCanvasX(0);
+                const minCy = mathToCanvasY(0);
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                ctx.font = '11px Georgia, "Noto Serif SC", serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('⭐ 最小值', minCx, minCy - 16);
+                const starGlow = ctx.createRadialGradient(minCx, minCy, 1, minCx, minCy, 8);
+                starGlow.addColorStop(0, 'rgba(255,255,200,0.9)');
+                starGlow.addColorStop(1, 'transparent');
+                ctx.fillStyle = starGlow;
+                ctx.beginPath();
+                ctx.arc(minCx, minCy, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fffde0';
+                ctx.beginPath();
+                ctx.arc(minCx, minCy, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                requestAnimationFrame(render);
+            }
+
+            // ──────────────────────────────────────
+            // 启动
+            // ──────────────────────────────────────
+            // 初始化录制的轨迹
+            recordedGoodTrajectory = [{ x: INITIAL_X }];
+            recordedBadTrajectory = [{ x: INITIAL_X }];
+
+            // 添加roundRect polyfill（如果需要）
+            if (!ctx.roundRect) {
+                ctx.roundRect = function(x, y, w, h, r) {
+                    if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };
+                    ctx.beginPath();
+                    ctx.moveTo(x + r.tl, y);
+                    ctx.lineTo(x + w - r.tr, y);
+                    ctx.quadraticCurveTo(x + w, y, x + w, y + r.tr);
+                    ctx.lineTo(x + w, y + h - r.br);
+                    ctx.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
+                    ctx.lineTo(x + r.bl, y + h);
+                    ctx.quadraticCurveTo(x, y + h, x, y + h - r.bl);
+                    ctx.lineTo(x, y + r.tl);
+                    ctx.quadraticCurveTo(x, y, x + r.tl, y);
+                    ctx.closePath();
+                };
+            }
+
+            requestAnimationFrame(render);
+            console.log('🎬 梯度下降动画已就绪 — 自动播放中');
+            console.log('  蓝色小球：合适学习率 η=0.13，平稳收敛');
+            console.log('  红色小球：过大学习率 η=0.88，剧烈震荡');
+            console.log('  观察两者轨迹，理解学习率的重要性');
+        })();
+    </script>
+</body>
+</html>

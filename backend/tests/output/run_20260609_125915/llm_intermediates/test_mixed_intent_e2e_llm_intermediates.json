@@ -1,0 +1,22 @@
+{
+  "scenario": "test_mixed_intent_e2e",
+  "timestamp": "2026-06-09T13:05:23.261446",
+  "intent_classification": {
+    "intent": "",
+    "confidence": 0.0
+  },
+  "learner_profile": {},
+  "sandbox_config": {},
+  "tutor_response": "",
+  "evaluation_report": "",
+  "current_step": "completed",
+  "history": [
+    "[Architect] 成功生成算子配置，意图=mixed_generation",
+    "[Tutor] 准备讲解底层源码: SE_Block.py",
+    "[Tutor] 源码教研讲解生成完毕",
+    "[Evaluator] 成功从 ragflow 检索到论文基准数据",
+    "[Evaluator] 完成架构评估报告生成",
+    "[Generator] 报告生成完毕",
+    "[Generator] 动画生成完毕"
+  ]
+}

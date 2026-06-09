@@ -1,0 +1,154 @@
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验报告 - 沙盒配置实验</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f7fa;
+            padding: 20px;
+        }
+        .report-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 40px 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            color: #2c3e50;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        .header .subtitle {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section-title {
+            color: #2c3e50;
+            font-size: 18px;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        .config-block {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        .config-label {
+            font-weight: bold;
+            color: #3498db;
+            margin-bottom: 8px;
+        }
+        pre {
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .empty-notice {
+            color: #e74c3c;
+            font-style: italic;
+        }
+        .improvement-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        .improvement-list li {
+            padding-left: 25px;
+            position: relative;
+            margin-bottom: 10px;
+        }
+        .improvement-list li::before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #3498db;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #7f8c8d;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>实验报告</h1>
+            <p class="subtitle">沙盒配置实验 · 结构化实验记录</p>
+        </div>
+
+        <!-- 实验配置 -->
+        <div class="section">
+            <h2 class="section-title">一、实验配置</h2>
+            <div class="config-block">
+                <div class="config-label">沙盒配置详情</div>
+                <pre>{
+  "task_type": "",
+  "suggested_backbone": "",
+  "nodes": [],
+  "edges": []
+}</pre>
+            </div>
+            <div class="config-block">
+                <div class="config-label">专家评估意见</div>
+                <p class="empty-notice">暂无评估报告</p>
+            </div>
+        </div>
+
+        <!-- 评估结果 -->
+        <div class="section">
+            <h2 class="section-title">二、评估结果</h2>
+            <p>当前暂无专家评估结果，需补充以下关键信息后开展后续分析：</p>
+            <ul style="padding-left: 20px; margin-top: 10px;">
+                <li>沙盒任务类型（task_type）的具体描述</li>
+                <li>推荐骨干网络（suggested_backbone）的架构说明</li>
+                <li>节点（nodes）与边（edges）的拓扑结构定义</li>
+            </ul>
+        </div>
+
+        <!-- 改进建议 -->
+        <div class="section">
+            <h2 class="section-title">三、改进建议</h2>
+            <ol class="improvement-list">
+                <li><strong>完善配置参数</strong>：补充沙盒配置中 task_type 的任务类型说明、suggested_backbone 的网络架构细节，确保实验环境可复现。</li>
+                <li><strong>明确拓扑结构</strong>：填充 nodes 数组中的节点属性（如节点ID、功能类型）及 edges 数组中的连接关系，构建完整的实验拓扑图。</li>
+                <li><strong>启动专家评估</strong>：待上述信息完善后，组织领域专家开展评估工作，输出针对实验设计的优化建议。</li>
+                <li><strong>建立迭代机制</strong>：根据评估反馈持续调整沙盒配置，形成“配置→评估→优化”的闭环流程。</li>
+            </ol>
+        </div>
+
+        <!-- 尾部 -->
+        <div class="footer">
+            <p>实验报告生成时间：{{current_date}}</p>
+            <p>本报告由系统自动生成，最终解释权归实验团队所有</p>
+        </div>
+    </div>
+</body>
+</html>
+```

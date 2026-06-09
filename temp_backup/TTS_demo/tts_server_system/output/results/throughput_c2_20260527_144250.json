@@ -1,0 +1,85 @@
+{
+  "stats": {
+    "concurrency": 2,
+    "duration": 60,
+    "actual_duration": 64.11749053001404,
+    "total_requests": 10,
+    "success_count": 10,
+    "success_rate": 100.0,
+    "rps": 0.15596368350253664,
+    "success_rps": 0.15596368350253664,
+    "avg_response_time": 12.46081337928772
+  },
+  "details": [
+    {
+      "success": true,
+      "response_time": 8.887247800827026,
+      "text_length": 10,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:41:55.703147"
+    },
+    {
+      "success": true,
+      "response_time": 17.51754593849182,
+      "text_length": 10,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:42:04.333992"
+    },
+    {
+      "success": true,
+      "response_time": 14.537426233291626,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:42:10.240693"
+    },
+    {
+      "success": true,
+      "response_time": 11.699816703796387,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:42:16.033975"
+    },
+    {
+      "success": true,
+      "response_time": 12.906786680221558,
+      "text_length": 9,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:42:23.147615"
+    },
+    {
+      "success": true,
+      "response_time": 14.102761507034302,
+      "text_length": 9,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:42:30.136931"
+    },
+    {
+      "success": true,
+      "response_time": 13.587346315383911,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:42:36.735290"
+    },
+    {
+      "success": true,
+      "response_time": 13.440993070602417,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:42:43.578089"
+    },
+    {
+      "success": true,
+      "response_time": 10.574090480804443,
+      "text_length": 3,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:42:47.309514"
+    },
+    {
+      "success": true,
+      "response_time": 7.354119062423706,
+      "text_length": 3,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:42:50.932395"
+    }
+  ]
+}

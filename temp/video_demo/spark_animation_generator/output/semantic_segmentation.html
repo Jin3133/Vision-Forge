@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语义分割算法可视化</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #f5f7fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', 'PingFang SC', Roboto, system-ui, -apple-system, sans-serif;
+        }
+        .container {
+            width: 2048px;
+            height: 1152px;
+            background: #ffffff;
+            border-radius: 32px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.10);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transform: scale(0.85);
+            transform-origin: center center;
+        }
+        @media (max-width: 2400px) {
+            .container {
+                transform: scale(0.75);
+            }
+        }
+        @media (max-width: 1800px) {
+            .container {
+                transform: scale(0.55);
+            }
+        }
+        @media (max-width: 1200px) {
+            .container {
+                transform: scale(0.38);
+            }
+        }
+
+        /* 顶部区域 */
+        .header {
+            height: 120px;
+            padding: 28px 56px 0 56px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: linear-gradient(135deg, #f8fbff 0%, #eef3fa 100%);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+            flex-shrink: 0;
+        }
+        .header h1 {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1a2a3a;
+            letter-spacing: 0.5px;
+            line-height: 1.2;
+        }
+        .header h1 small {
+            font-size: 22px;
+            font-weight: 400;
+            color: #5a6a7a;
+            margin-left: 20px;
+            letter-spacing: 0.3px;
+        }
+        .header .sub {
+            font-size: 18px;
+            color: #6a7a8a;
+            margin-top: 2px;
+            font-weight: 400;
+            letter-spacing: 0.3px;
+        }
+        .header .sub span {
+            color: #3a7abd;
+            font-weight: 500;
+        }
+
+        /* 主视觉区域 */
+        .visual {
+            flex: 1;
+            position: relative;
+            background: #fafcff;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #mainCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #ffffff;
+        }
+
+        /* 底部字幕区域 */
+        .footer {
+            height: 140px;
+            background: #f8faff;
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
+            padding: 18px 56px 20px 56px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .caption {
+            font-size: 24px;
+            line-height: 1.5;
+            color: #1a2a3a;
+            font-weight: 450;
+            min-height: 72px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            transition: opacity 0.3s;
+        }
+        .caption .en {
+            font-size: 19px;
+            color: #5a6a7a;
+            font-weight: 380;
+            margin-top: 2px;
+            letter-spacing: 0.2px;
+        }
+        .caption .zh {
+            font-weight: 500;
+        }
+
+        /* 图例 - 动态显示在visual右下 */
+        .legend {
+            position: absolute;
+            bottom: 32px;
+            right: 40px;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(6px);
+            border-radius: 16px;
+            padding: 16px 22px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            opacity: 0;
+            transition: opacity 0.8s ease;
+            pointer-events: none;
+            font-size: 15px;
+            min-width: 140px;
+        }
+        .legend.show {
+            opacity: 1;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            color: #2a3a4a;
+            font-weight: 450;
+        }
+        .legend-item .swatch {
+            width: 20px;
+            height: 20px;
+            border-radius: 6px;
+            margin-right: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        .legend-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: #3a4a5a;
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
+        }
+
+        /* 进度指示器 */
+        .progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3a7abd, #6aa8e8);
+            width: 0%;
+            transition: width 0.15s linear;
+            border-radius: 0 2px 2px 0;
+            z-index: 5;
+        }
+
+        /* 阶段标签 */
+        .stage-label {
+            position: absolute;
+            top: 24px;
+            left: 40px;
+            font-size: 16px;
+            font-weight: 500;
+            color: #3a7abd;
+            background: rgba(58, 122, 189, 0.10);
+            padding: 6px 18px;
+            border-radius: 30px;
+            letter-spacing: 0.5px;
+            opacity: 0;
+            transition: opacity 0.6s ease;
+            border: 1px solid rgba(58, 122, 189, 0.15);
+            backdrop-filter: blur(4px);
+        }
+        .stage-label.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="appContainer">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>
+                🧠 语义分割 · Semantic Segmentation
+                <small>像素级理解</small>
+            </h1>
+            <div class="sub">
+                为图像中的 <span>每个像素</span> 分配一个语义类别
+            </div>
+        </div>
+
+        <!-- 视觉区域 -->
+        <div class="visual" id="visualArea">
+            <canvas id="mainCanvas"></canvas>
+
+            <!-- 图例 -->
+            <div class="legend" id="legendBox">
+                <div class="legend-title">🏷️ 类别标签</div>
+                <div class="legend-item"><span class="swatch" style="background:#5B9BD5;"></span> 天空 · Sky</div>
+                <div class="legend-item"><span class="swatch" style="background:#6CBF73;"></span> 草地 · Grass</div>
+                <div class="legend-item"><span class="swatch" style="background:#D9874A;"></span> 房屋 · House</div>
+                <div class="legend-item"><span class="swatch" style="background:#3D8C40;"></span> 树木 · Tree</div>
+                <div class="legend-item"><span class="swatch" style="background:#B8A99A;"></span> 道路 · Path</div>
+            </div>
+
+            <!-- 阶段标签 -->
+            <div class="stage-label" id="stageLabel">🌅 原始图像</div>
+
+            <!-- 进度条 -->
+            <div class="progress" id="progressBar"></div>
+        </div>
+
+        <!-- 底部字幕 -->
+        <div class="footer">
+            <div class="caption" id="captionBox">
+                <div class="zh" id="capZh">欢迎观看 · 语义分割算法如何理解图像？</div>
+                <div class="en" id="capEn">How does semantic segmentation understand an image?</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // ---------- 配置 ----------
+            const container = document.getElementById('appContainer');
+            const canvas = document.getElementById('mainCanvas');
+            const ctx = canvas.getContext('2d');
+            const visualArea = document.getElementById('visualArea');
+
+            const capZh = document.getElementById('capZh');
+            const capEn = document.getElementById('capEn');
+            const legendBox = document.getElementById('legendBox');
+            const stageLabel = document.getElementById('stageLabel');
+            const progressBar = document.getElementById('progressBar');
+
+            // 尺寸 (2K)
+            const W = 2048;
+            const H = 1152;
+            const HEADER_H = 120;
+            const FOOTER_H = 140;
+            const VIS_H = H - HEADER_H - FOOTER_H;
+
+            // Canvas实际尺寸
+            let cw, ch;
+
+            // 场景坐标系统: 逻辑尺寸 1600 x 900, 居中显示
+            const LX = 0,
+                LY = 0,
+                LW = 1600,
+                LH = 900;
+
+            // 动画参数
+            const DURATION = 22; // 总时长(秒)
+            let startTime = null;
+            let animId = null;
+            let currentTime = 0;
+            let phase = -1;
+
+            // 场景对象
+            const scene = {};
+
+            // ---------- 初始化Canvas ----------
+            function resizeCanvas() {
+                const rect = visualArea.getBoundingClientRect();
+                const dpr = 1; // 保持清晰，直接使用物理像素
+                cw = rect.width;
+                ch = rect.height;
+                canvas.width = cw;
+                canvas.height = ch;
+                // 不用dpr缩放，直接渲染
+            }
+
+            // ---------- 绘制场景 ----------
+            function drawScene(time) {
+                const t = time / DURATION; // 0~1
+                const ctx2 = ctx;
+
+                ctx2.clearRect(0, 0, cw, ch);
+
+                // 计算场景在canvas中的缩放和偏移 (保持宽高比 16:9)
+                const scaleX = cw / LW;
+                const scaleY = ch / LH;
+                const scale = Math.min(scaleX, scaleY);
+                const offsetX = (cw - LW * scale) / 2;
+                const offsetY = (ch - LH * scale) / 2;
+
+                // 保存状态，应用变换
+                ctx2.save();
+                ctx2.translate(offsetX, offsetY);
+                ctx2.scale(scale, scale);
+
+                // ---- 绘制背景 ----
+                // 天空渐变
+                const skyGrad = ctx2.createLinearGradient(0, 0, 0, 500);
+                skyGrad.addColorStop(0, '#c9dff0');
+                skyGrad.addColorStop(0.6, '#e8f0f8');
+                skyGrad.addColorStop(1, '#f0f6fc');
+                ctx2.fillStyle = skyGrad;
+                ctx2.fillRect(0, 0, LW, 480);
+
+                // 草地
+                const grassGrad = ctx2.createLinearGradient(0, 480, 0, LH);
+                grassGrad.addColorStop(0, '#a8d5a2');
+                grassGrad.addColorStop(0.5, '#8ec88a');
+                grassGrad.addColorStop(1, '#7ab87a');
+                ctx2.fillStyle = grassGrad;
+                ctx2.fillRect(0, 480, LW, LH - 480);
+
+                // ---- 绘制道路 ----
+                ctx2.fillStyle = '#c4b5a5';
+                ctx2.beginPath();
+                ctx2.moveTo(620, 480);
+                ctx2.lineTo(700, 480);
+                ctx2.lineTo(780, LH);
+                ctx2.lineTo(540, LH);
+                ctx2.closePath();
+                ctx2.fill();
+                ctx2.shadowColor = 'rgba(0,0,0,0.03)';
+                ctx2.shadowBlur = 8;
+
+                // ---- 绘制房屋 ----
+                // 墙壁
+                ctx2.shadowColor = 'rgba(0,0,0,0.04)';
+                ctx2.shadowBlur = 12;
+                ctx2.fillStyle = '#f0e2d0';
+                ctx2.fillRect(260, 310, 200, 170);
+                // 屋顶
+                ctx2.shadowBlur = 6;
+                ctx2.fillStyle = '#c97d4a';
+                ctx2.beginPath();
+                ctx2.moveTo(230, 315);
+                ctx2.lineTo(360, 240);
+                ctx2.lineTo(490, 315);
+                ctx2.closePath();
+                ctx2.fill();
+                // 门
+                ctx2.shadowBlur = 0;
+                ctx2.fillStyle = '#8b6b55';
+                ctx2.fillRect(340, 410, 40, 70);
+                // 窗户
+                ctx2.fillStyle = '#b5d4e8';
+                ctx2.fillRect(280, 360, 40, 40);
+                ctx2.fillRect(400, 360, 40, 40);
+                // 窗框
+                ctx2.strokeStyle = '#8a7a6a';
+                ctx2.lineWidth = 2;
+                ctx2.strokeRect(280, 360, 40, 40);
+                ctx2.strokeRect(400, 360, 40, 40);
+
+                // ---- 绘制树木 ----
+                // 树干
+                ctx2.shadowBlur = 4;
+                ctx2.fillStyle = '#8b7a5a';
+                ctx2.fillRect(1180, 400, 36, 120);
+                // 树冠
+                ctx2.shadowBlur = 18;
+                ctx2.fillStyle = '#4a8c4a';
+                ctx2.beginPath();
+                ctx2.arc(1198, 340, 110, 0, Math.PI * 2);
+                ctx2.fill();
+                ctx2.fillStyle = '#5a9c5a';
+                ctx2.beginPath();
+                ctx2.arc(1170, 310, 70, 0, Math.PI * 2);
+                ctx2.fill();
+                ctx2.beginPath();
+                ctx2.arc(1228, 320, 65, 0, Math.PI * 2);
+                ctx2.fill();
+
+                // ---- 绘制第二棵树 (小) ----
+                ctx2.fillStyle = '#8b7a5a';
+                ctx2.fillRect(1380, 430, 28, 90);
+                ctx2.fillStyle = '#5a945a';
+                ctx2.shadowBlur = 14;
+                ctx2.beginPath();
+                ctx2.arc(1394, 380, 80, 0, Math.PI * 2);
+                ctx2.fill();
+                ctx2.fillStyle = '#6aa86a';
+                ctx2.beginPath();
+                ctx2.arc(1370, 360, 50, 0, Math.PI * 2);
+                ctx2.fill();
+                ctx2.beginPath();
+                ctx2.arc(1420, 370, 48, 0, Math.PI * 2);
+                ctx2.fill();
+
+                // ---- 绘制云朵 ----
+                ctx2.shadowBlur = 0;
+                ctx2.fillStyle = 'rgba(255,255,255,0.7)';
+                ctx2.beginPath();
+                ctx2.arc(200, 80, 60, 0, Math.PI * 2);
+                ctx2.arc(260, 70, 70, 0, Math.PI * 2);
+                ctx2.arc(320, 80, 55, 0, Math.PI * 2);
+                ctx2.fill();
+                ctx2.beginPath();
+                ctx2.arc(1100, 110, 50, 0, Math.PI * 2);
+                ctx2.arc(1150, 100, 60, 0, Math.PI * 2);
+                ctx2.arc(1200, 110, 45, 0, Math.PI * 2);
+                ctx2.fill();
+
+                // ---- 重置阴影 ----
+                ctx2.shadowColor = 'transparent';
+                ctx2.shadowBlur = 0;
+
+                // ---- 根据时间绘制覆盖层 ----
+                drawOverlays(ctx2, t, scale);
+
+                ctx2.restore();
+
+                // ---- 绘制进度 ----
+                progressBar.style.width = Math.min(100, t * 100) + '%';
+            }
+
+            // ---------- 覆盖层：网格、特征、分割 ----------
+            function drawOverlays(ctx2, t, sc) {
+                // 阶段定义
+                const T1 = 0.00,
+                    T2 = 0.10,
+                    T3 = 0.28,
+                    T4 = 0.42,
+                    T5 = 0.58,
+                    T6 = 0.80,
+                    T7 = 0.96;
+
+                // ---- 阶段1: 原始图像 (0~10%) ----
+                // 什么也不做，只显示背景
+
+                // ---- 阶段2: 网格叠加 (10%~28%) ----
+                if (t >= T2 && t < T3) {
+                    const p = (t - T2) / (T3 - T2);
+                    const alpha = Math.min(1, p * 2.5);
+                    const gridSize = 28 - p * 10;
+
+                    ctx2.strokeStyle = `rgba(60,80,100,${alpha * 0.25})`;
+                    ctx2.lineWidth = 1.2;
+                    for (let x = 0; x < LW; x += gridSize) {
+                        ctx2.beginPath();
+                        ctx2.moveTo(x, 0);
+                        ctx2.lineTo(x, LH);
+                        ctx2.stroke();
+                    }
+                    for (let y = 0; y < LH; y += gridSize) {
+                        ctx2.beginPath();
+                        ctx2.moveTo(0, y);
+                        ctx2.lineTo(LW, y);
+                        ctx2.stroke();
+                    }
+
+                    // 像素化效果: 在一些网格上填充半透明色块
+                    if (p > 0.3) {
+                        const step = gridSize * 1.2;
+                        const alpha2 = (p - 0.3) * 1.2;
+                        for (let x = 0; x < LW; x += step) {
+                            for (let y = 0; y < LH; y += step) {
+                                const val = Math.sin(x * 0.05 + y * 0.07) * 0.5 + 0.5;
+                                ctx2.fillStyle = `rgba(100,140,180,${alpha2 * val * 0.12})`;
+                                ctx2.fillRect(x, y, step * 0.9, step * 0.9);
+                            }
+                        }
+                    }
+
+                    // 标签更新
+                    setStage('🔲 像素化 · Pixelation', p > 0.5);
+                }
+
+                // ---- 阶段3: 特征提取 (28%~42%) ----
+                if (t >= T3 && t < T4) {
+                    const p = (t - T3) / (T4 - T3);
+                    const alpha = Math.min(1, p * 2.0);
+
+                    // 绘制卷积核滑动轨迹
+                    const kernelSize = 48;
+                    const pathX = 100 + p * (LW - 200);
+                    const pathY = 100 + Math.sin(p * 8) * 180 + 80;
+
+                    // 卷积核高亮
+                    ctx2.shadowColor = 'rgba(58,122,189,0.25)';
+                    ctx2.shadowBlur = 20;
+                    ctx2.strokeStyle = `rgba(58,122,189,${0.5 + alpha * 0.3})`;
+                    ctx2.lineWidth = 3;
+                    ctx2.strokeRect(pathX - kernelSize / 2, pathY - kernelSize / 2, kernelSize, kernelSize);
+
+                    // 内填充
+                    ctx2.fillStyle = `rgba(58,122,189,${0.06 + alpha * 0.04})`;
+                    ctx2.fillRect(pathX - kernelSize / 2, pathY - kernelSize / 2, kernelSize, kernelSize);
+
+                    // 特征图小窗口 (右上)
+                    const featW = 260,
+                        featH = 260;
+                    const fx = LW - featW - 50,
+                        fy = 40;
+                    ctx2.shadowBlur = 0;
+                    ctx2.fillStyle = `rgba(240,246,255,${0.7 + alpha * 0.3})`;
+                    ctx2.shadowColor = 'rgba(0,0,0,0.04)';
+                    ctx2.shadowBlur = 16;
+                    ctx2.roundRect(fx - 12, fy - 12, featW + 24, featH + 24, 12);
+                    ctx2.fill();
+
+                    // 特征图内容 (抽象)
+                    ctx2.shadowBlur = 0;
+                    for (let i = 0; i < 16; i++) {
+                        const cx = fx + Math.random() * featW;
+                        const cy = fy + Math.random() * featH;
+                        const r = 8 + Math.random() * 20;
+                        const hue = 200 + Math.random() * 60;
+                        ctx2.fillStyle = `hsla(${hue}, 50%, 65%, ${0.15 + alpha * 0.2})`;
+                        ctx2.beginPath();
+                        ctx2.arc(cx, cy, r, 0, Math.PI * 2);
+                        ctx2.fill();
+                    }
+                    // 网格特征
+                    ctx2.strokeStyle = `rgba(58,122,189,${0.08 + alpha * 0.08})`;
+                    ctx2.lineWidth = 1;
+                    for (let i = 0; i < 6; i++) {
+                        for (let j = 0; j < 6; j++) {
+                            const gx = fx + i * (featW / 6);
+                            const gy = fy + j * (featH / 6);
+                            ctx2.fillStyle = `rgba(70,130,200,${0.03 + alpha * 0.04 * (0.5 + 0.5 * Math.sin(i * 1.5 + j * 2.3))})`;
+                            ctx2.fillRect(gx, gy, featW / 6, featH / 6);
+                        }
+                    }
+                    ctx2.font = '20px "Segoe UI", sans-serif';
+                    ctx2.fillStyle = `rgba(40,60,80,${0.4 + alpha * 0.3})`;
+                    ctx2.fillText('🧪 特征图', fx + 12, fy + 36);
+
+                    setStage('🔬 特征提取 · Feature Extraction', true);
+                }
+
+                // ---- 阶段4: 特征图强化 (42%~58%) ----
+                if (t >= T4 && t < T5) {
+                    const p = (t - T4) / (T5 - T4);
+                    const alpha = Math.min(1, p * 2.0);
+
+                    // 特征图更清晰展示
+                    const featW = 320,
+                        featH = 320;
+                    const fx = LW - featW - 60,
+                        fy = 30;
+                    ctx2.shadowColor = 'rgba(0,0,0,0.04)';
+                    ctx2.shadowBlur = 20;
+                    ctx2.fillStyle = `rgba(240,246,255,${0.8 + alpha * 0.2})`;
+                    ctx2.roundRect(fx - 16, fy - 16, featW + 32, featH + 32, 14);
+                    ctx2.fill();
+
+                    // 绘制更有结构的特征图
+                    for (let i = 0; i < 8; i++) {
+                        for (let j = 0; j < 8; j++) {
+                            const gx = fx + i * (featW / 8);
+                            const gy = fy + j * (featH / 8);
+                            const val = (Math.sin(i * 0.8 + j * 1.2 + p * 2) * 0.5 + 0.5) * 0.6 + 0.2;
+                            ctx2.fillStyle = `rgba(58,122,189,${val * alpha * 0.5})`;
+                            ctx2.fillRect(gx, gy, featW / 8 - 2, featH / 8 - 2);
+                        }
+                    }
+                    // 激活热点
+                    for (let k = 0; k < 12; k++) {
+                        const cx = fx + 30 + Math.sin(k * 2.7 + p * 3) * 130 + 130;
+                        const cy = fy + 30 + Math.cos(k * 1.9 + p * 2.5) * 130 + 130;
+                        const r = 12 + Math.sin(k * 4 + p * 5) * 8;
+                        ctx2.fillStyle = `rgba(255,180,60,${0.15 + 0.15 * alpha * (0.5 + 0.5 * Math.sin(p * 6 + k))})`;
+                        ctx2.beginPath();
+                        ctx2.arc(cx, cy, r, 0, Math.PI * 2);
+                        ctx2.fill();
+                    }
+
+                    ctx2.shadowBlur = 0;
+                    ctx2.font = '22px "Segoe UI", sans-serif';
+                    ctx2.fillStyle = `rgba(40,60,80,${0.5 + alpha * 0.3})`;
+                    ctx2.fillText('📊 多通道特征', fx + 20, fy + 48);
+
+                    setStage('📊 特征图 · Feature Maps', true);
+                }
+
+                // ---- 阶段5: 逐像素分类 (58%~80%) ----
+                if (t >= T5 && t < T6) {
+                    const p = (t - T5) / (T6 - T5);
+                    // 从左上到右下扫描
+                    const scanX = p * LW * 1.1;
+                    const scanY = p * LH * 1.1;
+
+                    // 绘制分类色块 (在扫描区域后方)
+                    const colors = {
+                        sky: 'rgba(91,155,213,0.65)',
+                        grass: 'rgba(108,191,115,0.65)',
+                        house: 'rgba(217,135,74,0.65)',
+                        tree: 'rgba(61,140,64,0.65)',
+                        path: 'rgba(184,169,154,0.65)'
+                    };
+
+                    // 根据区域填充分类色块 (简化: 使用预定义区域)
+                    // 天空区域 (0~480)
+                    for (let x = 0; x < Math.min(scanX, LW); x += 12) {
+                        for (let y = 0; y < Math.min(scanY, 470); y += 12) {
+                            if (x + 12 > scanX || y + 12 > scanY) continue;
+                            ctx2.fillStyle = colors.sky;
+                            ctx2.fillRect(x, y, 12, 12);
+                        }
+                    }
+                    // 草地 (480~LH)
+                    for (let x = 0; x < Math.min(scanX, LW); x += 12) {
+                        for (let y = 480; y < Math.min(scanY, LH); y += 12) {
+                            if (x + 12 > scanX || y + 12 > scanY) continue;
+                            // 道路区域跳过
+                            if (x > 540 && x < 780 && y > 700) continue;
+                            if (x > 580 && x < 740 && y > 600) continue;
+                            ctx2.fillStyle = colors.grass;
+                            ctx2.fillRect(x, y, 12, 12);
+                        }
+                    }
+                    // 房屋区域
+                    for (let x = 230; x < Math.min(scanX, 490); x += 12) {
+                        for (let y = 240; y < Math.min(scanY, 480); y += 12) {
+                            if (x + 12 > scanX || y + 12 > scanY) continue;
+                            if (y < 315) {
+                                ctx2.fillStyle = colors.house;
+                            } else {
+                                ctx2.fillStyle = colors.house;
+                            }
+                            ctx2.fillRect(x, y, 12, 12);
+                        }
+                    }
+                    // 树木区域
+                    for (let x = 1080; x < Math.min(scanX, 1480); x += 12) {
+                        for (let y = 280; y < Math.min(scanY, 520); y += 12) {
+                            if (x + 12 > scanX || y + 12 > scanY) continue;
+                            const dx = x - 1198,
+                                dy = y - 340;
+                            if (dx * dx + dy * dy < 110 * 110) {
+                                ctx2.fillStyle = colors.tree;
+                                ctx2.fillRect(x, y, 12, 12);
+                            }
+                        }
+                    }
+                    // 道路区域
+                    for (let x = 540; x < Math.min(scanX, 780); x += 12) {
+                        for (let y = 600; y < Math.min(scanY, LH); y += 12) {
+                            if (x + 12 > scanX || y + 12 > scanY) continue;
+                            const ratio = (y - 600) / (LH - 600);
+                            const left = 540 + (620 - 540) * ratio;
+                            const right = 780 - (780 - 700) * ratio;
+                            if (x > left && x < right) {
+                                ctx2.fillStyle = colors.path;
+                                ctx2.fillRect(x, y, 12, 12);
+                            }
+                        }
+                    }
+
+                    // 扫描线
+                    ctx2.strokeStyle = `rgba(255,200,80,${0.5 + 0.3 * Math.sin(p * 20)})`;
+                    ctx2.lineWidth = 3;
+                    ctx2.shadowColor = 'rgba(255,200,80,0.2)';
+                    ctx2.shadowBlur = 16;
+                    ctx2.beginPath();
+                    ctx2.moveTo(scanX, 0);
+                    ctx2.lineTo(scanX, LH);
+                    ctx2.stroke();
+
+                    setStage('🏷️ 逐像素分类 · Per-Pixel Classification', true);
+                }
+
+                // ---- 阶段6: 分割完成 (80%~96%) ----
+                if (t >= T6 && t < T7) {
+                    const p = (t - T6) / (T7 - T6);
+                    const alpha = Math.min(1, p * 3);
+
+                    // 显示完整分割结果 (覆盖半透明色块)
+                    drawSegmentationResult(ctx2, alpha);
+
+                    // 显示图例
+                    legendBox.classList.add('show');
+
+                    setStage('✅ 语义分割完成 · Segmentation Complete', true);
+                }
+
+                // ---- 阶段7: 对比与总结 (96%~100%) ----
+                if (t >= T7) {
+                    const p = (t - T7) / (1 - T7);
+                    const alpha = Math.min(1, p * 2);
+
+                    // 分割结果保持
+                    drawSegmentationResult(ctx2, 1.0);
+
+                    // 左侧显示"原始图像"标签，右侧显示"分割结果"
+                    ctx2.shadowBlur = 0;
+                    ctx2.font = '26px "Segoe UI", "PingFang SC", sans-serif';
+                    ctx2.fillStyle = `rgba(30,50,70,${0.6 + alpha * 0.3})`;
+                    ctx2.textAlign = 'center';
+
+                    // 原始标签
+                    ctx2.fillStyle = 'rgba(255,255,255,0.85)';
+                    ctx2.roundRect(60, 30, 200, 56, 12);
+                    ctx2.fill();
+                    ctx2.fillStyle = `rgba(30,50,70,${0.7 + alpha * 0.3})`;
+                    ctx2.font = '22px "Segoe UI", "PingFang SC", sans-serif';
+                    ctx2.fillText('🖼️ 原始图像', 160, 68);
+
+                    // 分割标签
+                    ctx2.fillStyle = 'rgba(255,255,255,0.85)';
+                    ctx2.roundRect(LW - 260, 30, 210, 56, 12);
+                    ctx2.fill();
+                    ctx2.fillStyle = `rgba(30,50,70,${0.7 + alpha * 0.3})`;
+                    ctx2.fillText('🎯 分割结果', LW - 155, 68);
+
+                    legendBox.classList.add('show');
+
+                    setStage('🎯 原始 vs 分割 · Comparison', true);
+                }
+
+                // 更新字幕
+                updateCaptions(t);
+            }
+
+            // ---------- 绘制分割结果 (完整覆盖) ----------
+            function drawSegmentationResult(ctx2, alpha) {
+                if (alpha <= 0) return;
+                const colors = {
+                    sky: 'rgba(91,155,213,0.70)',
+                    grass: 'rgba(108,191,115,0.70)',
+                    house: 'rgba(217,135,74,0.70)',
+                    tree: 'rgba(61,140,64,0.70)',
+                    path: 'rgba(184,169,154,0.70)'
+                };
+
+                // 天空
+                ctx2.fillStyle = colors.sky;
+                ctx2.globalAlpha = alpha * 0.7;
+                ctx2.fillRect(0, 0, LW, 475);
+
+                // 草地 (除去道路和房屋区域)
+                ctx2.fillStyle = colors.grass;
+                for (let x = 0; x < LW; x += 8) {
+                    for (let y = 475; y < LH; y += 8) {
+                        // 跳过道路
+                        const ratio = (y - 600) / (LH - 600);
+                        const left = 540 + (620 - 540) * Math.max(0, ratio);
+                        const right = 780 - (780 - 700) * Math.max(0, ratio);
+                        if (y > 600 && x > left && x < right) continue;
+                        // 跳过房屋
+                        if (x > 230 && x < 490 && y > 240 && y < 480) continue;
+                        // 跳过树木
+                        const dx1 = x - 1198,
+                            dy1 = y - 340;
+                        if (dx1 * dx1 + dy1 * dy1 < 110 * 110) continue;
+                        const dx2 = x - 1394,
+                            dy2 = y - 380;
+                        if (dx2 * dx2 + dy2 * dy2 < 80 * 80) continue;
+
+                        ctx2.fillRect(x, y, 8, 8);
+                    }
+                }
+
+                // 房屋
+                ctx2.fillStyle = colors.house;
+                ctx2.fillRect(230, 240, 260, 240);
+
+                // 树木
+                ctx2.fillStyle = colors.tree;
+                ctx2.beginPath();
+                ctx2.arc(1198, 340, 110, 0, Math.PI * 2);
+                ctx2.fill();
+                ctx2.beginPath();
+                ctx2.arc(1394, 380, 80, 0, Math.PI * 2);
+                ctx2.fill();
+
+                // 道路
+                ctx2.fillStyle = colors.path;
+                ctx2.beginPath();
+                ctx2.moveTo(620, 480);
+                ctx2.lineTo(700, 480);
+                ctx2.lineTo(780, LH);
+                ctx2.lineTo(540, LH);
+                ctx2.closePath();
+                ctx2.fill();
+
+                ctx2.globalAlpha = 1.0;
+            }
+
+            // ---------- 字幕更新 ----------
+            const captions = [
+                { start: 0.00, end: 0.10, zh: '🌅 这是原始图像，包含天空、草地、房屋、树木和道路。', en: 'This is the original image with sky, grass, house, trees and a path.' },
+                { start: 0.10, end: 0.28, zh: '🔲 算法将图像划分为密集网格，每个格子代表一个「像素」单元。',
+                    en: 'The algorithm divides the image into a dense grid — each cell is a "pixel".' },
+                { start: 0.28, end: 0.42, zh: '🔬 卷积核在图像上滑动，提取边缘、纹理等特征，生成特征图。',
+                    en: 'Convolution kernels slide over the image to extract edges & textures, forming feature maps.' },
+                { start: 0.42, end: 0.58, zh: '📊 多层特征图捕捉不同语义信息：轮廓、颜色、纹理、位置……',
+                    en: 'Multi-layer feature maps capture semantic cues: shape, color, texture, position…' },
+                { start: 0.58, end: 0.80, zh: '🏷️ 逐像素分类！为每个像素分配最可能的语义类别标签。',
+                    en: 'Per-pixel classification! Each pixel receives its most likely semantic label.' },
+                { start: 0.80, end: 0.96, zh: '✅ 分割完成！每个区域被赋予独立颜色：蓝·天、绿·草、橙·屋、深绿·树、灰·路。',
+                    en: 'Segmentation done! Each region gets a distinct color: blue sky, green grass, orange house, dark green tree, gray path.' },
+                { start: 0.96, end: 1.00, zh: '🎯 语义分割让计算机「看懂」场景 — 像素级理解，赋能自动驾驶、医疗影像等。',
+                    en: 'Semantic segmentation enables pixel-level scene understanding for autonomous driving, medical imaging & beyond.' }
+            ];
+
+            function updateCaptions(t) {
+                let active = captions.find(c => t >= c.start && t < c.end);
+                if (!active) {
+                    // 找最近的
+                    let last = captions[captions.length - 1];
+                    if (t >= last.end) active = last;
+                    else {
+                        let first = captions[0];
+                        if (t < first.start) active = first;
+                        else active = captions[captions.length - 1];
+                    }
+                }
+                if (active) {
+                    capZh.textContent = active.zh;
+                    capEn.textContent = active.en;
+                }
+            }
+
+            // ---------- 阶段标签 ----------
+            function setStage(text, show) {
+                if (show) {
+                    stageLabel.textContent = text;
+                    stageLabel.classList.add('show');
+                } else {
+                    stageLabel.classList.remove('show');
+                }
+            }
+
+            // ---------- 动画循环 ----------
+            function animate(timestamp) {
+                if (!startTime) startTime = timestamp;
+                const elapsed = (timestamp - startTime) / 1000;
+                const t = Math.min(elapsed / DURATION, 1.0);
+
+                drawScene(t * DURATION);
+
+                if (t < 1.0) {
+                    animId = requestAnimationFrame(animate);
+                } else {
+                    // 结束保持
+                    progressBar.style.width = '100%';
+                    // 最后画面停留
+                }
+            }
+
+            // ---------- 启动 ----------
+            function startAnimation() {
+                resizeCanvas();
+                startTime = null;
+                if (animId) cancelAnimationFrame(animId);
+                // 重置进度
+                progressBar.style.width = '0%';
+                legendBox.classList.remove('show');
+                stageLabel.classList.remove('show');
+                // 从头开始
+                animId = requestAnimationFrame(animate);
+            }
+
+            // ---------- 窗口变化 ----------
+            let resizeTimer = null;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(() => {
+                    resizeCanvas();
+                }, 100);
+            });
+
+            // 手动触发一次
+            setTimeout(() => {
+                resizeCanvas();
+                startAnimation();
+            }, 80);
+
+            // 暴露重启 (可手动)
+            window.restartAnim = startAnimation;
+
+            // 补充 roundRect 兼容
+            if (!CanvasRenderingContext2D.prototype.roundRect) {
+                CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                    if (r > w / 2) r = w / 2;
+                    if (r > h / 2) r = h / 2;
+                    this.moveTo(x + r, y);
+                    this.lineTo(x + w - r, y);
+                    this.quadraticCurveTo(x + w, y, x + w, y + r);
+                    this.lineTo(x + w, y + h - r);
+                    this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                    this.lineTo(x + r, y + h);
+                    this.quadraticCurveTo(x, y + h, x, y + h - r);
+                    this.lineTo(x, y + r);
+                    this.quadraticCurveTo(x, y, x + r, y);
+                    return this;
+                };
+            }
+
+        })();
+    </script>
+
+</body>
+</html>

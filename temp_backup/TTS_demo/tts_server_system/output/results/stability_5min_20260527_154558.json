@@ -1,0 +1,90 @@
+{
+  "stats": {
+    "duration_minutes": 5,
+    "actual_duration": 330.1425311565399,
+    "total_requests": 6,
+    "success_count": 6,
+    "success_rate": 100.0,
+    "avg_rps": 0.0181739686158614,
+    "time_segments": [
+      {
+        "segment": 1,
+        "avg_response_time": 114.5093936920166,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 2,
+        "avg_response_time": 29.193135499954224,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 3,
+        "avg_response_time": 27.056341886520386,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 4,
+        "avg_response_time": 25.732157230377197,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 5,
+        "avg_response_time": 31.864539623260498,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 6,
+        "avg_response_time": 41.78182411193848,
+        "success_rate": 100.0
+      }
+    ],
+    "avg_response_time": 45.02289867401123,
+    "min_response_time": 25.732157230377197,
+    "max_response_time": 114.5093936920166,
+    "performance_degradation": -63.51231740488079
+  },
+  "details": [
+    {
+      "success": true,
+      "response_time": 114.5093936920166,
+      "text_length": 56,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:42:22.872685"
+    },
+    {
+      "success": true,
+      "response_time": 29.193135499954224,
+      "text_length": 42,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:43:02.066498"
+    },
+    {
+      "success": true,
+      "response_time": 27.056341886520386,
+      "text_length": 35,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:43:39.124021"
+    },
+    {
+      "success": true,
+      "response_time": 25.732157230377197,
+      "text_length": 36,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:44:14.856896"
+    },
+    {
+      "success": true,
+      "response_time": 31.864539623260498,
+      "text_length": 43,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:44:56.722493"
+    },
+    {
+      "success": true,
+      "response_time": 41.78182411193848,
+      "text_length": 56,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:45:48.505328"
+    }
+  ]
+}

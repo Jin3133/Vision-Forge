@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生成动画 - Generative Animation</title>
+    <style>
+        :root {
+            --bg: #080818;
+            --text-primary: #f0f0fa;
+            --text-glow: #00c8ff;
+            --accent: #ff8c52;
+            --accent2: #ff3d7f;
+            --cyan: #00d4ff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            overflow: hidden;
+            font-family: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            cursor: default;
+        }
+
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            display: block;
+        }
+
+        .text-overlay {
+            position: fixed;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            top: 8%;
+            left: 0;
+            padding: 0 5vw;
+            transition: all 0.8s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        .title-main {
+            font-size: clamp(2.2rem, 6vw, 5.5rem);
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            color: #ffffff;
+            text-shadow:
+                0 0 60px rgba(0, 200, 255, 0.7),
+                0 0 120px rgba(0, 200, 255, 0.4),
+                0 0 200px rgba(0, 180, 240, 0.25),
+                0 4px 8px rgba(0, 0, 0, 0.5);
+            line-height: 1.1;
+            text-align: center;
+            transition: all 0.9s cubic-bezier(0.25, 0.1, 0.25, 1);
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .title-sub {
+            font-size: clamp(1rem, 2.5vw, 1.8rem);
+            font-weight: 300;
+            letter-spacing: 0.12em;
+            color: rgba(200, 230, 255, 0.9);
+            text-shadow:
+                0 0 25px rgba(0, 200, 255, 0.5),
+                0 0 60px rgba(0, 160, 220, 0.3);
+            margin-top: 0.4em;
+            text-align: center;
+            transition: all 0.9s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        .narration {
+            position: fixed;
+            z-index: 10;
+            pointer-events: none;
+            bottom: 12%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(1rem, 2.2vw, 1.5rem);
+            font-weight: 400;
+            letter-spacing: 0.05em;
+            color: rgba(240, 245, 255, 0.9);
+            text-shadow:
+                0 0 30px rgba(180, 210, 255, 0.6),
+                0 0 70px rgba(140, 180, 240, 0.3),
+                0 2px 6px rgba(0, 0, 0, 0.6);
+            text-align: center;
+            max-width: 85vw;
+            line-height: 1.5;
+            transition: all 0.8s cubic-bezier(0.25, 0.1, 0.25, 1);
+            opacity: 1;
+            white-space: nowrap;
+        }
+
+        .narration.fade-out {
+            opacity: 0;
+            transform: translateX(-50%) translateY(12px);
+        }
+
+        .title-main.fade-out {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        .title-sub.fade-out {
+            opacity: 0;
+            transform: translateY(-12px);
+        }
+
+        .badge-row {
+            position: fixed;
+            z-index: 10;
+            pointer-events: none;
+            bottom: 6%;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: clamp(10px, 2vw, 20px);
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .badge {
+            font-size: clamp(0.7rem, 1.4vw, 0.9rem);
+            letter-spacing: 0.08em;
+            padding: 0.5em 1.2em;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.04);
+            color: rgba(220, 235, 255, 0.85);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            transition: all 0.7s ease;
+            opacity: 0;
+            transform: translateY(10px);
+            text-shadow: 0 0 12px rgba(180, 210, 240, 0.5);
+        }
+        .badge.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .badge.highlight {
+            border-color: rgba(0, 200, 255, 0.55);
+            background: rgba(0, 180, 240, 0.1);
+            box-shadow: 0 0 22px rgba(0, 190, 240, 0.3);
+            color: #fff;
+        }
+
+        /* 响应式微调 */
+        @media (max-width: 600px) {
+            .text-overlay {
+                top: 10%;
+            }
+            .narration {
+                bottom: 16%;
+                white-space: normal;
+                max-width: 90vw;
+                font-size: 1rem;
+            }
+            .badge-row {
+                bottom: 8%;
+                gap: 8px;
+            }
+            .badge {
+                padding: 0.4em 0.9em;
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="mainCanvas"></canvas>
+
+    <div class="text-overlay" id="textOverlay">
+        <div class="title-main" id="titleMain">生成动画</div>
+        <div class="title-sub" id="titleSub">Generative Animation</div>
+    </div>
+
+    <div class="narration" id="narration">算法定义规则，时间驱动变化</div>
+
+    <div class="badge-row" id="badgeRow">
+        <span class="badge" id="badge1">数学函数</span>
+        <span class="badge" id="badge2">粒子系统</span>
+        <span class="badge" id="badge3">噪声驱动</span>
+        <span class="badge" id="badge4">实时生成</span>
+    </div>
+
+    <script>
+        (function() {
+            // ============ DOM 元素 ============
+            const canvas = document.getElementById('mainCanvas');
+            const ctx = canvas.getContext('2d');
+            const titleMain = document.getElementById('titleMain');
+            const titleSub = document.getElementById('titleSub');
+            const narration = document.getElementById('narration');
+            const badgeRow = document.getElementById('badgeRow');
+            const badges = [
+                document.getElementById('badge1'),
+                document.getElementById('badge2'),
+                document.getElementById('badge3'),
+                document.getElementById('badge4'),
+            ];
+
+            // ============ 画布尺寸 ============
+            let W, H, dpr;
+            function resize() {
+                dpr = Math.min(window.devicePixelRatio || 1, 2); // 限制像素比以保证性能
+                W = window.innerWidth;
+                H = window.innerHeight;
+                canvas.width = W * dpr;
+                canvas.height = H * dpr;
+                canvas.style.width = W + 'px';
+                canvas.style.height = H + 'px';
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.scale(dpr, dpr);
+            }
+            resize();
+            window.addEventListener('resize', () => {
+                resize();
+                initParticles();
+                initNodes();
+                initGlows();
+            });
+
+            // ============ 全局时间 ============
+            const CYCLE_DURATION = 32; // 秒
+            let globalTime = 0;
+            let lastFrameTime = performance.now();
+            let cyclePosition = 0;
+
+            // ============ 流场函数 ============
+            function getFlowAngle(x, y, t) {
+                // 多层正弦波叠加创造复杂流场
+                let angle = 0;
+                const tx = x * 0.0035;
+                const ty = y * 0.0042;
+                angle += Math.sin(tx + t * 0.37) * Math.cos(ty + t * 0.28) * 2.6;
+                angle += Math.sin(tx * 1.7 - t * 0.45) * Math.cos(ty * 0.8 + t * 0.55) * 1.9;
+                angle += Math.cos(tx * 1.3 + ty * 1.6 + t * 0.33) * 1.6;
+                angle += Math.sin((tx + ty) * 1.1 + t * 0.42) * 1.3;
+                angle += Math.cos(tx * 2.1 - ty * 1.4 + t * 0.51) * 0.9;
+                return angle;
+            }
+
+            function getFlowAngleVariant(x, y, t, variant) {
+                // 不同变体的流场，用于不同阶段
+                let angle = 0;
+                const tx = x * 0.0035;
+                const ty = y * 0.0042;
+                switch (variant) {
+                    case 0: // 标准流场
+                        angle += Math.sin(tx + t * 0.37) * Math.cos(ty + t * 0.28) * 2.6;
+                        angle += Math.sin(tx * 1.7 - t * 0.45) * Math.cos(ty * 0.8 + t * 0.55) * 1.9;
+                        angle += Math.cos(tx * 1.3 + ty * 1.6 + t * 0.33) * 1.6;
+                        angle += Math.sin((tx + ty) * 1.1 + t * 0.42) * 1.3;
+                        break;
+                    case 1: // 更有序的涡旋
+                        angle += Math.sin(tx + t * 0.25) * Math.cos(ty + t * 0.2) * 3.2;
+                        angle += Math.sin(tx * 1.5 - t * 0.35) * Math.cos(ty * 1.3 + t * 0.4) * 1.5;
+                        angle += Math.cos(tx * 0.9 + ty * 1.1 + t * 0.28) * 2.0;
+                        angle += Math.sin((tx + ty) * 1.4 + t * 0.32) * 1.0;
+                        break;
+                    case 2: // 更混沌有机
+                        angle += Math.sin(tx * 1.2 + t * 0.55) * Math.cos(ty * 1.5 + t * 0.62) * 2.2;
+                        angle += Math.sin(tx * 2.3 - t * 0.7) * Math.cos(ty * 0.6 + t * 0.8) * 2.1;
+                        angle += Math.cos(tx * 0.7 + ty * 2.1 + t * 0.48) * 1.8;
+                        angle += Math.sin((tx - ty) * 1.6 + t * 0.55) * 1.5;
+                        angle += Math.cos(tx * 1.8 + ty * 0.9 - t * 0.6) * 1.1;
+                        break;
+                    default:
+                        angle = getFlowAngle(x, y, t);
+                }
+                return angle;
+            }
+
+            // ============ 粒子系统 ============
+            const PARTICLE_COUNT_DESKTOP = 260;
+            const PARTICLE_COUNT_MOBILE = 140;
+            let particles = [];
+            let particleCount;
+
+            function getParticleCount() {
+                return W < 700 ? PARTICLE_COUNT_MOBILE : PARTICLE_COUNT_DESKTOP;
+            }
+
+            function createParticle() {
+                return {
+                    x: Math.random() * W,
+                    y: Math.random() * H,
+                    vx: 0,
+                    vy: 0,
+                    life: Math.random(), // 用于颜色变化
+                    size: 1.2 + Math.random() * 2.5,
+                    hue: 185 + Math.random() * 25, // 青色到青绿
+                    alpha: 0.5 + Math.random() * 0.5,
+                };
+            }
+
+            function initParticles() {
+                particleCount = getParticleCount();
+                particles = [];
+                for (let i = 0; i < particleCount; i++) {
+                    particles.push(createParticle());
+                }
+            }
+            initParticles();
+
+            // ============ 发光节点 ============
+            const NODE_COUNT_DESKTOP = 18;
+            const NODE_COUNT_MOBILE = 10;
+            let nodes = [];
+            let nodeCount;
+
+            function getNodeCount() {
+                return W < 700 ? NODE_COUNT_MOBILE : NODE_COUNT_DESKTOP;
+            }
+
+            function createNode() {
+                return {
+                    x: Math.random() * W,
+                    y: Math.random() * H,
+                    vx: 0,
+                    vy: 0,
+                    size: 8 + Math.random() * 22,
+                    hue: 25 + Math.random() * 30, // 暖金色到珊瑚色
+                    alpha: 0.6 + Math.random() * 0.4,
+                    pulsePhase: Math.random() * Math.PI * 2,
+                    pulseSpeed: 0.3 + Math.random() * 0.7,
+                };
+            }
+
+            function initNodes() {
+                nodeCount = getNodeCount();
+                nodes = [];
+                for (let i = 0; i < nodeCount; i++) {
+                    nodes.push(createNode());
+                }
+            }
+            initNodes();
+
+            // ============ 背景光晕 ============
+            const GLOW_COUNT = 5;
+            let glows = [];
+
+            function createGlow() {
+                return {
+                    x: Math.random() * W,
+                    y: Math.random() * H,
+                    radius: 180 + Math.random() * 350,
+                    hue: 200 + Math.random() * 60,
+                    alpha: 0.015 + Math.random() * 0.03,
+                    driftX: (Math.random() - 0.5) * 0.25,
+                    driftY: (Math.random() - 0.5) * 0.25,
+                };
+            }
+
+            function initGlows() {
+                glows = [];
+                for (let i = 0; i < GLOW_COUNT; i++) {
+                    glows.push(createGlow());
+                }
+            }
+            initGlows();
+
+            // ============ 文字时间表 ============
+            const textTimeline = [
+                { start: 0, end: 5.5, title: '生成动画', sub: 'Generative Animation', narr: '算法定义规则，时间驱动变化',
+                    badges: [true, false, false, false], badgeHL: 0 },
+                { start: 5.5, end: 10.5, title: '数学之美', sub: 'Mathematics in Motion', narr: '正弦波与三角函数编织出复杂的运动轨迹',
+                    badges: [true, true, false, false], badgeHL: 0 },
+                { start: 10.5, end: 16.5, title: '粒子系统', sub: 'Particle Systems', narr: '数百个粒子遵循简单规则，涌现出集体之美',
+                    badges: [true, true, true, false], badgeHL: 1 },
+                { start: 16.5, end: 22, title: '有机运动', sub: 'Organic Motion', narr: '多层噪声叠加模拟自然界的流体与生命感',
+                    badges: [true, true, true, true], badgeHL: 2 },
+                { start: 22, end: 27.5, title: '实时生成', sub: 'Real-time Generation', narr: '每一帧都是代码实时计算的结果，无限不重复',
+                    badges: [true, true, true, true], badgeHL: 3 },
+                { start: 27.5, end: 32, title: '生成动画', sub: 'Generative Animation', narr: '代码即创造 · 规则即美学',
+                    badges: [true, true, true, true], badgeHL: -1 },
+            ];
+
+            let currentTextIndex = -1;
+            let textTransitioning = false;
+
+            function updateTextOverlay(cyclePos) {
+                let activeIndex = -1;
+                for (let i = 0; i < textTimeline.length; i++) {
+                    if (cyclePos >= textTimeline[i].start && cyclePos < textTimeline[i].end) {
+                        activeIndex = i;
+                        break;
+                    }
+                }
+                // 处理循环末尾
+                if (activeIndex === -1 && cyclePos >= textTimeline[textTimeline.length - 1].start) {
+                    activeIndex = textTimeline.length - 1;
+                }
+                if (activeIndex === -1 && cyclePos < textTimeline[0].start) {
+                    activeIndex = 0;
+                }
+
+                if (activeIndex !== currentTextIndex) {
+                    currentTextIndex = activeIndex;
+                    const t = textTimeline[activeIndex];
+                    // 添加淡出类
+                    titleMain.classList.add('fade-out');
+                    titleSub.classList.add('fade-out');
+                    narration.classList.add('fade-out');
+
+                    // 更新badge
+                    badges.forEach((b, i) => {
+                        b.classList.remove('visible', 'highlight');
+                    });
+
+                    setTimeout(() => {
+                        titleMain.textContent = t.title;
+                        titleSub.textContent = t.sub;
+                        narration.textContent = t.narr;
+                        titleMain.classList.remove('fade-out');
+                        titleSub.classList.remove('fade-out');
+                        narration.classList.remove('fade-out');
+
+                        // 更新badge
+                        t.badges.forEach((show, i) => {
+                            if (show) badges[i].classList.add('visible');
+                            if (i === t.badgeHL) badges[i].classList.add('highlight');
+                        });
+                    }, 400);
+                }
+            }
+
+            // 初始化显示
+            function initTextDisplay() {
+                const t = textTimeline[0];
+                titleMain.textContent = t.title;
+                titleSub.textContent = t.sub;
+                narration.textContent = t.narr;
+                t.badges.forEach((show, i) => {
+                    if (show) badges[i].classList.add('visible');
+                    if (i === t.badgeHL) badges[i].classList.add('highlight');
+                });
+                currentTextIndex = 0;
+            }
+            initTextDisplay();
+
+            // ============ 渲染循环 ============
+            function getCurrentVariant(cyclePos) {
+                if (cyclePos < 10.5) return 0; // 标准流场
+                if (cyclePos < 16.5) return 1; // 有序涡旋
+                if (cyclePos < 22) return 2; // 混沌有机
+                if (cyclePos < 27.5) return 0; // 回归标准
+                return 1; // 结尾有序
+            }
+
+            function drawGlows() {
+                for (const g of glows) {
+                    const grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.radius);
+                    const hue = g.hue;
+                    grad.addColorStop(0, `hsla(${hue}, 70%, 50%, ${g.alpha * 1.5})`);
+                    grad.addColorStop(0.5, `hsla(${hue}, 60%, 35%, ${g.alpha})`);
+                    grad.addColorStop(1, 'transparent');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(g.x - g.radius, g.y - g.radius, g.radius * 2, g.radius * 2);
+
+                    // 缓慢漂移
+                    g.x += g.driftX;
+                    g.y += g.driftY;
+                    if (g.x < -g.radius) g.x = W + g.radius;
+                    if (g.x > W + g.radius) g.x = -g.radius;
+                    if (g.y < -g.radius) g.y = H + g.radius;
+                    if (g.y > H + g.radius) g.y = -g.radius;
+                }
+            }
+
+            function drawConnections() {
+                const maxDist = W < 700 ? 130 : 200;
+                for (let i = 0; i < nodes.length; i++) {
+                    for (let j = i + 1; j < nodes.length; j++) {
+                        const dx = nodes[i].x - nodes[j].x;
+                        const dy = nodes[i].y - nodes[j].y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < maxDist) {
+                            const alpha = (1 - dist / maxDist) * 0.22;
+                            const hue = (nodes[i].hue + nodes[j].hue) / 2;
+                            ctx.strokeStyle = `hsla(${hue}, 70%, 70%, ${alpha})`;
+                            ctx.lineWidth = 0.6 + (1 - dist / maxDist) * 1.2;
+                            ctx.beginPath();
+                            ctx.moveTo(nodes[i].x, nodes[i].y);
+                            ctx.lineTo(nodes[j].x, nodes[j].y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
+            function updateAndDrawParticles(cyclePos, variant) {
+                const speed = 1.3 + (variant === 2 ? 0.7 : 0);
+                const flowScale = variant === 1 ? 0.85 : 1.0;
+
+                for (const p of particles) {
+                    // 获取流场角度
+                    const angle = getFlowAngleVariant(p.x * flowScale, p.y * flowScale, globalTime * 0.7, variant);
+                    const forceX = Math.cos(angle) * speed;
+                    const forceY = Math.sin(angle) * speed;
+
+                    // 更新速度（带阻尼）
+                    p.vx += (forceX - p.vx) * 0.12;
+                    p.vy += (forceY - p.vy) * 0.12;
+
+                    // 更新位置
+                    p.x += p.vx;
+                    p.y += p.vy;
+
+                    // 环绕边界
+                    if (p.x < -20) p.x = W + 20;
+                    if (p.x > W + 20) p.x = -20;
+                    if (p.y < -20) p.y = H + 20;
+                    if (p.y > H + 20) p.y = -20;
+
+                    // 更新生命值用于颜色微调
+                    p.life += 0.003;
+                    if (p.life > 1) p.life -= 1;
+
+                    // 绘制粒子
+                    const hue = p.hue + Math.sin(p.life * Math.PI * 2) * 8;
+                    const alpha = p.alpha * (0.7 + 0.3 * Math.sin(p.life * Math.PI * 2 + cyclePos));
+                    ctx.fillStyle = `hsla(${hue}, 85%, 65%, ${alpha})`;
+                    ctx.shadowColor = `hsla(${hue}, 90%, 60%, ${alpha * 0.7})`;
+                    ctx.shadowBlur = p.size * 2.5;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            }
+
+            function updateAndDrawNodes(cyclePos, variant) {
+                const speed = 0.35 + (variant === 2 ? 0.25 : 0);
+                for (const node of nodes) {
+                    const angle = getFlowAngleVariant(node.x, node.y, globalTime * 0.5, variant);
+                    const forceX = Math.cos(angle) * speed;
+                    const forceY = Math.sin(angle) * speed;
+
+                    node.vx += (forceX - node.vx) * 0.06;
+                    node.vy += (forceY - node.vy) * 0.06;
+                    node.x += node.vx;
+                    node.y += node.vy;
+
+                    if (node.x < -40) node.x = W + 40;
+                    if (node.x > W + 40) node.x = -40;
+                    if (node.y < -40) node.y = H + 40;
+                    if (node.y > H + 40) node.y = -40;
+
+                    // 脉冲大小
+                    const pulse = 1 + Math.sin(globalTime * node.pulseSpeed + node.pulsePhase) * 0.35;
+                    const currentSize = node.size * pulse;
+
+                    // 外层光晕
+                    const outerGrad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, currentSize * 2.2);
+                    outerGrad.addColorStop(0, `hsla(${node.hue}, 90%, 65%, ${node.alpha * 0.5})`);
+                    outerGrad.addColorStop(0.5, `hsla(${node.hue}, 80%, 50%, ${node.alpha * 0.2})`);
+                    outerGrad.addColorStop(1, 'transparent');
+                    ctx.fillStyle = outerGrad;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, currentSize * 2.2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // 核心
+                    const coreGrad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, currentSize);
+                    coreGrad.addColorStop(0, `hsla(${node.hue}, 30%, 90%, ${node.alpha})`);
+                    coreGrad.addColorStop(0.4, `hsla(${node.hue}, 85%, 60%, ${node.alpha * 0.8})`);
+                    coreGrad.addColorStop(1, `hsla(${node.hue}, 90%, 40%, 0)`);
+                    ctx.fillStyle = coreGrad;
+                    ctx.shadowColor = `hsla(${node.hue}, 90%, 55%, ${node.alpha * 0.6})`;
+                    ctx.shadowBlur = currentSize * 3;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, currentSize, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            }
+
+            function drawVignette() {
+                const grad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.55, W / 2, H / 2, Math.max(W, H) *
+                    0.85);
+                grad.addColorStop(0, 'transparent');
+                grad.addColorStop(1, 'rgba(4, 4, 14, 0.55)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, W, H);
+            }
+
+            function render(timestamp) {
+                // 计算时间
+                const dt = Math.min((timestamp - lastFrameTime) / 1000, 0.1); // 防止大帧跳跃
+                lastFrameTime = timestamp;
+                globalTime += dt;
+                cyclePosition = (globalTime % CYCLE_DURATION);
+
+                const variant = getCurrentVariant(cyclePosition);
+
+                // 更新文字
+                updateTextOverlay(cyclePosition);
+
+                // 清除画布（带拖尾效果）
+                const trailAlpha = 0.13 + (variant === 2 ? 0.05 : 0);
+                ctx.fillStyle = `rgba(8, 8, 24, ${trailAlpha})`;
+                ctx.fillRect(0, 0, W, H);
+
+                // 绘制背景光晕
+                drawGlows();
+
+                // 绘制节点连接线
+                drawConnections();
+
+                // 更新并绘制粒子
+                updateAndDrawParticles(cyclePosition, variant);
+
+                // 更新并绘制节点
+                updateAndDrawNodes(cyclePosition, variant);
+
+                // 暗角
+                drawVignette();
+
+                // 底部微妙的渐变条
+                const bottomGrad = ctx.createLinearGradient(0, H * 0.78, 0, H);
+                bottomGrad.addColorStop(0, 'transparent');
+                bottomGrad.addColorStop(1, 'rgba(6, 6, 18, 0.45)');
+                ctx.fillStyle = bottomGrad;
+                ctx.fillRect(0, H * 0.78, W, H * 0.22);
+
+                requestAnimationFrame(render);
+            }
+
+            // ============ 启动 ============
+            // 初始绘制一帧避免空白
+            ctx.fillStyle = '#080818';
+            ctx.fillRect(0, 0, W, H);
+            drawGlows();
+            const initVariant = getCurrentVariant(0);
+            updateAndDrawParticles(0, initVariant);
+            updateAndDrawNodes(0, initVariant);
+            drawVignette();
+
+            // 开始动画循环
+            requestAnimationFrame(render);
+
+            // ============ 处理窗口大小变化时重新初始化 ============
+            let resizeDebounce;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeDebounce);
+                resizeDebounce = setTimeout(() => {
+                    // 粒子数量可能改变
+                    const newCount = getParticleCount();
+                    if (newCount !== particleCount) {
+                        particleCount = newCount;
+                        particles = [];
+                        for (let i = 0; i < particleCount; i++) {
+                            particles.push(createParticle());
+                        }
+                    }
+                    const newNodeCount = getNodeCount();
+                    if (newNodeCount !== nodeCount) {
+                        nodeCount = newNodeCount;
+                        nodes = [];
+                        for (let i = 0; i < nodeCount; i++) {
+                            nodes.push(createNode());
+                        }
+                    }
+                }, 300);
+            });
+
+            console.log('✨ 生成动画演示已就绪');
+            console.log('   Generative Animation Demo');
+            console.log('   算法定义规则 · 时间驱动变化 · 代码即创造');
+            console.log('   循环周期: ' + CYCLE_DURATION + ' 秒');
+            console.log('   粒子数量: ' + particleCount);
+            console.log('   节点数量: ' + nodeCount);
+        })();
+    </script>
+</body>
+</html>

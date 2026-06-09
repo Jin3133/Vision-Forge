@@ -1,0 +1,28 @@
+[
+  {
+    "method": "fp16",
+    "text_type": "short",
+    "load_time": 84.65174055099487,
+    "generate_time": 18.143914222717285,
+    "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\quantized_audio\\test_fp16_short.wav",
+    "quantization_enabled": true,
+    "quantization_method": "fp16",
+    "description": "FP16 半精度",
+    "expected_speedup": 1.3,
+    "expected_memory_reduction": 0.5,
+    "quality_impact": "low"
+  },
+  {
+    "method": "bf16",
+    "text_type": "short",
+    "load_time": 82.63211846351624,
+    "generate_time": 14.999018669128418,
+    "output_path": "F:\\college\\sophomore\\软件杯\\temp\\TTS_demo\\tts_server_system\\output\\quantized_audio\\test_bf16_short.wav",
+    "quantization_enabled": true,
+    "quantization_method": "bf16",
+    "description": "BF16 脑浮点",
+    "expected_speedup": 1.2,
+    "expected_memory_reduction": 0.5,
+    "quality_impact": "low"
+  }
+]

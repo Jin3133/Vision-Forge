@@ -24,6 +24,64 @@ cd backend
 pip install -r requirements.txt
 uvicorn main:app --reload
 
+## 环境配置
+
+后端使用 `pydantic-settings` 管理配置，配置文件位于**项目根目录**（不是 backend/ 子目录）。
+
+### 配置文件层级（优先级从高到低）
+
+1. `.env.local` —— 本地敏感信息（已在 `.gitignore` 忽略）
+2. `.env` —— 团队共享模板（提交到版本控制，仅含占位符）
+3. `backend/core/config.py` —— 代码层默认值（字符串为 `""`，数值为 `0`）
+
+### 首次使用
+
+```bash
+# 1. 复制模板为本地配置
+cp .env .env.local   # Linux/macOS
+# PowerShell: Copy-Item .env .env.local
+
+# 2. 在 .env.local 中填入真实密钥
+# 至少需要配置：
+#   OPENAI_API_KEY   - 星火大模型 APIPassword
+#   SECRET_KEY       - JWT 签名密钥（生产用 openssl rand -hex 32）
+#   DEEPSEEK_API_KEY - DeepSeek API Key
+
+# 3. 启动后端
+cd backend
+python -m pytest tests/ -v   # 验证配置生效
+uvicorn main:app --reload
+```
+
+### 配置项说明
+
+| 配置项 | 默认值 | 说明 |
+|---|---|---|
+| `PROJECT_NAME` | `""` | 项目名称 |
+| `DEBUG_MODE` | `True` | 调试模式开关 |
+| `DATABASE_URL` | `""` | 数据库连接串（本地默认 `sqlite:///./vision_forge.db`） |
+| `SECRET_KEY` | `""` | JWT 签名密钥（必填，生产环境必须替换） |
+| `OPENAI_API_KEY` | `""` | 星火大模型 APIPassword |
+| `OPENAI_API_BASE` | `https://spark-api-open.xf-yun.com/agent/v1` | 星火 X2-Flash Agent 接口 |
+| `SPARK_MODEL_VERSION` | `spark-x` | 模型名 |
+| `DEEPSEEK_API_KEY` | `""` | DeepSeek API Key |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com/v1` | DeepSeek 接口地址 |
+| `MINERU_BASE_URL` | `https://mineru.net` | MinerU 文档解析接口 |
+| `MINERU_TIMEOUT` | `120` | MinerU 超时（秒） |
+| `REPORT_MAX_ITERATIONS` | `30` | 报告生成最大迭代轮数 |
+| `REPORT_TEMPERATURE` | `0.7` | 报告生成温度 |
+| `ANIMATION_TEMPERATURE` | `0.7` | 动画生成温度 |
+| `ANIMATION_MAX_TOKENS` | `100000` | 动画生成最大 tokens |
+
+完整配置项参见项目根目录的 [.env](file:///f:/college/sophomore/%E8%BD%AF%E4%BB%B6%E6%9D%AF/.env) 文件。
+
+### 安全注意事项
+
+- **永远不要**把 `.env.local` 提交到 git（已在 `.gitignore` 忽略）
+- **永远不要**在 `.env` 中写真实密钥（它会被提交）
+- 生产环境务必将 `SECRET_KEY` 改为强随机值
+- 调试时如果打印过配置，确认未泄露到日志
+
 ## 项目目录结构
 - frontend/：前端项目，包含可视化沙盒、UI组件、API请求
 - backend/：后端项目，包含多智能体逻辑、接口服务、核心资产

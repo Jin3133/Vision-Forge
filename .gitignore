@@ -164,7 +164,9 @@ activemq-data/
 *.sage.py
 
 # Environments
-.env
+# 注意：.env 作为团队共享模板保留并提交；.env.local 含本地敏感信息，必须忽略。
+.env.local
+.env.*.local
 .envrc
 .venv
 env/
@@ -232,7 +234,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-.env
+# 注意：.env 作为团队共享模板保留并提交；.env.local 含本地敏感信息，必须忽略。
+.env.local
+.env.*.local
 logs/
 __pycache__/
 .envrc
@@ -313,3 +317,7 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+#others
+.codegraph/
+refrence/

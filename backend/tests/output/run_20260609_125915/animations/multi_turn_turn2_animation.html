@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>光合作用动态演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(to bottom, #1a2980, #26d0ce);
+            color: white;
+            min-height: 100vh;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            width: 100%;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            margin-bottom: 30px;
+        }
+        
+        .animation-area {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .sun {
+            fill: #FFD700;
+            filter: drop-shadow(0 0 10px #FFA500);
+        }
+        
+        .leaf {
+            fill: #4CAF50;
+            stroke: #2E7D32;
+            stroke-width: 2;
+        }
+        
+        .stoma {
+            fill: #388E3C;
+        }
+        
+        .water {
+            fill: #4FC3F7;
+        }
+        
+        .oxygen {
+            fill: #00BCD4;
+            filter: drop-shadow(0 0 5px #00ACC1);
+        }
+        
+        .glucose {
+            fill: #FFC107;
+            filter: drop-shadow(0 0 5px #FF9800);
+        }
+        
+        .particle {
+            animation: float 3s infinite ease-in-out;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .info-panel {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .step {
+            text-align: center;
+            flex: 1;
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            transition: all 0.3s;
+        }
+        
+        .step.active {
+            background: rgba(76, 175, 80, 0.5);
+            transform: scale(1.05);
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .explanation {
+            line-height: 1.6;
+            margin-top: 15px;
+            font-size: 1.1rem;
+        }
+        
+        .formula {
+            font-style: italic;
+            text-align: center;
+            margin: 15px 0;
+            font-size: 1.2rem;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            opacity: 0.8;
+            font-size: 0.9rem;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            h1 { font-size: 2rem; }
+            .container { padding: 15px; }
+            .animation-area { height: 300px; }
+            .step-indicator { flex-direction: column; gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>光合作用动态演示</h1>
+        <p class="subtitle">探索植物如何将阳光转化为能量的神奇过程</p>
+    </header>
+    
+    <div class="container">
+        <div class="animation-area">
+            <svg viewBox="0 0 800 400" preserveAspectRatio="xMidYMid meet">
+                <!-- 太阳 -->
+                <circle id="sun" cx="650" cy="80" r="50" class="sun"/>
+                
+                <!-- 云朵 -->
+                <g class="cloud">
+                    <ellipse cx="100" cy="70" rx="30" ry="20" fill="white" opacity="0.8"/>
+                    <ellipse cx="130" cy="60" rx="25" ry="18" fill="white" opacity="0.8"/>
+                    <ellipse cx="70" cy="75" rx="20" ry="15" fill="white" opacity="0.8"/>
+                </g>
+                
+                <!-- 叶子 -->
+                <path id="leaf" d="M200,200 Q250,180 300,200 Q350,220 300,240 Q250,260 200,240 Z" class="leaf"/>
+                
+                <!-- 气孔 -->
+                <ellipse id="stoma" cx="280" cy="220" rx="5" ry="3" class="stoma"/>
+                
+                <!-- 水分子 -->
+                <g id="water-molecules">
+                    <circle class="particle" cx="350" cy="300" r="4" fill="#4FC3F7"/>
+                    <circle class="particle" cx="370" cy="300" r="4" fill="#4FC3F7"/>
+                    <circle class="particle" cx="390" cy="300" r="4" fill="#4FC3F7"/>
+                </g>
+                
+                <!-- 氧气分子 -->
+                <g id="oxygen-molecules">
+                    <circle class="particle" cx="500" cy="300" r="4" fill="#00BCD4"/>
+                    <circle class="particle" cx="520" cy="300" r="4" fill="#00BCD4"/>
+                </g>
+                
+                <!-- 葡萄糖分子 -->
+                <g id="glucose-molecules">
+                    <circle class="particle" cx="400" cy="200" r="5" fill="#FFC107"/>
+                </g>
+                
+                <!-- 箭头和标签 -->
+                <path d="M300,200 L350,200" stroke="#fff" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <path d="M350,200 L400,200" stroke="#fff" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <path d="M400,200 L450,200" stroke="#fff" stroke-width="2" marker-end="url(#arrowhead)"/>
+                
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#fff"/>
+                    </marker>
+                </defs>
+                
+                <!-- 文字标签 -->
+                <text x="325" y="190" text-anchor="middle" fill="white" font-size="14">CO₂</text>
+                <text x="375" y="190" text-anchor="middle" fill="white" font-size="14">H₂O</text>
+                <text x="425" y="190" text-anchor="middle" fill="white" font-size="14">O₂</text>
+                <text x="475" y="190" text-anchor="middle" fill="white" font-size="14">C₆H₁₂O₆</text>
+            </svg>
+        </div>
+        
+        <div class="step-indicator">
+            <div class="step active" id="step1">1. 吸收阳光</div>
+            <div class="step" id="step2">2. 吸收水分</div>
+            <div class="step" id="step3">3. 释放氧气</div>
+            <div class="step" id="step4">4. 制造养分</div>
+        </div>
+        
+        <div class="info-panel">
+            <div class="explanation" id="explanation">
+                <p>光合作用是植物利用阳光、二氧化碳和水制造养分的过程。这个过程主要发生在植物的叶片中，通过叶绿素捕获太阳能。</p>
+                <div class="formula">6CO₂ + 6H₂O + 光能 → C₆H₁₂O₆ + 6O₂</div>
+                <p>在这个动画中，您将看到二氧化碳从空气中进入叶片，水从根部运输到叶片，最终产生氧气和葡萄糖。</p>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="play-btn">播放动画</button>
+            <button id="pause-btn">暂停</button>
+            <button id="restart-btn">重新开始</button>
+        </div>
+    </div>
+    
+    <footer>
+        <p>© 2023 生物学教育动画 | 光合作用过程演示</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const playBtn = document.getElementById('play-btn');
+            const pauseBtn = document.getElementById('pause-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            const explanation = document.getElementById('explanation');
+            const steps = document.querySelectorAll('.step');
+            
+            let currentStep = 0;
+            let animationInterval;
+            let isPlaying = false;
+            
+            // 更新步骤指示器
+            function updateStepIndicator(step) {
+                steps.forEach((s, index) => {
+                    if (index === step) {
+                        s.classList.add('active');
+                    } else {
+                        s.classList.remove('active');
+                    }
+                });
+            }
+            
+            // 更新解释文本
+            function updateExplanation(step) {
+                const explanations = [
+                    {
+                        text: "光合作用的第一步是植物叶片中的叶绿素吸收阳光能量。阳光为整个化学反应提供动力。",
+                        formula: "光能 → 化学能"
+                    },
+                    {
+                        text: "植物通过根部吸收水分，并通过导管运输到叶片。水分是光合作用的重要原料之一。",
+                        formula: "H₂O → 叶片"
+                    },
+                    {
+                        text: "在光反应阶段，水分子被分解，释放出氧气作为副产品。这就是我们呼吸的氧气来源！",
+                        formula: "2H₂O → O₂ + 4H⁺ + 4e⁻"
+                    },
+                    {
+                        text: "最后，利用光反应产生的能量，二氧化碳被固定并转化为葡萄糖等有机物质，储存能量供植物生长使用。",
+                        formula: "6CO₂ + 12H⁺ + 12e⁻ → C₆H₁₂O₆ + 3H₂O"
+                    }
+                ];
+                
+                explanation.innerHTML = `
+                    <p>${explanations[step].text}</p>
+                    <div class="formula">${explanations[step].formula}</div>
+                `;
+            }
+            
+            // 开始动画
+            function startAnimation() {
+                if (isPlaying) return;
+                isPlaying = true;
+                
+                animationInterval = setInterval(() => {
+                    currentStep++;
+                    if (currentStep > 3) currentStep = 0;
+                    
+                    updateStepIndicator(currentStep);
+                    updateExplanation(currentStep);
+                    
+                    // 添加一些视觉效果
+                    animateParticles();
+                }, 3000); // 每3秒切换一步
+            }
+            
+            // 粒子动画效果
+            function animateParticles() {
+                const particles = document.querySelectorAll('.particle');
+                particles.forEach(particle => {
+                    particle.style.animation = 'none';
+                    void particle.offsetWidth; // 触发重绘
+                    particle.style.animation = null;
+                });
+            }
+            
+            // 暂停动画
+            function pauseAnimation() {
+                clearInterval(animationInterval);
+                isPlaying = false;
+            }
+            
+            // 重新开始动画
+            function restartAnimation() {
+                pauseAnimation();
+                currentStep = 0;
+                updateStepIndicator(currentStep);
+                updateExplanation(currentStep);
+                startAnimation();
+            }
+            
+            // 事件监听
+            playBtn.addEventListener('click', startAnimation);
+            pauseBtn.addEventListener('click', pauseAnimation);
+            restartBtn.addEventListener('click', restartAnimation);
+            
+            // 初始状态
+            updateExplanation(currentStep);
+        });
+    </script>
+</body>
+</html>

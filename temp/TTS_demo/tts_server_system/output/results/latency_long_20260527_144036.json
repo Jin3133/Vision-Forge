@@ -1,0 +1,50 @@
+{
+  "stats": {
+    "text_type": "long",
+    "total_samples": 5,
+    "success_count": 5,
+    "success_rate": 100.0,
+    "avg_response_time": 122.99632863998413,
+    "min_response_time": 111.64193105697632,
+    "max_response_time": 135.01996397972107,
+    "median_response_time": 119.08121919631958,
+    "p95": 135.01996397972107
+  },
+  "details": [
+    {
+      "success": true,
+      "response_time": 111.64193105697632,
+      "text_length": 177,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:32:13.451689"
+    },
+    {
+      "success": true,
+      "response_time": 119.08121919631958,
+      "text_length": 171,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:34:12.533480"
+    },
+    {
+      "success": true,
+      "response_time": 135.01996397972107,
+      "text_length": 177,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:36:27.553855"
+    },
+    {
+      "success": true,
+      "response_time": 115.06606245040894,
+      "text_length": 171,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:38:22.620681"
+    },
+    {
+      "success": true,
+      "response_time": 134.17246651649475,
+      "text_length": 177,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:40:36.793775"
+    }
+  ]
+}

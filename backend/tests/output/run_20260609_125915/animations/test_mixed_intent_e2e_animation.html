@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>报告与动画生成流程</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            position: relative;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            animation: fadeInDown 1s ease;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .animation-area {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+            min-height: 500px;
+        }
+        
+        /* SVG样式 */
+        .main-svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        /* 动画关键帧 */
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(100px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        @keyframes drawLine {
+            from { stroke-dashoffset: 1000; }
+            to { stroke-dashoffset: 0; }
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        @keyframes glow {
+            0% { filter: drop-shadow(0 0 5px #ffcc00); }
+            50% { filter: drop-shadow(0 0 20px #ffcc00); }
+            100% { filter: drop-shadow(0 0 5px #ffcc00); }
+        }
+        
+        /* 应用动画类 */
+        .animate-in {
+            animation: slideInRight 1s ease forwards;
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        
+        .draw-line {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: drawLine 3s ease forwards;
+        }
+        
+        .rotate-animation {
+            animation: rotate 3s linear infinite;
+            transform-origin: center;
+        }
+        
+        .glow-animation {
+            animation: glow 2s infinite;
+        }
+        
+        /* 说明面板 */
+        .explanation {
+            margin-top: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .explanation h2 {
+            margin-bottom: 15px;
+            color: #ffcc00;
+        }
+        
+        .step {
+            margin-bottom: 15px;
+            padding-left: 20px;
+            border-left: 3px solid #ffcc00;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        button {
+            background: #ffcc00;
+            color: #1a2a6c;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin: 0 10px;
+        }
+        
+        button:hover {
+            background: #ffaa00;
+            transform: scale(1.05);
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .animation-area {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>报告与动画生成流程</h1>
+            <p class="subtitle">可视化展示从需求到成品的完整过程</p>
+        </div>
+        
+        <div class="animation-area">
+            <!-- SVG动画 -->
+            <svg class="main-svg" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet">
+                <!-- 背景装饰 -->
+                <defs>
+                    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#1a2a6c" />
+                        <stop offset="100%" stop-color="#b21f1f" />
+                    </linearGradient>
+                    
+                    <linearGradient id="cardGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#2c3e50" />
+                        <stop offset="100%" stop-color="#34495e" />
+                    </linearGradient>
+                    
+                    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+                    </filter>
+                    
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#ffcc00" />
+                    </marker>
+                </defs>
+                
+                <!-- 背景 -->
+                <rect width="100%" height="100%" fill="url(#bgGradient)" />
+                
+                <!-- 用户角色 -->
+                <g id="user" class="animate-in">
+                    <circle cx="150" cy="300" r="40" fill="#3498db" />
+                    <ellipse cx="150" cy="300" rx="35" ry="40" fill="#ecf0f1" />
+                    <path d="M140 260 Q150 240 160 260" stroke="#2c3e50" stroke-width="2" fill="none" />
+                    <path d="M135 280 Q150 260 165 280" stroke="#2c3e50" stroke-width="2" fill="none" />
+                    <text x="150" y="320" text-anchor="middle" fill="white" font-size="14">我需要帮助</text>
+                </g>
+                
+                <!-- 箭头 -->
+                <path id="arrow1" d="M190 300 L250 300" stroke="#ffcc00" stroke-width="3" fill="none" marker-end="url(#arrowhead)" class="draw-line" />
+                
+                <!-- 系统/AI角色 -->
+                <g id="system" class="animate-in" style="animation-delay: 1s;">
+                    <rect x="260" y="270" width="100" height="120" rx="10" fill="url(#cardGradient)" filter="url(#shadow)" />
+                    <rect x="270" y="280" width="80" height="10" rx="5" fill="#7f8c8d" />
+                    <rect x="270" y="295" width="60" height="8" rx="4" fill="#95a5a6" />
+                    <rect x="270" y="308" width="70" height="8" rx="4" fill="#95a5a6" />
+                    <rect x="270" y="321" width="50" height="8" rx="4" fill="#95a5a6" />
+                    <circle cx="300" cy="350" r="20" fill="#e74c3c" />
+                    <text x="300" y="355" text-anchor="middle" fill="white" font-size="12">AI助手</text>
+                </g>
+                
+                <!-- 箭头 -->
+                <path id="arrow2" d="M360 300 L420 300" stroke="#ffcc00" stroke-width="3" fill="none" marker-end="url(#arrowhead)" class="draw-line" style="animation-delay: 2s;" />
+                
+                <!-- 分析阶段 -->
+                <g id="analysis" class="animate-in" style="animation-delay: 3s;">
+                    <rect x="430" y="250" width="120" height="100" rx="10" fill="url(#cardGradient)" filter="url(#shadow)" />
+                    <text x="490" y="280" text-anchor="middle" fill="#ffcc00" font-size="16">理解需求</text>
+                    <text x="490" y="300" text-anchor="middle" fill="white" font-size="12">分析任务类型</text>
+                    <text x="490" y="320" text-anchor="middle" fill="white" font-size="12">确定技术方案</text>
+                    <circle cx="490" cy="350" r="15" fill="#2ecc71" class="pulse-animation" />
+                </g>
+                
+                <!-- 箭头 -->
+                <path id="arrow3" d="M550 300 L610 300" stroke="#ffcc00" stroke-width="3" fill="none" marker-end="url(#arrowhead)" class="draw-line" style="animation-delay: 4s;" />
+                
+                <!-- 生成阶段 -->
+                <g id="generation" class="animate-in" style="animation-delay: 5s;">
+                    <rect x="620" y="250" width="120" height="100" rx="10" fill="url(#cardGradient)" filter="url(#shadow)" />
+                    <text x="680" y="280" text-anchor="middle" fill="#ffcc00" font-size="16">生成内容</text>
+                    <text x="680" y="300" text-anchor="middle" fill="white" font-size="12">创建报告文档</text>
+                    <text x="680" y="320" text-anchor="middle" fill="white" font-size="12">制作动画素材</text>
+                    <circle cx="680" cy="350" r="15" fill="#3498db" class="pulse-animation" />
+                </g>
+                
+                <!-- 箭头 -->
+                <path id="arrow4" d="M740 300 L800 300" stroke="#ffcc00" stroke-width="3" fill="none" marker-end="url(#arrowhead)" class="draw-line" style="animation-delay: 6s;" />
+                
+                <!-- 输出阶段 -->
+                <g id="output" class="animate-in" style="animation-delay: 7s;">
+                    <rect x="810" y="250" width="120" height="100" rx="10" fill="url(#cardGradient)" filter="url(#shadow)" />
+                    <text x="870" y="280" text-anchor="middle" fill="#ffcc00" font-size="16">交付成果</text>
+                    <text x="870" y="300" text-anchor="middle" fill="white" font-size="12">提供完整报告</text>
+                    <text x="870" y="320" text-anchor="middle" fill="white" font-size="12">呈现动画效果</text>
+                    <circle cx="870" cy="350" r="15" fill="#e74c3c" class="pulse-animation" />
+                </g>
+                
+                <!-- 循环箭头 -->
+                <path id="loopArrow" d="M900 300 L950 300 L950 350 L900 350 Z" fill="#ffcc00" opacity="0.7" />
+                <path d="M900 300 L950 300 L950 350 L900 350 Z" fill="#ffcc00" opacity="0.7" />
+                <path d="M900 300 L950 300" stroke="#ffcc00" stroke-width="2" fill="none" />
+                <path d="M950 300 L950 350" stroke="#ffcc00" stroke-width="2" fill="none" />
+                <path d="M950 350 L900 350" stroke="#ffcc00" stroke-width="2" fill="none" />
+                <path d="M900 350 L900 300" stroke="#ffcc00" stroke-width="2" fill="none" />
+                
+                <!-- 文本标签 -->
+                <text x="150" y="250" fill="white" font-size="14" text-anchor="middle">用户需求</text>
+                <text x="300" y="250" fill="white" font-size="14" text-anchor="middle">系统响应</text>
+                <text x="490" y="250" fill="white" font-size="14" text-anchor="middle">分析阶段</text>
+                <text x="680" y="250" fill="white" font-size="14" text-anchor="middle">生成阶段</text>
+                <text x="870" y="250" fill="white" font-size="14" text-anchor="middle">交付成果</text>
+                
+                <!-- 时间线 -->
+                <line x1="100" y1="350" x2="900" y2="350" stroke="#ffcc00" stroke-width="2" stroke-dasharray="5,5" />
+                
+                <!-- 粒子效果 -->
+                <g id="particles">
+                    <circle cx="200" cy="200" r="3" fill="#ffcc00" class="rotate-animation" style="animation-duration: 5s;" />
+                    <circle cx="300" cy="150" r="2" fill="#3498db" class="rotate-animation" style="animation-duration: 7s; animation-delay: 1s;" />
+                    <circle cx="500" cy="200" r="4" fill="#2ecc71" class="rotate-animation" style="animation-duration: 6s; animation-delay: 2s;" />
+                    <circle cx="700" cy="150" r="3" fill="#e74c3c" class="rotate-animation" style="animation-duration: 8s; animation-delay: 3s;" />
+                    <circle cx="850" cy="200" r="2" fill="#9b59b6" class="rotate-animation" style="animation-duration: 5s; animation-delay: 4s;" />
+                </g>
+            </svg>
+        </div>
+        
+        <div class="explanation">
+            <h2>流程说明</h2>
+            <div class="step">
+                <strong>1. 用户需求</strong><br>
+                用户提出生成报告和动画的需求，这是整个流程的起点。
+            </div>
+            <div class="step">
+                <strong>2. 系统响应</strong><br>
+                智能系统识别并响应用户需求，准备进行处理。
+            </div>
+            <div class="step">
+                <strong>3. 分析阶段</strong><br>
+                系统分析任务类型，确定技术方案，规划执行步骤。
+            </div>
+            <div class="step">
+                <strong>4. 生成阶段</strong><br>
+                系统创建报告文档，制作动画素材，填充所需内容。
+            </div>
+            <div class="step">
+                <strong>5. 交付成果</strong><br>
+                最终产品交付给用户，包括完整的报告和动画效果。
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button onclick="restartAnimation()">重新播放</button>
+            <button onclick="pauseAnimation()">暂停</button>
+            <button onclick="resumeAnimation()">继续</button>
+        </div>
+    </div>
+
+    <script>
+        // 动画控制函数
+        function restartAnimation() {
+            // 移除所有动画类
+            const elements = document.querySelectorAll('.animate-in, .pulse-animation, .draw-line, .rotate-animation, .glow-animation');
+            elements.forEach(el => {
+                el.classList.remove('animate-in', 'pulse-animation', 'draw-line', 'rotate-animation', 'glow-animation');
+                // 强制重绘
+                void el.offsetWidth;
+            });
+            
+            // 重新添加动画类
+            setTimeout(() => {
+                elements.forEach((el, index) => {
+                    setTimeout(() => {
+                        el.classList.add('animate-in', 'pulse-animation', 'draw-line', 'rotate-animation', 'glow-animation');
+                    }, index * 300);
+                });
+            }, 100);
+        }
+        
+        let isPaused = false;
+        
+        function pauseAnimation() {
+            if (!isPaused) {
+                document.querySelectorAll('.animate-in, .pulse-animation, .draw-line, .rotate-animation').forEach(el => {
+                    el.style.animationPlayState = 'paused';
+                });
+                isPaused = true;
+            }
+        }
+        
+        function resumeAnimation() {
+            if (isPaused) {
+                document.querySelectorAll('.animate-in, .pulse-animation, .draw-line, .rotate-animation').forEach(el => {
+                    el.style.animationPlayState = 'running';
+                });
+                isPaused = false;
+            }
+        }
+        
+        // 页面加载完成后自动开始动画
+        window.addEventListener('load', () => {
+            // 初始延迟后开始动画
+            setTimeout(() => {
+                restartAnimation();
+            }, 500);
+        });
+        
+        // 添加键盘控制
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'r':
+                case 'R':
+                    restartAnimation();
+                    break;
+                case 'p':
+                case 'P':
+                    pauseAnimation();
+                    break;
+                case 'u':
+                case 'U':
+                    resumeAnimation();
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>

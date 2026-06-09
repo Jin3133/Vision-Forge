@@ -1,0 +1,16 @@
+{
+  "scenario": "test_animation_intent_e2e",
+  "timestamp": "2026-06-09T13:02:12.573429",
+  "intent_classification": {
+    "intent": "",
+    "confidence": 0.0
+  },
+  "learner_profile": {},
+  "sandbox_config": {},
+  "tutor_response": "",
+  "evaluation_report": "",
+  "current_step": "completed",
+  "history": [
+    "[Generator] 动画生成完毕"
+  ]
+}

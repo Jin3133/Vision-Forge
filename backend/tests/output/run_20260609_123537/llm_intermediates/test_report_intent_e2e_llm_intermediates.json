@@ -1,0 +1,16 @@
+{
+  "scenario": "test_report_intent_e2e",
+  "timestamp": "2026-06-09T12:37:09.435973",
+  "intent_classification": {
+    "intent": "",
+    "confidence": 0.0
+  },
+  "learner_profile": {},
+  "sandbox_config": {},
+  "tutor_response": "",
+  "evaluation_report": "",
+  "current_step": "completed",
+  "history": [
+    "[Generator] 报告生成完毕"
+  ]
+}

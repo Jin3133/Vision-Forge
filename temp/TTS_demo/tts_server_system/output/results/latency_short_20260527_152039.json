@@ -1,0 +1,85 @@
+{
+  "stats": {
+    "text_type": "short",
+    "total_samples": 10,
+    "success_count": 10,
+    "success_rate": 100.0,
+    "avg_response_time": 7.2284690856933596,
+    "min_response_time": 3.8942196369171143,
+    "max_response_time": 11.177923440933228,
+    "median_response_time": 6.969941020011902,
+    "p95": 11.177923440933228
+  },
+  "details": [
+    {
+      "success": true,
+      "response_time": 11.177923440933228,
+      "text_length": 10,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:19:38.147719"
+    },
+    {
+      "success": true,
+      "response_time": 6.50612998008728,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:19:44.654863"
+    },
+    {
+      "success": true,
+      "response_time": 6.55947208404541,
+      "text_length": 9,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:19:51.214634"
+    },
+    {
+      "success": true,
+      "response_time": 8.192192554473877,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:19:59.407223"
+    },
+    {
+      "success": true,
+      "response_time": 5.407368183135986,
+      "text_length": 3,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:20:04.814905"
+    },
+    {
+      "success": true,
+      "response_time": 9.545681238174438,
+      "text_length": 10,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:20:14.360943"
+    },
+    {
+      "success": true,
+      "response_time": 7.3804099559783936,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:20:21.741654"
+    },
+    {
+      "success": true,
+      "response_time": 7.757710695266724,
+      "text_length": 9,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:20:29.499851"
+    },
+    {
+      "success": true,
+      "response_time": 5.863583087921143,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:20:35.363742"
+    },
+    {
+      "success": true,
+      "response_time": 3.8942196369171143,
+      "text_length": 3,
+      "status_code": 200,
+      "timestamp": "2026-05-27T15:20:39.258306"
+    }
+  ]
+}

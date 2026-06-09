@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>梯度下降算法可视化 · 梯度下降</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #eef2f7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', 'PingFang SC', Roboto, system-ui, sans-serif;
+            padding: 20px;
+        }
+        .container {
+            width: 2560px;
+            max-width: 100%;
+            aspect-ratio: 2560 / 1440;
+            border-radius: 28px;
+            overflow: hidden;
+            box-shadow: 0 30px 80px rgba(0, 20, 40, 0.28);
+            background: #ffffff;
+            position: relative;
+            transform-origin: center center;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: #fbfdff;
+            border: none;
+            outline: none;
+        }
+        /* 响应式缩放：保持2K比例 */
+        @media (max-width: 2700px) {
+            .container {
+                width: 100%;
+                height: auto;
+                aspect-ratio: 2560 / 1440;
+            }
+        }
+        @media (max-width: 800px) {
+            .container {
+                border-radius: 16px;
+            }
+            body {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <canvas id="gc" width="2560" height="1440"></canvas>
+    </div>
+    <script>
+        // ============================================================
+        //  梯度下降算法可视化  –  完整动画 + 双语字幕
+        //  逻辑尺寸 2560×1440 (2K) ，所有坐标基于此
+        // ============================================================
+
+        const canvas = document.getElementById('gc');
+        const ctx = canvas.getContext('2d');
+
+        // ---------- 尺寸常量 ----------
+        const W = 2560,
+            H = 1440;
+
+        // ---------- 损失函数 & 梯度 ----------
+        // f(x,y) = x² + 3y²  最小值在 (0,0)
+        function lossVal(x, y) { return x * x + 3 * y * y; }
+
+        function gradX(x, y) { return 2 * x; }
+
+        function gradY(x, y) { return 6 * y; }
+
+        // ---------- 参数空间映射 ----------
+        const X_RANGE = [-5.2, 5.2];
+        const Y_RANGE = [-3.2, 3.2];
+        const MAP_LEFT = 180,
+            MAP_RIGHT = 2080,
+            MAP_TOP = 100,
+            MAP_BOTTOM = 1120;
+        const MAP_W = MAP_RIGHT - MAP_LEFT;
+        const MAP_H = MAP_BOTTOM - MAP_TOP;
+
+        function toCanvasX(px) {
+            return MAP_LEFT + (px - X_RANGE[0]) / (X_RANGE[1] - X_RANGE[0]) * MAP_W;
+        }
+
+        function toCanvasY(py) {
+            return MAP_TOP + (Y_RANGE[1] - py) / (Y_RANGE[1] - Y_RANGE[0]) * MAP_H;
+        }
+
+        function toParamX(cx) {
+            return X_RANGE[0] + (cx - MAP_LEFT) / MAP_W * (X_RANGE[1] - X_RANGE[0]);
+        }
+
+        function toParamY(cy) {
+            return Y_RANGE[1] - (cy - MAP_TOP) / MAP_H * (Y_RANGE[1] - Y_RANGE[0]);
+        }
+
+        // ---------- 预计算梯度下降路径 ----------
+        const LR = 0.22;
+        const STEPS = 22;
+        const startX = 4.2,
+            startY = 2.6;
+        let path = [];
+        let cx = startX,
+            cy = startY;
+        for (let i = 0; i <= STEPS; i++) {
+            path.push({ x: cx, y: cy, loss: lossVal(cx, cy) });
+            const gx = gradX(cx, cy);
+            const gy = gradY(cx, cy);
+            cx = cx - LR * gx;
+            cy = cy - LR * gy;
+            if (Math.abs(cx) < 0.001 && Math.abs(cy) < 0.001) break;
+        }
+        // 确保终点在 (0,0)
+        if (path.length > 0) {
+            const last = path[path.length - 1];
+            if (Math.abs(last.x) > 0.01 || Math.abs(last.y) > 0.01) {
+                path.push({ x: 0, y: 0, loss: 0 });
+            }
+        }
+        const TOTAL_STEPS = path.length - 1;
+
+        // ---------- 时间线控制 ----------
+        const DURATION = 26; // 秒
+        let startTime = null;
+        let animId = null;
+
+        // ---------- 字幕数据 ----------
+        const subtitles = [
+            { t: 0.00, zh: '梯度下降是机器学习中最核心的优化算法', en: 'Gradient Descent is the core optimization algorithm in machine learning' },
+            { t: 0.08, zh: '它通过迭代调整参数，最小化损失函数', en: 'It iteratively adjusts parameters to minimize the loss function' },
+            { t: 0.18, zh: '红色箭头表示当前点的梯度方向（最陡上升方向）', en: 'Red arrow shows the gradient direction (steepest ascent)' },
+            { t: 0.28, zh: '我们沿梯度的反方向下降，使损失值逐渐减小', en: 'We move opposite to the gradient to reduce the loss' },
+            { t: 0.38, zh: '每一步更新参数：θ = θ − α·∇J(θ)', en: 'Each step updates: θ = θ − α·∇J(θ)' },
+            { t: 0.50, zh: '学习率 α 控制每一步的步长大小', en: 'Learning rate α controls the step size' },
+            { t: 0.60, zh: '随着接近最小值，梯度逐渐变小，步伐变缓', en: 'Near the minimum, gradients shrink and steps become gentle' },
+            { t: 0.72, zh: '最终收敛到损失函数的最小值点', en: 'Finally converges to the minimum of the loss function' },
+            { t: 0.85, zh: '梯度下降成功找到了全局最优解 ✓', en: 'Gradient descent successfully found the global optimum ✓' },
+            { t: 0.94, zh: '感谢观看！', en: 'Thanks for watching!' },
+        ];
+
+        function getSubtitle(progress) {
+            let best = subtitles[0];
+            for (const s of subtitles) {
+                if (progress >= s.t) best = s;
+            }
+            return best;
+        }
+
+        // ---------- 辅助绘制函数 ----------
+        function drawBackground() {
+            // 柔和浅色背景
+            const grad = ctx.createRadialGradient(1200, 600, 200, 1200, 600, 1600);
+            grad.addColorStop(0, '#f5faff');
+            grad.addColorStop(0.6, '#edf3fc');
+            grad.addColorStop(1, '#e2ecf7');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+
+            // 等高线图背景面板
+            ctx.shadowColor = 'rgba(0,20,40,0.06)';
+            ctx.shadowBlur = 40;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.roundRect(MAP_LEFT - 20, MAP_TOP - 20, MAP_W + 40, MAP_H + 40, 24);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        // roundRect polyfill for canvas
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                if (r > w / 2) r = w / 2;
+                if (r > h / 2) r = h / 2;
+                this.moveTo(x + r, y);
+                this.arcTo(x + w, y, x + w, y + h, r);
+                this.arcTo(x + w, y + h, x, y + h, r);
+                this.arcTo(x, y + h, x, y, r);
+                this.arcTo(x, y, x + w, y, r);
+                return this;
+            };
+        }
+
+        // ---------- 绘制等高线图 (静态) ----------
+        function drawContours() {
+            // 绘制填充地形 (细腻的渐变色)
+            const imageData = ctx.createImageData(MAP_W, MAP_H);
+            const data = imageData.data;
+            for (let py = 0; py < MAP_H; py++) {
+                for (let px = 0; px < MAP_W; px++) {
+                    const paramX = toParamX(MAP_LEFT + px);
+                    const paramY = toParamY(MAP_TOP + py);
+                    const val = lossVal(paramX, paramY);
+                    // 映射到颜色: 从低(暖色) 到高(冷色)
+                    const vNorm = Math.min(val / 18, 1);
+                    // 暖色->冷色: 从 #fce4d6 (低) -> #d6e8f7 (高)
+                    const r = 252 - vNorm * 66;
+                    const g = 228 - vNorm * 80;
+                    const b = 214 - vNorm * 30;
+                    const idx = (py * MAP_W + px) * 4;
+                    data[idx] = Math.min(255, Math.max(180, r | 0));
+                    data[idx + 1] = Math.min(255, Math.max(180, g | 0));
+                    data[idx + 2] = Math.min(255, Math.max(200, b | 0));
+                    data[idx + 3] = 255;
+                }
+            }
+            ctx.putImageData(imageData, MAP_LEFT, MAP_TOP);
+
+            // 绘制等高线 (等值线)
+            ctx.strokeStyle = 'rgba(100,130,170,0.25)';
+            ctx.lineWidth = 1.2;
+            const levels = [0.5, 1, 2, 3.5, 5.5, 8, 11, 15, 20, 26, 33];
+            for (const lev of levels) {
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(80,120,170,0.20)';
+                ctx.lineWidth = 1.0;
+                // 用 marching squares 近似绘制等高线 (简单网格)
+                const step = 8;
+                for (let py = 0; py < MAP_H - step; py += step) {
+                    for (let px = 0; px < MAP_W - step; px += step) {
+                        const x0 = MAP_LEFT + px,
+                            y0 = MAP_TOP + py;
+                        const v00 = lossVal(toParamX(x0), toParamY(y0));
+                        const v10 = lossVal(toParamX(x0 + step), toParamY(y0));
+                        const v01 = lossVal(toParamX(x0), toParamY(y0 + step));
+                        const v11 = lossVal(toParamX(x0 + step), toParamY(y0 + step));
+                        // 简单判断是否穿过该方格
+                        const avg = (v00 + v10 + v01 + v11) / 4;
+                        if (Math.abs(avg - lev) < 0.8) {
+                            const cx2 = x0 + step / 2,
+                                cy2 = y0 + step / 2;
+                            ctx.fillStyle = 'rgba(80,140,200,0.08)';
+                            ctx.beginPath();
+                            ctx.arc(cx2, cy2, 2.5, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                }
+            }
+
+            // 绘制更清晰的等高线 (平滑曲线) - 用轮廓路径
+            ctx.lineWidth = 1.6;
+            for (const lev of levels) {
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(70,120,180,0.30)';
+                // 使用点集绘制椭圆状等高线 (针对 f=x²+3y²)
+                const a = Math.sqrt(lev);
+                const b = Math.sqrt(lev / 3);
+                if (a < 5.5 && b < 3.5) {
+                    const cxCenter = toCanvasX(0);
+                    const cyCenter = toCanvasY(0);
+                    const rx = a * (MAP_W / (X_RANGE[1] - X_RANGE[0]));
+                    const ry = b * (MAP_H / (Y_RANGE[1] - Y_RANGE[0]));
+                    ctx.beginPath();
+                    ctx.ellipse(cxCenter, cyCenter, rx, ry, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+
+            // 坐标轴
+            ctx.strokeStyle = 'rgba(60,80,110,0.35)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            const ax0 = toCanvasX(0),
+                ay0 = toCanvasY(0);
+            ctx.moveTo(MAP_LEFT - 10, ay0);
+            ctx.lineTo(MAP_RIGHT + 10, ay0);
+            ctx.moveTo(ax0, MAP_TOP - 10);
+            ctx.lineTo(ax0, MAP_BOTTOM + 10);
+            ctx.stroke();
+
+            // 轴标签
+            ctx.fillStyle = 'rgba(40,60,90,0.55)';
+            ctx.font = '26px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText('x', MAP_RIGHT + 30, ay0 - 14);
+            ctx.textBaseline = 'middle';
+            ctx.fillText('y', ax0 + 20, MAP_TOP - 50);
+
+            // 刻度
+            ctx.font = '22px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.fillStyle = 'rgba(40,60,90,0.45)';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            for (let x = -4; x <= 4; x += 2) {
+                if (x === 0) continue;
+                const cx2 = toCanvasX(x);
+                ctx.fillText(x, cx2, ay0 + 8);
+                ctx.beginPath();
+                ctx.moveTo(cx2, ay0 - 6);
+                ctx.lineTo(cx2, ay0 + 6);
+                ctx.strokeStyle = 'rgba(60,80,110,0.25)';
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+            }
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            for (let y = -2; y <= 2; y += 2) {
+                if (y === 0) continue;
+                const cy2 = toCanvasY(y);
+                ctx.fillText(y, ax0 - 14, cy2);
+                ctx.beginPath();
+                ctx.moveTo(ax0 - 6, cy2);
+                ctx.lineTo(ax0 + 6, cy2);
+                ctx.strokeStyle = 'rgba(60,80,110,0.25)';
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+            }
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillStyle = 'rgba(40,60,90,0.4)';
+            ctx.font = '20px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.fillText('O', ax0, ay0 - 10);
+        }
+
+        // ---------- 绘制损失曲线 (右侧卡片) ----------
+        function drawLossChart(progress, currentLoss) {
+            const cx = 1920,
+                cy = 160,
+                cw = 560,
+                ch = 340;
+            const pad = 40;
+            const chartL = cx + pad,
+                chartR = cx + cw - pad;
+            const chartT = cy + pad + 20,
+                chartB = cy + ch - pad - 10;
+
+            // 卡片背景
+            ctx.shadowColor = 'rgba(0,20,40,0.06)';
+            ctx.shadowBlur = 30;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.roundRect(cx, cy, cw, ch, 20);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(180,200,220,0.30)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(cx, cy, cw, ch, 20);
+            ctx.stroke();
+
+            // 标题
+            ctx.fillStyle = '#1a2a4a';
+            ctx.font = '600 24px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText('Loss  /  损失值', cx + 28, cy + 18);
+
+            // 坐标轴
+            ctx.strokeStyle = 'rgba(60,80,110,0.25)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(chartL, chartT);
+            ctx.lineTo(chartL, chartB);
+            ctx.lineTo(chartR, chartB);
+            ctx.stroke();
+
+            // 绘制曲线
+            const totalIter = path.length;
+            const maxLoss = path[0].loss * 1.05;
+            if (totalIter < 2) return;
+
+            // 确定当前显示到第几个点
+            const iterProgress = Math.min(progress / 0.82, 1);
+            const showIndex = Math.floor(iterProgress * (totalIter - 1));
+
+            // 绘制已有点的连线
+            ctx.beginPath();
+            ctx.strokeStyle = '#3b7bc9';
+            ctx.lineWidth = 2.8;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            let first = true;
+            for (let i = 0; i <= Math.min(showIndex, totalIter - 1); i++) {
+                const p = path[i];
+                const ix = chartL + (i / (totalIter - 1)) * (chartR - chartL);
+                const iy = chartB - (p.loss / maxLoss) * (chartB - chartT);
+                if (first) { ctx.moveTo(ix, iy);
+                    first = false; } else ctx.lineTo(ix, iy);
+            }
+            ctx.stroke();
+
+            // 当前点 (大圆)
+            if (showIndex >= 0 && showIndex < totalIter) {
+                const p = path[showIndex];
+                const ix = chartL + (showIndex / (totalIter - 1)) * (chartR - chartL);
+                const iy = chartB - (p.loss / maxLoss) * (chartB - chartT);
+                ctx.shadowColor = 'rgba(59,123,201,0.25)';
+                ctx.shadowBlur = 16;
+                ctx.fillStyle = '#2a6cb8';
+                ctx.beginPath();
+                ctx.arc(ix, iy, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(ix, iy, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 显示当前损失值
+                ctx.fillStyle = '#1a2a4a';
+                ctx.font = '500 22px "Segoe UI", "PingFang SC", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText('Loss = ' + p.loss.toFixed(3), chartL + 8, chartT - 6);
+            }
+
+            // 迭代次数标签
+            ctx.fillStyle = 'rgba(40,60,90,0.4)';
+            ctx.font = '20px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            for (let i = 0; i <= 4; i++) {
+                const iter = Math.floor(i * (totalIter - 1) / 4);
+                const ix = chartL + (iter / (totalIter - 1)) * (chartR - chartL);
+                ctx.fillText(iter, ix, chartB + 10);
+            }
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText('迭代次数', chartL + 4, chartB + 42);
+        }
+
+        // ---------- 主绘制函数 ----------
+        function drawFrame(progress) {
+            ctx.clearRect(0, 0, W, H);
+            drawBackground();
+            drawContours();
+
+            // ---- 计算当前插值位置 ----
+            const iterProgress = Math.min(progress / 0.82, 1);
+            const totalSeg = path.length - 1;
+            const floatIdx = iterProgress * totalSeg;
+            let idx = Math.floor(floatIdx);
+            let frac = floatIdx - idx;
+            if (idx >= totalSeg) { idx = totalSeg - 1;
+                frac = 1; }
+            if (idx < 0) idx = 0;
+
+            const p0 = path[idx];
+            const p1 = path[Math.min(idx + 1, totalSeg)];
+            const curX = p0.x + (p1.x - p0.x) * frac;
+            const curY = p0.y + (p1.y - p0.y) * frac;
+            const curLoss = lossVal(curX, curY);
+
+            const cCurX = toCanvasX(curX);
+            const cCurY = toCanvasY(curY);
+
+            // ---- 绘制轨迹 (已走过的路径) ----
+            const showSegs = Math.floor(floatIdx);
+            ctx.shadowBlur = 0;
+            for (let i = 0; i < showSegs && i < totalSeg; i++) {
+                const pa = path[i],
+                    pb = path[i + 1];
+                const xa = toCanvasX(pa.x),
+                    ya = toCanvasY(pa.y);
+                const xb = toCanvasX(pb.x),
+                    yb = toCanvasY(pb.y);
+                const t = i / totalSeg;
+                const r = 30 + 200 * (1 - t);
+                const g = 90 + 150 * t;
+                const b = 200 - 40 * t;
+                ctx.strokeStyle = `rgba(${r|0},${g|0},${b|0},0.55)`;
+                ctx.lineWidth = 4.5 + 1.5 * (1 - t);
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(xa, ya);
+                ctx.lineTo(xb, yb);
+                ctx.stroke();
+            }
+
+            // ---- 已有点的标记 ----
+            for (let i = 0; i <= Math.min(showSegs, totalSeg); i++) {
+                const p = path[i];
+                const xp = toCanvasX(p.x),
+                    yp = toCanvasY(p.y);
+                const t = i / totalSeg;
+                const radius = 6 + 3 * (1 - t);
+                ctx.shadowColor = 'rgba(50,100,180,0.12)';
+                ctx.shadowBlur = 10;
+                ctx.fillStyle = `rgba(60,130,220,${0.25+0.45*(1-t)})`;
+                ctx.beginPath();
+                ctx.arc(xp, yp, radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            // ---- 当前点 (发光) ----
+            ctx.shadowColor = 'rgba(230,80,60,0.35)';
+            ctx.shadowBlur = 50;
+            ctx.fillStyle = '#e85a4a';
+            ctx.beginPath();
+            ctx.arc(cCurX, cCurY, 22, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 30;
+            ctx.fillStyle = '#f06050';
+            ctx.beginPath();
+            ctx.arc(cCurX, cCurY, 15, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(cCurX, cCurY, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ---- 梯度箭头 (当前点) ----
+            const gx = gradX(curX, curY);
+            const gy = gradY(curX, curY);
+            const glen = Math.sqrt(gx * gx + gy * gy);
+            if (glen > 0.001) {
+                const scale = 38 / glen;
+                const dx = gx * scale,
+                    dy = gy * scale;
+                const endX = cCurX + dx,
+                    endY = cCurY + dy;
+                // 箭头线
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = 'rgba(200,50,50,0.75)';
+                ctx.lineWidth = 4.0;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(cCurX, cCurY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+                // 箭头头
+                const angle = Math.atan2(dy, dx);
+                const headLen = 18;
+                ctx.fillStyle = 'rgba(200,50,50,0.85)';
+                ctx.beginPath();
+                ctx.moveTo(endX, endY);
+                ctx.lineTo(endX - headLen * Math.cos(angle - 0.45), endY - headLen * Math.sin(angle - 0.45));
+                ctx.lineTo(endX - headLen * Math.cos(angle + 0.45), endY - headLen * Math.sin(angle + 0.45));
+                ctx.closePath();
+                ctx.fill();
+
+                // 标签 "∇J"
+                ctx.fillStyle = 'rgba(180,40,40,0.85)';
+                ctx.font = '600 30px "Segoe UI", "PingFang SC", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                const labelX = endX + 18,
+                    labelY = endY - 6;
+                ctx.fillText('∇J', labelX, labelY);
+            }
+
+            // ---- 参数信息面板 (左下) ----
+            const px = 140,
+                py = 1160,
+                pw = 580,
+                ph = 200;
+            ctx.shadowColor = 'rgba(0,20,40,0.05)';
+            ctx.shadowBlur = 20;
+            ctx.fillStyle = 'rgba(255,255,255,0.82)';
+            ctx.beginPath();
+            ctx.roundRect(px, py, pw, ph, 18);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(180,200,220,0.20)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(px, py, pw, ph, 18);
+            ctx.stroke();
+
+            ctx.fillStyle = '#1a2a4a';
+            ctx.font = '500 28px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            const line1 = `( x , y ) = ( ${curX.toFixed(3)} , ${curY.toFixed(3)} )`;
+            const line2 = `Loss = ${curLoss.toFixed(4)}`;
+            const line3 = `梯度 ∇J = ( ${gx.toFixed(3)} , ${gy.toFixed(3)} )`;
+            const line4 = `步长 α = ${LR.toFixed(2)}  ·  迭代 ${Math.min(Math.floor(floatIdx),totalSeg)} / ${totalSeg}`;
+            ctx.fillText(line1, px + 24, py + 22);
+            ctx.fillText(line2, px + 24, py + 66);
+            ctx.fillStyle = '#2a6cb8';
+            ctx.fillText(line3, px + 24, py + 110);
+            ctx.fillStyle = 'rgba(40,60,90,0.6)';
+            ctx.font = '24px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.fillText(line4, px + 24, py + 156);
+
+            // ---- 损失曲线 ----
+            drawLossChart(progress, curLoss);
+
+            // ---- 公式展示 (右上装饰) ----
+            const fx = 1860,
+                fy = 620,
+                fw = 600,
+                fh = 110;
+            ctx.shadowColor = 'rgba(0,20,40,0.04)';
+            ctx.shadowBlur = 16;
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
+            ctx.beginPath();
+            ctx.roundRect(fx, fy, fw, fh, 16);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#1a2a4a';
+            ctx.font = '500 32px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('θ = θ − α · ∇J(θ)', fx + fw / 2, fy + fh / 2 - 6);
+            ctx.fillStyle = 'rgba(40,60,90,0.4)';
+            ctx.font = '22px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.fillText('参数更新规则', fx + fw / 2, fy + fh / 2 + 38);
+
+            // ---- 双语字幕 (底部) ----
+            const sub = getSubtitle(progress);
+            // 底部背景条
+            const sy = 1270,
+                sh = 155;
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(10,20,40,0.72)';
+            ctx.beginPath();
+            ctx.roundRect(120, sy, W - 240, sh, 20);
+            ctx.fill();
+
+            // 中文 (较大)
+            ctx.fillStyle = '#f8faff';
+            ctx.font = '600 38px "PingFang SC", "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(sub.zh, W / 2, sy + 48);
+
+            // 英文
+            ctx.fillStyle = 'rgba(200,220,255,0.85)';
+            ctx.font = '400 28px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.fillText(sub.en, W / 2, sy + 108);
+
+            // ---- 进度指示 (右上角小圆点) ----
+            const dotX = 2440,
+                dotY = 60;
+            ctx.fillStyle = 'rgba(40,60,90,0.12)';
+            ctx.beginPath();
+            ctx.roundRect(dotX - 60, dotY - 10, 160, 30, 14);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(40,60,90,0.25)';
+            ctx.font = '22px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`${Math.round(progress*100)}%`, dotX + 20, dotY + 5);
+
+            // ---- 标题 (左上) ----
+            ctx.fillStyle = 'rgba(20,40,70,0.10)';
+            ctx.font = '600 48px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText('梯度下降 · Gradient Descent', 80, 36);
+        }
+
+        // ---------- 动画循环 ----------
+        function animate(timestamp) {
+            if (startTime === null) startTime = timestamp;
+            const elapsed = (timestamp - startTime) / 1000;
+            let progress = Math.min(elapsed / DURATION, 1);
+            drawFrame(progress);
+            if (progress < 1) {
+                animId = requestAnimationFrame(animate);
+            } else {
+                // 结束后停在最后一帧，并显示结束字幕
+                drawFrame(1);
+                // 额外显示感谢语
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(10,20,40,0.72)';
+                ctx.beginPath();
+                ctx.roundRect(120, 1270, W - 240, 155, 20);
+                ctx.fill();
+                ctx.fillStyle = '#f8faff';
+                ctx.font = '600 38px "PingFang SC", "Segoe UI", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🎯 梯度下降成功收敛！ · 感谢观看', W / 2, 1270 + 48);
+                ctx.fillStyle = 'rgba(200,220,255,0.85)';
+                ctx.font = '400 28px "Segoe UI", "PingFang SC", sans-serif';
+                ctx.fillText('Gradient Descent Converged!  ·  Thanks for watching!', W / 2, 1270 + 108);
+            }
+        }
+
+        // ---------- 启动 ----------
+        function startAnimation() {
+            if (animId) cancelAnimationFrame(animId);
+            startTime = null;
+            animId = requestAnimationFrame(animate);
+        }
+
+        // 页面加载后自动播放
+        window.addEventListener('load', () => {
+            // 先绘制初始帧
+            drawFrame(0);
+            setTimeout(startAnimation, 400);
+        });
+
+        // 窗口尺寸变化时保证 canvas 比例正确 (由 CSS 处理)
+        // ---------- 辅助: 预加载绘制保证首帧 ----------
+        console.log('🎬 梯度下降可视化已启动 | 2K 画质 | 总时长 ' + DURATION + 's');
+    </script>
+</body>
+</html>

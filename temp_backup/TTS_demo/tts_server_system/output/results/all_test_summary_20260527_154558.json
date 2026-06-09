@@ -1,0 +1,111 @@
+{
+  "latency_short": {
+    "text_type": "short",
+    "total_samples": 10,
+    "success_count": 10,
+    "success_rate": 100.0,
+    "avg_response_time": 7.2284690856933596,
+    "min_response_time": 3.8942196369171143,
+    "max_response_time": 11.177923440933228,
+    "median_response_time": 6.969941020011902,
+    "p95": 11.177923440933228
+  },
+  "latency_medium": {
+    "text_type": "medium",
+    "total_samples": 8,
+    "success_count": 8,
+    "success_rate": 100.0,
+    "avg_response_time": 33.42643842101097,
+    "min_response_time": 23.93252182006836,
+    "max_response_time": 47.589513063430786,
+    "median_response_time": 30.84784245491028,
+    "p95": 47.589513063430786
+  },
+  "latency_long": {
+    "text_type": "long",
+    "total_samples": 3,
+    "success_count": 1,
+    "success_rate": 33.33333333333333,
+    "avg_response_time": 96.55333065986633,
+    "min_response_time": 96.55333065986633,
+    "max_response_time": 96.55333065986633,
+    "median_response_time": 96.55333065986633,
+    "p95": 96.55333065986633
+  },
+  "concurrency": [
+    {
+      "concurrency": 1,
+      "duration": 60,
+      "actual_duration": 65.01325368881226,
+      "total_requests": 0,
+      "success_count": 0,
+      "success_rate": 0,
+      "rps": 0.0,
+      "success_rps": 0.0
+    },
+    {
+      "concurrency": 2,
+      "duration": 60,
+      "actual_duration": 70.02649426460266,
+      "total_requests": 0,
+      "success_count": 0,
+      "success_rate": 0,
+      "rps": 0.0,
+      "success_rps": 0.0
+    },
+    {
+      "concurrency": 3,
+      "duration": 60,
+      "actual_duration": 75.02700424194336,
+      "total_requests": 0,
+      "success_count": 0,
+      "success_rate": 0,
+      "rps": 0.0,
+      "success_rps": 0.0
+    }
+  ],
+  "stability": {
+    "duration_minutes": 5,
+    "actual_duration": 330.1425311565399,
+    "total_requests": 6,
+    "success_count": 6,
+    "success_rate": 100.0,
+    "avg_rps": 0.0181739686158614,
+    "time_segments": [
+      {
+        "segment": 1,
+        "avg_response_time": 114.5093936920166,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 2,
+        "avg_response_time": 29.193135499954224,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 3,
+        "avg_response_time": 27.056341886520386,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 4,
+        "avg_response_time": 25.732157230377197,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 5,
+        "avg_response_time": 31.864539623260498,
+        "success_rate": 100.0
+      },
+      {
+        "segment": 6,
+        "avg_response_time": 41.78182411193848,
+        "success_rate": 100.0
+      }
+    ],
+    "avg_response_time": 45.02289867401123,
+    "min_response_time": 25.732157230377197,
+    "max_response_time": 114.5093936920166,
+    "performance_degradation": -63.51231740488079
+  }
+}

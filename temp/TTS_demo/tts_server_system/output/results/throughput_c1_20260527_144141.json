@@ -1,0 +1,71 @@
+{
+  "stats": {
+    "concurrency": 1,
+    "duration": 60,
+    "actual_duration": 65.00859999656677,
+    "total_requests": 8,
+    "success_count": 8,
+    "success_rate": 100.0,
+    "rps": 0.12306064121397008,
+    "success_rps": 0.12306064121397008,
+    "avg_response_time": 7.330836236476898
+  },
+  "details": [
+    {
+      "success": true,
+      "response_time": 9.210215330123901,
+      "text_length": 10,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:40:46.008083"
+    },
+    {
+      "success": true,
+      "response_time": 6.0426952838897705,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:40:52.051043"
+    },
+    {
+      "success": true,
+      "response_time": 7.782925844192505,
+      "text_length": 9,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:40:59.834356"
+    },
+    {
+      "success": true,
+      "response_time": 7.417864084243774,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:41:07.252436"
+    },
+    {
+      "success": true,
+      "response_time": 4.404504776000977,
+      "text_length": 3,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:41:11.657162"
+    },
+    {
+      "success": true,
+      "response_time": 8.569916009902954,
+      "text_length": 10,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:41:20.227304"
+    },
+    {
+      "success": true,
+      "response_time": 7.910895109176636,
+      "text_length": 7,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:41:28.138395"
+    },
+    {
+      "success": true,
+      "response_time": 7.307673454284668,
+      "text_length": 9,
+      "status_code": 200,
+      "timestamp": "2026-05-27T14:41:35.446242"
+    }
+  ]
+}
