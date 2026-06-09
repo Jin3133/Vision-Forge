@@ -1,4 +1,4 @@
-﻿name: Vision_Forge
+name: Vision_Forge
 channels:
   - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main
   - conda-forge
@@ -86,5 +86,4 @@ dependencies:
       - xxhash==3.7.0
       - zstandard==0.25.0
 variables:
-  DEEPSEEK_API_KEY: sk-76b889a72af74e25abda70c6e3bcd0a2
 prefix: D:\Anaconda\Envs\Vision_Forge
