@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>排序算法可视化 - 快速排序</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            max-width: 800px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 1rem;
+        }
+        
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 2rem;
+            max-width: 1200px;
+            width: 100%;
+        }
+        
+        .visualization {
+            flex: 1;
+            min-width: 300px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .explanation {
+            flex: 1;
+            min-width: 300px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        h2 {
+            margin-bottom: 1rem;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+            padding-bottom: 0.5rem;
+        }
+        
+        .bars-container {
+            height: 400px;
+            position: relative;
+            margin: 1rem 0;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .bar {
+            position: absolute;
+            bottom: 0;
+            width: 60px;
+            transition: height 0.5s ease, background 0.5s ease;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        
+        button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 0.7rem 1.5rem;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .step-info {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1rem;
+            border-radius: 10px;
+            margin-top: 1rem;
+            min-height: 100px;
+        }
+        
+        .current-step {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: #ffcc00;
+        }
+        
+        .algorithm-steps {
+            margin-top: 1.5rem;
+        }
+        
+        .step {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            border-left: 4px solid #ffcc00;
+        }
+        
+        .highlight {
+            color: #ffcc00;
+            font-weight: bold;
+        }
+        
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .bars-container {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>快速排序算法可视化</h1>
+        <p class="subtitle">深入理解分治策略与递归思想</p>
+    </header>
+    
+    <div class="container">
+        <div class="visualization">
+            <h2>排序过程</h2>
+            <div class="bars-container" id="barsContainer"></div>
+            <div class="controls">
+                <button id="startBtn">开始排序</button>
+                <button id="resetBtn">重置</button>
+                <button id="stepBtn">单步执行</button>
+            </div>
+            <div class="step-info">
+                <div class="current-step" id="currentStep">准备开始...</div>
+                <p id="stepDescription">点击"开始排序"按钮观看快速排序过程</p>
+            </div>
+        </div>
+        
+        <div class="explanation">
+            <h2>快速排序原理</h2>
+            <p>快速排序是一种高效的排序算法，采用分治策略：</p>
+            
+            <div class="algorithm-steps">
+                <div class="step">
+                    <h3>1. 选择基准值</h3>
+                    <p>从数组中选择一个元素作为"基准"（pivot），通常选择第一个、最后一个或中间的元素。</p>
+                </div>
+                
+                <div class="step">
+                    <h3>2. 分区操作</h3>
+                    <p>重新排列数组，所有比基准小的元素放在左边，比基准大的元素放在右边。基准元素位于最终位置。</p>
+                </div>
+                
+                <div class="step">
+                    <h3>3. 递归排序</h3>
+                    <p>对基准左右两边的子数组分别递归应用快速排序。</p>
+                </div>
+                
+                <div class="step">
+                    <h3>时间复杂度</h3>
+                    <p>平均情况: O(n log n)<br>最坏情况: O(n²) | 最好情况: O(n log n)</p>
+                </div>
+            </div>
+            
+            <div class="step-info" style="margin-top: 1.5rem;">
+                <h3>当前状态</h3>
+                <p id="statusText">等待用户输入...</p>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>排序算法可视化教学工具 © 2023</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const barsContainer = document.getElementById('barsContainer');
+            const startBtn = document.getElementById('startBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            const stepBtn = document.getElementById('stepBtn');
+            const currentStep = document.getElementById('currentStep');
+            const stepDescription = document.getElementById('stepDescription');
+            const statusText = document.getElementById('statusText');
+            
+            let array = [];
+            let isSorting = false;
+            let animationId = null;
+            
+            // 初始化数组
+            function initializeArray() {
+                barsContainer.innerHTML = '';
+                array = Array.from({length: 10}, () => Math.floor(Math.random() * 50) + 10);
+                drawBars();
+                currentStep.textContent = "准备开始...";
+                stepDescription.textContent = "点击'开始排序'按钮观看快速排序过程";
+                statusText.textContent = "等待用户输入...";
+                isSorting = false;
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+            }
+            
+            // 绘制柱状图
+            function drawBars() {
+                barsContainer.innerHTML = '';
+                const maxValue = Math.max(...array);
+                const containerWidth = barsContainer.offsetWidth;
+                const barWidth = 60;
+                const gap = (containerWidth - barWidth * array.length) / (array.length + 1);
+                
+                array.forEach((value, index) => {
+                    const barHeight = (value / maxValue) * 300;
+                    const left = gap + index * (barWidth + gap);
+                    
+                    const bar = document.createElement('div');
+                    bar.className = 'bar';
+                    bar.style.left = `${left}px`;
+                    bar.style.height = `${barHeight}px`;
+                    bar.style.backgroundColor = getRandomColor();
+                    bar.textContent = value;
+                    barsContainer.appendChild(bar);
+                });
+            }
+            
+            // 获取随机颜色
+            function getRandomColor() {
+                const colors = [
+                    '#FF6B6B', '#4ECDC4', '#FFD166', '#06D6A0', 
+                    '#118AB2', '#EF476F', '#073B4C', '#7209B7'
+                ];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+            
+            // 快速排序实现
+            async function quickSort(arr, low, high) {
+                if (low < high) {
+                    // 找到分区点
+                    const pi = await partition(arr, low, high);
+                    
+                    // 递归排序左半部分
+                    await quickSort(arr, low, pi - 1);
+                    
+                    // 递归排序右半部分
+                    await quickSort(arr, pi + 1, high);
+                }
+            }
+            
+            // 分区函数
+            async function partition(arr, low, high) {
+                const pivot = arr[high];
+                let i = low - 1;
+                
+                for (let j = low; j < high; j++) {
+                    // 高亮当前元素
+                    highlightElement(j);
+                    await sleep(300);
+                    
+                    if (arr[j] < pivot) {
+                        i++;
+                        swapElements(arr, i, j);
+                        highlightElement(i);
+                        highlightElement(j);
+                        await sleep(300);
+                    }
+                }
+                
+                swapElements(arr, i + 1, high);
+                highlightElement(i + 1);
+                highlightElement(high);
+                await sleep(300);
+                
+                return i + 1;
+            }
+            
+            // 交换元素
+            function swapElements(arr, i, j) {
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+                updateBars();
+            }
+            
+            // 更新柱状图
+            function updateBars() {
+                const maxValue = Math.max(...array);
+                const containerWidth = barsContainer.offsetWidth;
+                const barWidth = 60;
+                const gap = (containerWidth - barWidth * array.length) / (array.length + 1);
+                
+                document.querySelectorAll('.bar').forEach((bar, index) => {
+                    const height = (array[index] / maxValue) * 300;
+                    bar.style.height = `${height}px`;
+                    bar.textContent = array[index];
+                });
+            }
+            
+            // 高亮元素
+            function highlightElement(index) {
+                const bars = document.querySelectorAll('.bar');
+                bars.forEach(bar => bar.style.opacity = '0.5');
+                bars[index].style.opacity = '1';
+                bars[index].style.backgroundColor = '#FFCC00';
+            }
+            
+            // 延迟函数
+            function sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+            
+            // 开始排序
+            async function startSorting() {
+                if (isSorting) return;
+                
+                isSorting = true;
+                startBtn.disabled = true;
+                stepBtn.disabled = true;
+                
+                currentStep.textContent = "选择基准值";
+                stepDescription.textContent = "快速排序首先选择一个基准值（通常是数组的最后一个元素）";
+                statusText.textContent = "正在选择基准值...";
+                
+                await sleep(1000);
+                
+                currentStep.textContent = "分区操作";
+                stepDescription.textContent = "将所有小于基准值的元素移到左边，大于基准值的元素移到右边";
+                statusText.textContent = "正在进行分区操作...";
+                
+                await quickSort(array, 0, array.length - 1);
+                
+                currentStep.textContent = "排序完成!";
+                stepDescription.textContent = "数组已按升序排列完成";
+                statusText.textContent = "排序已完成！";
+                
+                isSorting = false;
+                startBtn.disabled = false;
+                stepBtn.disabled = false;
+            }
+            
+            // 单步执行
+            async function stepThroughSort() {
+                if (!isSorting) {
+                    initializeArray();
+                    return;
+                }
+                
+                // 这里可以添加单步执行的逻辑
+                // 由于完整实现较复杂，这里仅作示意
+                currentStep.textContent = "单步执行模式";
+                stepDescription.textContent = "点击此按钮可逐步查看排序过程（需要更复杂的实现）";
+                statusText.textContent = "单步执行功能需要更复杂的实现";
+            }
+            
+            // 事件监听
+            startBtn.addEventListener('click', startSorting);
+            resetBtn.addEventListener('click', initializeArray);
+            stepBtn.addEventListener('click', stepThroughSort);
+            
+            // 初始化
+            initializeArray();
+            
+            // 窗口调整大小时重绘柱状图
+            window.addEventListener('resize', drawBars);
+        });
+    </script>
+</body>
+</html>

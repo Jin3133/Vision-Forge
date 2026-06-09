@@ -38,6 +38,9 @@ class TaskState(BaseModel):
     # 业务数据
     learner_profile: Dict[str, Any] = Field(default_factory=dict)
     sandbox_config: SandboxConfig = Field(default_factory=SandboxConfig)
+    parsed_document_content: str = ""
+    final_report_html: str = ""
+    animation_html: str = ""
 
     # 智能体流转中间件
     missing_knowledge: List[str] = Field(default_factory=list)
@@ -46,6 +49,9 @@ class TaskState(BaseModel):
     # 系统追踪
     history: List[str] = Field(default_factory=list)
     current_step: str = "init"  # 代替 current_agent，作为状态机指针
+    intent: str = ""
+    confidence: float = 0.0
+    dialogue_turn: int = 0
 
 
 # ==========================================

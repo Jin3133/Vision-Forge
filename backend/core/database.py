@@ -19,7 +19,7 @@ engine = create_engine(
 # 🚀 【修改点】：把 SessionLocal 移到了 get_db 前面，防止 Python 报错找不到变量
 SessionLocal = sessionmaker(
     autocommit=False,       # 不自动提交事务（由代码手动控制 commit）
-    autlush=False,          # 不自动刷新到数据库（提高性能）
+    autoflush=False,          # 不自动刷新到数据库（提高性能）
     bind=engine             # 绑定上面创建的数据库引擎
 )
 

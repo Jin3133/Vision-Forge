@@ -37,7 +37,7 @@ def clean_messages(messages: List[Message]) -> List[dict]:
 
 
 # ==== 主处理逻辑 ====
-@router.post("/chat/stream", summary="通用大模型 - 多轮流式通信接口")
+@router.post("/stream", summary="通用大模型 - 多轮流式通信接口")
 async def chat_stream(data: ChatRequest):
     try:
         cleaned_messages = clean_messages(data.messages)
@@ -59,7 +59,7 @@ async def chat_stream(data: ChatRequest):
         elif model_type == "deepseek":
             url = "https://api.deepseek.com/v1/chat/completions"
             headers["Authorization"] = f"Bearer {settings.DEEPSEEK_API_KEY}"
-            body.update({"model": "deepseek-chat"})
+            body.update({"model": "deepseek-v4-pro"})
 
         elif model_type == "kimi":
             url = "https://api.moonshot.cn/v1/chat/completions"

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生成动画概念演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            color: white;
+            min-height: 100vh;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            max-width: 1200px;
+            width: 90%;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        header {
+            margin-bottom: 2rem;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+        
+        .animation-container {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            margin-bottom: 2rem;
+        }
+        
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .explanation {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            text-align: left;
+            line-height: 1.6;
+        }
+        
+        .step {
+            display: none;
+            animation: fadeIn 0.8s ease forwards;
+        }
+        
+        .step.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        
+        button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 0.7rem 1.5rem;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        footer {
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            h1 { font-size: 2rem; }
+            .animation-container { height: 400px; }
+            .explanation { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>生成动画概念演示</h1>
+            <p class="subtitle">探索计算机如何通过算法创造动态视觉效果</p>
+        </header>
+        
+        <div class="animation-container">
+            <svg id="mainSvg" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+                <!-- 背景 -->
+                <rect width="100%" height="100%" fill="rgba(0, 0, 0, 0.2)" />
+                
+                <!-- 网格线 -->
+                <g stroke="rgba(255, 255, 255, 0.1)" stroke-width="1">
+                    <line x1="0" y1="100" x2="1000" y2="100" />
+                    <line x1="0" y1="200" x2="1000" y2="200" />
+                    <line x1="0" y1="300" x2="1000" y2="300" />
+                    <line x1="0" y1="400" x2="1000" y2="400" />
+                    <line x1="100" y1="0" x2="100" y2="500" />
+                    <line x1="200" y1="0" x2="200" y2="500" />
+                    <line x1="300" y1="0" x2="300" y2="500" />
+                    <line x1="400" y1="0" x2="400" y2="500" />
+                    <line x1="500" y1="0" x2="500" y2="500" />
+                    <line x1="600" y1="0" x2="600" y2="500" />
+                    <line x1="700" y1="0" x2="700" y2="500" />
+                    <line x1="800" y1="0" x2="800" y2="500" />
+                    <line x1="900" y1="0" x2="900" y2="500" />
+                </g>
+                
+                <!-- 中心圆 -->
+                <circle id="centerCircle" cx="500" cy="250" r="0" fill="none" stroke="#4FC3F7" stroke-width="2" />
+                
+                <!-- 轨道 -->
+                <ellipse id="orbit" cx="500" cy="250" rx="200" ry="100" fill="none" stroke="rgba(255, 255, 255, 0.2)" stroke-width="1" stroke-dasharray="5,5" />
+                
+                <!-- 卫星 -->
+                <circle id="satellite" cx="700" cy="250" r="10" fill="#FF5722">
+                    <animate attributeName="cx" values="700;300;700" dur="8s" repeatCount="indefinite" />
+                </circle>
+                
+                <!-- 粒子系统 -->
+                <g id="particles"></g>
+                
+                <!-- 连接线 -->
+                <g id="connections"></g>
+                
+                <!-- 文本标签 -->
+                <text id="label1" x="500" y="420" text-anchor="middle" fill="white" font-size="18" opacity="0">输入参数</text>
+                <text id="label2" x="500" y="420" text-anchor="middle" fill="white" font-size="18" opacity="0">算法处理</text>
+                <text id="label3" x="500" y="420" text-anchor="middle" fill="white" font-size="18" opacity="0">生成结果</text>
+            </svg>
+        </div>
+        
+        <div class="explanation">
+            <div class="step active" id="step1">
+                <h3>第一步：定义参数与规则</h3>
+                <p>生成动画的核心在于定义一组参数和规则。这些可以是简单的数学函数、物理定律或随机变量。在本例中，我们使用极坐标方程来定义卫星的运动轨迹。</p>
+            </div>
+            
+            <div class="step" id="step2">
+                <h3>第二步：应用算法处理</h3>
+                <p>计算机根据定义的规则处理输入数据。在这个例子中，算法计算卫星在椭圆轨道上的位置，考虑了速度、加速度和引力等因素。</p>
+            </div>
+            
+            <div class="step" id="step3">
+                <h3>第三步：生成可视化结果</h3>
+                <p>处理后的数据被转换为视觉元素——点、线、形状和颜色。这些元素按照计算出的时间位置排列，形成连续的动画序列。</p>
+            </div>
+            
+            <div class="step" id="step4">
+                <h3>第四步：渲染与呈现</h3>
+                <p>最终生成的动画通过图形API渲染到屏幕上。现代浏览器使用硬件加速来确保流畅的60fps性能，使观众能够欣赏到高质量的动态效果。</p>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="restartBtn">重新播放</button>
+            <button id="pauseBtn">暂停/继续</button>
+        </div>
+        
+        <footer>
+            <p>© 2023 生成动画概念演示 | 使用HTML5, CSS3和JavaScript创建</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const svg = document.getElementById('mainSvg');
+            const particlesGroup = document.getElementById('particles');
+            const connectionsGroup = document.getElementById('connections');
+            const steps = document.querySelectorAll('.step');
+            const labels = [document.getElementById('label1'), document.getElementById('label2'), document.getElementById('label3')];
+            
+            let currentStep = 0;
+            let isPaused = false;
+            let animationId;
+            let particles = [];
+            let time = 0;
+            
+            // 初始化粒子
+            function initParticles() {
+                particlesGroup.innerHTML = '';
+                particles = [];
+                
+                for (let i = 0; i < 50; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = 50 + Math.random() * 150;
+                    const size = 1 + Math.random() * 3;
+                    
+                    const particle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    particle.setAttribute('cx', 500 + Math.cos(angle) * radius);
+                    particle.setAttribute('cy', 250 + Math.sin(angle) * radius);
+                    particle.setAttribute('r', size);
+                    particle.setAttribute('fill', `hsl(${Math.random() * 360}, 70%, 60%)`);
+                    particle.setAttribute('opacity', '0.7');
+                    
+                    particlesGroup.appendChild(particle);
+                    particles.push({
+                        element: particle,
+                        angle: angle,
+                        radius: radius,
+                        speed: 0.5 + Math.random() * 1.5,
+                        size: size
+                    });
+                }
+            }
+            
+            // 更新粒子位置
+            function updateParticles() {
+                if (isPaused) return;
+                
+                time += 0.02;
+                
+                particles.forEach(particle => {
+                    particle.angle += particle.speed * 0.02;
+                    const x = 500 + Math.cos(particle.angle) * particle.radius;
+                    const y = 250 + Math.sin(particle.angle) * particle.radius;
+                    
+                    particle.element.setAttribute('cx', x);
+                    particle.element.setAttribute('cy', y);
+                    
+                    // 根据距离中心的距离调整透明度
+                    const distanceFromCenter = Math.sqrt(Math.pow(x - 500, 2) + Math.pow(y - 250, 2));
+                    particle.element.setAttribute('opacity', 0.3 + (distanceFromCenter / 200) * 0.7);
+                });
+                
+                animationId = requestAnimationFrame(updateParticles);
+            }
+            
+            // 更新卫星位置
+            function updateSatellite() {
+                if (isPaused) return;
+                
+                const satellite = document.getElementById('satellite');
+                const orbitRadiusX = 200;
+                const orbitRadiusY = 100;
+                const speed = 0.02;
+                
+                const angle = time * speed;
+                const x = 500 + Math.cos(angle) * orbitRadiusX;
+                const y = 250 + Math.sin(angle) * orbitRadiusY;
+                
+                satellite.setAttribute('cx', x);
+                satellite.setAttribute('cy', y);
+                
+                animationId = requestAnimationFrame(updateSatellite);
+            }
+            
+            // 更新中心圆
+            function updateCenterCircle() {
+                if (isPaused) return;
+                
+                const circle = document.getElementById('centerCircle');
+                const radius = 10 + Math.sin(time * 0.05) * 5;
+                circle.setAttribute('r', radius);
+                
+                animationId = requestAnimationFrame(updateCenterCircle);
+            }
+            
+            // 切换步骤
+            function switchStep(stepIndex) {
+                steps.forEach(step => step.classList.remove('active'));
+                labels.forEach(label => label.style.opacity = '0');
+                
+                steps[stepIndex].classList.add('active');
+                labels[stepIndex].style.opacity = '1';
+                
+                // 重置所有标签位置
+                labels.forEach((label, index) => {
+                    if (index !== stepIndex) {
+                        label.style.opacity = '0';
+                    } else {
+                        label.style.opacity = '1';
+                    }
+                });
+            }
+            
+            // 初始化
+            function init() {
+                initParticles();
+                updateParticles();
+                updateSatellite();
+                updateCenterCircle();
+                
+                // 启动步骤指示器动画
+                let stepInterval = setInterval(() => {
+                    currentStep = (currentStep + 1) % 4;
+                    switchStep(currentStep);
+                }, 3000); // 每3秒切换一步
+                
+                // 重新开始按钮
+                document.getElementById('restartBtn').addEventListener('click', () => {
+                    clearInterval(stepInterval);
+                    currentStep = 0;
+                    switchStep(currentStep);
+                    stepInterval = setInterval(() => {
+                        currentStep = (currentStep + 1) % 4;
+                        switchStep(currentStep);
+                    }, 3000);
+                });
+                
+                // 暂停/继续按钮
+                document.getElementById('pauseBtn').addEventListener('click', () => {
+                    isPaused = !isPaused;
+                    if (!isPaused) {
+                        updateParticles();
+                        updateSatellite();
+                        updateCenterCircle();
+                    }
+                });
+            }
+            
+            // 启动
+            init();
+        });
+    </script>
+</body>
+</html>

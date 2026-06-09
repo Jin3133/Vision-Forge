@@ -1,12 +1,11 @@
 import threading
 from abc import ABC, abstractmethod
 from typing import Any, Dict
-from openai import OpenAI
 
-# 依然保留 settings，但我们不再用它读取 Key
 from core.config import settings
 from core.state import TaskState
 from core.logger import logger
+from services.external_services.llm_service import LLMService
 
 _cancel_signals_lock = threading.Lock()
 _global_cancel_signals: Dict[str, bool] = {}
@@ -16,23 +15,9 @@ class AgentBase(ABC):
     def __init__(self, name: str, role_prompt: str = ""):
         self.name = name
         self.role_prompt = role_prompt
-
-        # ✅ 终极大法：彻底绕过 settings，直接硬编码！
-        # ⚠️ 请把下面引号里的内容替换为你 test_spark.py 中那串成功的完整 Key
-        REAL_KEY = "7ba874a7eae6c25f2bae72e7eace2aba:NmFlMTlmMGMyMmVmNzNiMWUxZmJhNTVh"
-        REAL_URL = "https://spark-api-open.xf-yun.com/v1"
-
-        logger.info(f"[{self.name}] 正在初始化 OpenAI 客户端 (强制硬编码模式)...")
-
-        # 强制使用硬编码的 Key，彻底无视环境变量
-        self.llm_client = OpenAI(
-            api_key=REAL_KEY,
-            base_url=REAL_URL
-        )
-
-        self.model_version = "generalv3.5"
-
-    # ... (read_blackboard, get_session_id 等方法保持不变) ...
+        self._llm_provider = "spark"
+        self._llm_model = settings.SPARK_MODEL_VERSION
+        logger.info(f"[{self.name}] Agent初始化完成 (provider={self._llm_provider})")
 
     def read_blackboard(self, state: TaskState, key: str) -> Any:
         value = getattr(state, key, None)
@@ -58,15 +43,16 @@ class AgentBase(ABC):
 
     def call_llm(self, user_input: str, temperature: float = 0.7) -> str:
         try:
-            response = self.llm_client.chat.completions.create(
-                model=self.model_version,
-                messages=[
-                    {"role": "system", "content": self.role_prompt},
-                    {"role": "user", "content": user_input}
-                ],
-                temperature=temperature
+            messages = [
+                {"role": "system", "content": self.role_prompt},
+                {"role": "user", "content": user_input}
+            ]
+            return LLMService.chat(
+                messages=messages,
+                provider=self._llm_provider,
+                model=self._llm_model,
+                temperature=temperature,
             )
-            return response.choices[0].message.content
         except Exception as e:
             logger.error(f"[{self.name}] 大模型调用失败: {e}")
             return f"Error: {e}"

@@ -1,0 +1,125 @@
+{
+  "timestamp": "2026-06-09T12:02:56.278192",
+  "total": 5,
+  "passed": 5,
+  "failed": 0,
+  "results": [
+    {
+      "scenario": "test_report_intent_e2e",
+      "elapsed_seconds": 99.5,
+      "passed": true,
+      "data_keys": [
+        "learner_profile",
+        "sandbox_config",
+        "parsed_document_content",
+        "evaluation_report",
+        "tutor_response",
+        "final_report_html",
+        "animation_html",
+        "intent",
+        "confidence",
+        "dialogue_turn"
+      ],
+      "final_state_keys": [
+        "session_id",
+        "user_intent",
+        "learner_profile",
+        "sandbox_config",
+        "parsed_document_content",
+        "final_report_html",
+        "animation_html",
+        "missing_knowledge",
+        "evaluation_results",
+        "history",
+        "current_step",
+        "intent",
+        "confidence",
+        "dialogue_turn"
+      ]
+    },
+    {
+      "scenario": "test_animation_intent_e2e",
+      "elapsed_seconds": 243.5,
+      "passed": true,
+      "data_keys": [
+        "learner_profile",
+        "sandbox_config",
+        "parsed_document_content",
+        "evaluation_report",
+        "tutor_response",
+        "final_report_html",
+        "animation_html",
+        "intent",
+        "confidence",
+        "dialogue_turn"
+      ],
+      "final_state_keys": [
+        "session_id",
+        "user_intent",
+        "learner_profile",
+        "sandbox_config",
+        "parsed_document_content",
+        "final_report_html",
+        "animation_html",
+        "missing_knowledge",
+        "evaluation_results",
+        "history",
+        "current_step",
+        "intent",
+        "confidence",
+        "dialogue_turn"
+      ]
+    },
+    {
+      "scenario": "test_mixed_intent_e2e",
+      "elapsed_seconds": 433.4,
+      "passed": true,
+      "data_keys": [
+        "learner_profile",
+        "sandbox_config",
+        "parsed_document_content",
+        "evaluation_report",
+        "tutor_response",
+        "final_report_html",
+        "animation_html",
+        "intent",
+        "confidence",
+        "dialogue_turn"
+      ],
+      "final_state_keys": [
+        "session_id",
+        "user_intent",
+        "learner_profile",
+        "sandbox_config",
+        "parsed_document_content",
+        "final_report_html",
+        "animation_html",
+        "missing_knowledge",
+        "evaluation_results",
+        "history",
+        "current_step",
+        "intent",
+        "confidence",
+        "dialogue_turn"
+      ]
+    },
+    {
+      "scenario": "test_multi_turn_dialogue_e2e",
+      "passed": true,
+      "turn1_elapsed": 92.1,
+      "turn2_elapsed": 261.5,
+      "turn1_report_len": 24854,
+      "turn2_animation_len": 36691,
+      "dialogue_turn": 2
+    },
+    {
+      "scenario": "test_topic_switch_e2e",
+      "passed": true,
+      "turn1_elapsed": 95.0,
+      "turn2_elapsed": 225.9,
+      "turn1_intent": "report_generation",
+      "turn2_intent": "animation_generation",
+      "dialogue_turn": 2
+    }
+  ]
+}

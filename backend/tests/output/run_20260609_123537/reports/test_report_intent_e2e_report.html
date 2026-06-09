@@ -1,0 +1,708 @@
+这是为您生成的一份可直接运行的HTML实验报告文档，用于结构化展示沙盒配置、评估结果及后续改进建议。
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验报告 - 沙盒配置与专家评估</title>
+    <style>
+        :root {
+            --primary: #1a1a2e;
+            --secondary: #16213e;
+            --accent: #0f3460;
+            --highlight: #e94560;
+            --gold: #d4a574;
+            --text: #2c3e50;
+            --text-light: #5a6c7d;
+            --bg: #f8f9fa;
+            --card-bg: #ffffff;
+            --border: #e0e4e8;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+            --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.05);
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', 'Monaco', 'Menlo', monospace;
+            --font-sans: 'Inter', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: linear-gradient(160deg, #f0f3f7 0%, #e8ecf1 30%, #f5f6f9 60%, #edf1f5 100%);
+            color: var(--text);
+            line-height: 1.7;
+            min-height: 100vh;
+            padding: 24px 16px 60px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* 背景装饰 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -180px;
+            right: -120px;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(233, 69, 96, 0.04) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            bottom: -140px;
+            left: -100px;
+            width: 420px;
+            height: 420px;
+            background: radial-gradient(circle, rgba(15, 52, 96, 0.04) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .report-container {
+            max-width: 980px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ========== Header ========== */
+        .report-header {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            padding: 32px 36px 28px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+        .report-header::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 5px;
+            height: 100%;
+            background: linear-gradient(180deg, #e94560 0%, #d63851 40%, #0f3460 100%);
+            border-radius: 3px 0 0 3px;
+        }
+        .report-header .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 10px;
+        }
+        .report-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .report-title .icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #e94560, #c0392b);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 1.2rem;
+        }
+        .badge-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            white-space: nowrap;
+        }
+        .badge-draft {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc10740;
+        }
+        .badge-pending {
+            background: #e8f0fe;
+            color: #1a56c4;
+            border: 1px solid #4285f430;
+        }
+        .badge-empty {
+            background: #f1f3f4;
+            color: #5f6368;
+            border: 1px solid #dadce0;
+        }
+        .report-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            font-size: 0.88rem;
+            color: var(--text-light);
+            margin-top: 6px;
+        }
+        .report-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* ========== Sections ========== */
+        .section {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            padding: 28px 32px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border);
+            transition: var(--transition);
+        }
+        .section:hover {
+            box-shadow: var(--shadow-md);
+        }
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .section-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+        .section-icon.config {
+            background: #e8f0fe;
+            color: #1a56c4;
+        }
+        .section-icon.eval {
+            background: #fef3e0;
+            color: #e67e22;
+        }
+        .section-icon.suggest {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: -0.01em;
+        }
+        .section-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            margin-left: auto;
+        }
+
+        /* ========== Config Table ========== */
+        .config-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        .config-table th,
+        .config-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .config-table th {
+            background: #fafbfc;
+            font-weight: 700;
+            color: var(--primary);
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+            border-radius: 6px 6px 0 0;
+        }
+        .config-table tbody tr {
+            transition: var(--transition);
+        }
+        .config-table tbody tr:hover {
+            background: #fafbfc;
+        }
+        .config-table .key-cell {
+            font-weight: 600;
+            color: var(--accent);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+        .config-table .empty-cell {
+            color: #a0a7b0;
+            font-style: italic;
+            font-size: 0.84rem;
+        }
+        .config-table .json-block {
+            background: #f7f8fa;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: #5f6368;
+            display: inline-block;
+            max-width: 100%;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            border: 1px solid #e8eaed;
+        }
+        .empty-array-badge {
+            display: inline-block;
+            background: #f1f3f4;
+            color: #80868b;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            border: 1px dashed #dadce0;
+        }
+
+        /* ========== Status Indicators ========== */
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 14px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .status-empty {
+            background: #f1f3f4;
+            color: #6c757d;
+        }
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dot-gray {
+            background: #bdc1c6;
+        }
+        .dot-orange {
+            background: #f4a940;
+        }
+        .dot-green {
+            background: #34a853;
+        }
+
+        /* ========== Empty State Card ========== */
+        .empty-state {
+            text-align: center;
+            padding: 40px 24px;
+            border: 2px dashed #e0e4e8;
+            border-radius: var(--radius-md);
+            background: #fafbfc;
+            transition: var(--transition);
+        }
+        .empty-state .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 12px;
+            opacity: 0.6;
+        }
+        .empty-state h4 {
+            font-size: 1.1rem;
+            color: var(--text);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        .empty-state p {
+            color: var(--text-light);
+            font-size: 0.88rem;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* ========== Suggestion Cards ========== */
+        .suggestions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+        .suggestion-card {
+            background: #fafbfc;
+            border-radius: var(--radius-md);
+            padding: 20px 22px;
+            border: 1px solid #eef0f3;
+            transition: var(--transition);
+            position: relative;
+        }
+        .suggestion-card:hover {
+            border-color: #d4d8dd;
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+        .suggestion-card .card-number {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            font-size: 2rem;
+            font-weight: 800;
+            color: #eef0f3;
+            line-height: 1;
+            pointer-events: none;
+        }
+        .suggestion-card h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .suggestion-card h4 .s-icon {
+            font-size: 1.1rem;
+        }
+        .suggestion-card p {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+        .priority-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            margin-bottom: 6px;
+        }
+        .priority-high {
+            background: #fdecea;
+            color: #c0392b;
+        }
+        .priority-medium {
+            background: #fef9e7;
+            color: #b8860b;
+        }
+        .priority-low {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        /* ========== Footer ========== */
+        .report-footer {
+            text-align: center;
+            font-size: 0.78rem;
+            color: #a0a7b0;
+            margin-top: 28px;
+            padding-top: 16px;
+            border-top: 1px solid #eef0f3;
+        }
+        .report-footer span {
+            margin: 0 6px;
+        }
+
+        /* ========== Responsive ========== */
+        @media (max-width: 768px) {
+            .report-header {
+                padding: 20px 18px 18px;
+            }
+            .report-title {
+                font-size: 1.35rem;
+            }
+            .section {
+                padding: 18px 16px;
+            }
+            .config-table th,
+            .config-table td {
+                padding: 10px 8px;
+                font-size: 0.78rem;
+            }
+            .suggestions-grid {
+                grid-template-columns: 1fr;
+            }
+            .report-meta {
+                gap: 10px;
+                font-size: 0.78rem;
+            }
+        }
+
+        @media print {
+            body {
+                background: #fff;
+                padding: 0;
+            }
+            .report-container {
+                max-width: 100%;
+            }
+            .section {
+                box-shadow: none;
+                border: 1px solid #ddd;
+                break-inside: avoid;
+            }
+            .report-header::after {
+                background: #333;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="report-container">
+
+        <!-- ==================== 报告头部 ==================== -->
+        <header class="report-header">
+            <div class="header-top">
+                <h1 class="report-title">
+                    <span class="icon">🧪</span>
+                    实验报告
+                </h1>
+                <div class="badge-row">
+                    <span class="badge badge-draft">📋 沙盒配置</span>
+                    <span class="badge badge-pending">⏳ 待评估</span>
+                    <span class="badge badge-empty">📭 数据为空</span>
+                </div>
+            </div>
+            <div class="report-meta">
+                <span>📅 生成时间：<strong id="report-date"></strong></span>
+                <span>🔖 报告编号：<strong>EXP-2024-{{AUTO}}</strong></span>
+                <span>📌 状态：<strong>初始配置阶段</strong></span>
+            </div>
+        </header>
+
+        <!-- ==================== 第一部分：实验配置 ==================== -->
+        <section class="section" id="config-section">
+            <div class="section-header">
+                <div class="section-icon config">⚙️</div>
+                <h2 class="section-title">实验配置</h2>
+                <span class="section-subtitle">沙盒配置详情</span>
+            </div>
+            <p style="font-size:0.88rem;color:var(--text-light);margin-bottom:16px;">
+                以下为当前实验的<strong>沙盒配置</strong>信息，包含任务类型、骨干网络建议以及节点与边的拓扑定义。
+            </p>
+            <table class="config-table">
+                <thead>
+                    <tr>
+                        <th style="width:25%;">配置项</th>
+                        <th style="width:20%;">字段名</th>
+                        <th>当前值</th>
+                        <th style="width:14%;">状态</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="key-cell">任务类型</td>
+                        <td><code>task_type</code></td>
+                        <td><span class="empty-cell">未指定（空字符串）</span></td>
+                        <td><span class="status-indicator status-empty"><span class="status-dot dot-gray"></span>待填写</span></td>
+                    </tr>
+                    <tr>
+                        <td class="key-cell">建议骨干网络</td>
+                        <td><code>suggested_backbone</code></td>
+                        <td><span class="empty-cell">未指定（空字符串）</span></td>
+                        <td><span class="status-indicator status-empty"><span class="status-dot dot-gray"></span>待填写</span></td>
+                    </tr>
+                    <tr>
+                        <td class="key-cell">节点列表</td>
+                        <td><code>nodes</code></td>
+                        <td><span class="empty-array-badge">[ ] 空数组</span></td>
+                        <td><span class="status-indicator status-empty"><span class="status-dot dot-gray"></span>无节点</span></td>
+                    </tr>
+                    <tr>
+                        <td class="key-cell">边列表</td>
+                        <td><code>edges</code></td>
+                        <td><span class="empty-array-badge">[ ] 空数组</span></td>
+                        <td><span class="status-indicator status-empty"><span class="status-dot dot-gray"></span>无连接</span></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="margin-top:14px;padding:10px 14px;background:#fafbfc;border-radius:8px;border:1px solid #eef0f3;">
+                <span style="font-size:0.8rem;color:#80868b;">📝 <strong>原始配置 JSON：</strong></span>
+                <pre class="json-block">{
+                    "task_type": "",
+                    "suggested_backbone": "",
+                    "nodes": [],
+                    "edges": []
+                    }</pre>
+            </div>
+        </section>
+
+        <!-- ==================== 第二部分：评估结果 ==================== -->
+        <section class="section" id="eval-section">
+            <div class="section-header">
+                <div class="section-icon eval">🔍</div>
+                <h2 class="section-title">专家评估结果</h2>
+                <span class="section-subtitle">评估意见与结论</span>
+            </div>
+            <div class="empty-state">
+                <div class="empty-icon">📭</div>
+                <h4>暂无评估报告</h4>
+                <p>
+                    当前实验尚未提交专家评估，或评估流程尚未完成。评估报告将在专家审核后自动生成并展示于此区域。
+                </p>
+                <p style="margin-top:6px;font-size:0.8rem;color:#a0a7b0;">
+                    ⏳ 请等待评估流程启动，或手动触发评估任务。
+                </p>
+            </div>
+            <!-- 预留评估详情区域（当前隐藏） -->
+            <div id="eval-detail-placeholder" style="display:none;">
+                <p style="color:var(--text-light);">评估详情将在数据就绪后呈现。</p>
+            </div>
+        </section>
+
+        <!-- ==================== 第三部分：改进建议 ==================== -->
+        <section class="section" id="suggestions-section">
+            <div class="section-header">
+                <div class="section-icon suggest">💡</div>
+                <h2 class="section-title">改进建议</h2>
+                <span class="section-subtitle">基于当前空配置的指导</span>
+            </div>
+            <p style="font-size:0.88rem;color:var(--text-light);margin-bottom:18px;">
+                检测到当前沙盒配置为<strong>全空状态</strong>（任务类型、骨干网络、节点与边均未定义）。建议按以下优先级完善实验配置：
+            </p>
+            <div class="suggestions-grid">
+                <!-- 建议1 -->
+                <div class="suggestion-card">
+                    <div class="card-number">01</div>
+                    <span class="priority-tag priority-high">🔴 高优先级</span>
+                    <h4><span class="s-icon">📋</span> 明确任务类型</h4>
+                    <p>
+                        请指定 <code>task_type</code> 字段，例如目标检测、语义分割、实例分割等。任务类型决定了后续骨干网络的选择范围与评估指标体系。
+                    </p>
+                </div>
+                <!-- 建议2 -->
+                <div class="suggestion-card">
+                    <div class="card-number">02</div>
+                    <span class="priority-tag priority-high">🔴 高优先级</span>
+                    <h4><span class="s-icon">🧠</span> 选择骨干网络</h4>
+                    <p>
+                        根据任务类型设置 <code>suggested_backbone</code>，如 ResNet-50、ViT-B、EfficientNet 等。骨干网络直接影响特征提取能力与模型性能基线。
+                    </p>
+                </div>
+                <!-- 建议3 -->
+                <div class="suggestion-card">
+                    <div class="card-number">03</div>
+                    <span class="priority-tag priority-medium">🟡 中优先级</span>
+                    <h4><span class="s-icon">🔗</span> 定义节点拓扑</h4>
+                    <p>
+                        在 <code>nodes</code> 数组中添加计算节点定义，每个节点应包含 ID、类型、参数等属性，构建完整的模型计算图结构。
+                    </p>
+                </div>
+                <!-- 建议4 -->
+                <div class="suggestion-card">
+                    <div class="card-number">04</div>
+                    <span class="priority-tag priority-medium">🟡 中优先级</span>
+                    <h4><span class="s-icon">↔️</span> 建立边连接</h4>
+                    <p>
+                        在 <code>edges</code> 数组中定义节点间的连接关系，明确数据流向与依赖关系，确保拓扑图的连通性与逻辑完整性。
+                    </p>
+                </div>
+                <!-- 建议5 -->
+                <div class="suggestion-card">
+                    <div class="card-number">05</div>
+                    <span class="priority-tag priority-low">🟢 低优先级</span>
+                    <h4><span class="s-icon">✅</span> 提交专家评估</h4>
+                    <p>
+                        完成配置后，及时提交至专家评估流程，获取专业的架构评审意见与改进方向，迭代优化实验设计。
+                    </p>
+                </div>
+                <!-- 建议6 -->
+                <div class="suggestion-card">
+                    <div class="card-number">06</div>
+                    <span class="priority-tag priority-low">🟢 低优先级</span>
+                    <h4><span class="s-icon">📊</span> 预设评估指标</h4>
+                    <p>
+                        提前定义评估指标（如 mAP、IoU、F1-Score 等），便于专家评估时进行量化分析与横向对比。
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== 报告尾部 ==================== -->
+        <footer class="report-footer">
+            <span>📄 本报告由实验管理系统自动生成</span>
+            <span>|</span>
+            <span>⏰ <span id="footer-time"></span></span>
+            <span>|</span>
+            <span>🔒 仅供内部评审使用</span>
+        </footer>
+
+    </div>
+
+    <!-- ==================== 脚本：动态时间 & 报告编号 ==================== -->
+    <script>
+        (function() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+            const timeStr = now.toLocaleTimeString('zh-CN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+            const fullDateTime = dateStr + ' ' + timeStr;
+
+            // 设置报告日期
+            const dateEl = document.getElementById('report-date');
+            if (dateEl) dateEl.textContent = fullDateTime;
+
+            // 设置尾部时间
+            const footerTimeEl = document.getElementById('footer-time');
+            if (footerTimeEl) footerTimeEl.textContent = fullDateTime;
+
+            // 动态报告编号
+            const autoNum = Math.floor(Math.random() * 9000 + 1000);
+            const badgeEl = document.querySelector('.badge-row .badge-pending');
+            if (badgeEl) {
+                // 更新报告编号在header meta中
+                const metaStrong = document.querySelector('.report-meta strong');
+                if (metaStrong && metaStrong.textContent.includes('AUTO')) {
+                    metaStrong.textContent = 'EXP-2024-' + autoNum;
+                }
+            }
+        })();
+    </script>
+
+</body>
+</html>
+```
+### 实验报告核心功能模块解析
+
+这份报告页面围绕“沙盒配置数据分析与改进建议”这一任务，将核心信息拆解为三个清晰的模块，方便您快速掌握实验状态。
+
+-   **实验配置详情表**：页面顶部以**结构化表格**展示了沙盒配置的四个关键字段（`task_type`、`suggested_backbone`、`nodes`、`edges`）。每个字段的当前值、状态（如“待填写”）和原始JSON代码都一目了然，能快速定位配置的空缺项。
+-   **专家评估结果区**：当数据为空时，该区域会显示一个**空状态提示卡片**，明确告知“暂无评估报告”。这避免了空白区域造成的困惑，并预留了未来展示评估详情的占位区域。
+-   **改进建议卡片组**：基于空配置状态，页面给出了**六条优先级分明的改进建议**。每条建议都以独立卡片呈现，并配有高/中/低优先级标签和图标，从“明确任务类型”到“预设评估指标”，提供了清晰的操作步骤。

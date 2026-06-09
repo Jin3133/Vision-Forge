@@ -1,1 +1,5 @@
 *.log
+
+# 本地敏感配置（不提交）
+.env.local
+.env.*.local

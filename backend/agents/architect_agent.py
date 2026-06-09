@@ -9,10 +9,12 @@ from agents.base_agent import AgentBase
 class ArchitectAgent(AgentBase):
     def __init__(self):
         # ✅ 强化 Prompt：Few-Shot 示例 + 严格禁止 Markdown
-        role_prompt = """你是一个视觉算法架构师。
+        role_prompt = """你是一个视觉算法架构师和意图识别专家。
         请输出一个纯 JSON，不要任何其他文字。
         JSON 结构必须包含：
         {
+          "intent": "report_generation",
+          "confidence": 0.9,
           "learner_profile": {"domain": "农业"},
           "sandbox_config": {
             "task_type": "病害检测",
@@ -21,12 +23,26 @@ class ArchitectAgent(AgentBase):
           },
           "next_step": "tutor_stage"
         }
+
+        intent 字段说明：
+        - "report_generation"：用户需要生成报告、总结、评估等文字性输出
+        - "animation_generation"：用户需要生成动画、演示、可视化等动态展示
+        - "mixed_generation"：用户同时需要报告和动画，或意图不明确
+
+        next_step 规则：
+        - "report_generation" 或 "animation_generation" → "generator_stage"（跳过 tutor 和 evaluator）
+        - "mixed_generation" → "tutor_stage"（走完整流程）
         """
         super().__init__(name="Architect", role_prompt=role_prompt)
 
     def run(self, state: TaskState) -> Dict[str, Any]:
         user_intent = state.user_intent
         logger.info(f"[{self.name}] 正在向大模型发起请求...")
+
+        # 如果有文档内容，追加到用户意图中作为上下文
+        doc_content = state.parsed_document_content
+        if doc_content:
+            user_intent = f"{user_intent}\n\n以下是用户上传的文档内容，请结合文档内容分析用户意图：\n{doc_content}"
 
         # 1. 获取响应
         response_text = self.call_llm(user_input=user_intent, temperature=0.0)
@@ -57,8 +73,10 @@ class ArchitectAgent(AgentBase):
             }
 
         return {
+            "intent": parsed_result.get("intent", "mixed_generation"),
+            "confidence": parsed_result.get("confidence", 0.0),
             "learner_profile": parsed_result.get("learner_profile", {}),
             "sandbox_config": parsed_result.get("sandbox_config", {}),
             "current_step": parsed_result.get("next_step", "tutor_stage"),
-            "history": [f"[{self.name}] 成功生成算子配置。"]
+            "history": [f"[{self.name}] 成功生成算子配置，意图={parsed_result.get('intent', 'mixed_generation')}"]
         }

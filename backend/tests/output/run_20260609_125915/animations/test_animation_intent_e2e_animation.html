@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地球自转动画演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to bottom, #0a0a2a, #1a1a3a);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .container {
+            max-width: 900px;
+            width: 100%;
+            text-align: center;
+            padding: 20px;
+            position: relative;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #4fc3f7;
+            text-shadow: 0 0 10px rgba(79, 195, 247, 0.5);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            color: #bbdefb;
+        }
+        
+        .animation-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            margin: 20px auto;
+            perspective: 1000px;
+        }
+        
+        .earth-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 300px;
+        }
+        
+        .earth {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #1e88e5, #0d47a1);
+            box-shadow: 0 0 60px rgba(30, 136, 229, 0.6), inset -20px -20px 40px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+            animation: rotate 20s linear infinite;
+        }
+        
+        .continent {
+            position: absolute;
+            background: rgba(76, 175, 80, 0.7);
+            border-radius: 50%;
+        }
+        
+        .atmosphere {
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            width: calc(100% + 20px);
+            height: calc(100% + 20px);
+            border-radius: 50%;
+            background: radial-gradient(circle, transparent 60%, rgba(79, 195, 247, 0.3) 100%);
+            pointer-events: none;
+        }
+        
+        .stars {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background-image: 
+                radial-gradient(2px 2px at 20px 30px, white, transparent),
+                radial-gradient(2px 2px at 40px 70px, white, transparent),
+                radial-gradient(1px 1px at 90px 40px, white, transparent),
+                radial-gradient(2px 2px at 130px 80px, white, transparent),
+                radial-gradient(1px 1px at 160px 30px, white, transparent),
+                radial-gradient(2px 2px at 200px 60px, white, transparent),
+                radial-gradient(1px 1px at 250px 20px, white, transparent),
+                radial-gradient(2px 2px at 280px 90px, white, transparent);
+            background-repeat: no-repeat;
+            background-size: 300px 300px;
+            opacity: 0.7;
+        }
+        
+        .axis {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 350px;
+            background: linear-gradient(to bottom, transparent, #ff9800, transparent);
+            transform: translate(-50%, -50%) rotate(23.5deg);
+            transform-origin: center;
+        }
+        
+        .info-panel {
+            background: rgba(13, 71, 161, 0.7);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 30px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(79, 195, 247, 0.3);
+        }
+        
+        .explanation {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        
+        .key-points {
+            text-align: left;
+            margin-top: 15px;
+            padding-left: 20px;
+        }
+        
+        .key-points li {
+            margin-bottom: 8px;
+        }
+        
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        button {
+            background: #1e88e5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background: #1565c0;
+            transform: translateY(-2px);
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .time-display {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 1.2rem;
+        }
+        
+        .paused .earth {
+            animation-play-state: paused;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            h1 { font-size: 2rem; }
+            .animation-container { height: 300px; }
+            .earth-container { width: 200px; height: 200px; }
+            .axis { height: 250px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>地球自转动画演示</h1>
+        <p class="subtitle">探索地球如何围绕自己的轴旋转</p>
+        
+        <div class="animation-container">
+            <div class="earth-container">
+                <div class="earth">
+                    <div class="atmosphere"></div>
+                    <div class="stars"></div>
+                    <!-- 大陆轮廓将通过JS动态添加 -->
+                </div>
+                <div class="axis"></div>
+            </div>
+        </div>
+        
+        <div class="time-display">
+            自转周期: <span id="rotation-time">23小时56分4秒</span>
+        </div>
+        
+        <div class="info-panel">
+            <div class="explanation" id="explanation">
+                地球是太阳系中的一颗行星，它不仅围绕太阳公转，还围绕自己的轴进行自转。这个自转运动产生了昼夜交替的现象。
+            </div>
+            
+            <ul class="key-points">
+                <li><strong>自转方向：</strong>从北极上空看为逆时针方向</li>
+                <li><strong>自转周期：</strong>约23小时56分4秒（恒星日）</li>
+                <li><strong>地轴倾斜：</strong>地球自转轴与公转轨道面有约66.5°的夹角</li>
+                <li><strong>昼夜现象：</strong>地球自转导致不同地区在不同时间面对太阳</li>
+            </ul>
+        </div>
+        
+        <div class="controls">
+            <button id="play-pause">暂停动画</button>
+            <button id="reset">重置动画</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const earth = document.querySelector('.earth');
+            const explanation = document.getElementById('explanation');
+            const playPauseBtn = document.getElementById('play-pause');
+            const resetBtn = document.getElementById('reset');
+            const rotationTimeDisplay = document.getElementById('rotation-time');
+            
+            // 添加大陆轮廓到地球
+            function addContinents() {
+                const continents = [
+                    { x: 30, y: 40, w: 40, h: 30 }, // 北美
+                    { x: 50, y: 35, w: 30, h: 25 }, // 南美
+                    { x: 60, y: 50, w: 25, h: 35 }, // 欧洲
+                    { x: 70, y: 55, w: 20, h: 25 }, // 非洲
+                    { x: 35, y: 65, w: 45, h: 30 }, // 亚洲
+                    { x: 15, y: 55, w: 30, h: 35 }, // 澳大利亚
+                ];
+                
+                continents.forEach(cont => {
+                    const continent = document.createElement('div');
+                    continent.className = 'continent';
+                    continent.style.left = `${cont.x}%`;
+                    continent.style.top = `${cont.y}%`;
+                    continent.style.width = `${cont.w}%`;
+                    continent.style.height = `${cont.h}%`;
+                    earth.appendChild(continent);
+                });
+            }
+            
+            addContinents();
+            
+            // 更新解释文本
+            function updateExplanation(index) {
+                const explanations = [
+                    "地球是太阳系中的一颗行星，它不仅围绕太阳公转，还围绕自己的轴进行自转。这个自转运动产生了昼夜交替的现象。",
+                    "地球的自转轴并不垂直于公转轨道平面，而是有一个约23.5度的倾角。这个倾角导致了四季的变化。",
+                    "地球自转的速度并不是均匀的，存在微小的变化。这些变化会影响地球上的气候和海洋环流。",
+                    "地球自转产生的离心力使得地球成为一个赤道略鼓、两极稍扁的椭球体。",
+                    "地球自转还会受到其他天体的引力影响，产生岁差和章动等现象。"
+                ];
+                
+                explanation.textContent = explanations[index % explanations.length];
+            }
+            
+            // 初始化解释文本
+            let currentExplanationIndex = 0;
+            setInterval(() => {
+                currentExplanationIndex++;
+                updateExplanation(currentExplanationIndex);
+            }, 8000);
+            
+            // 播放/暂停功能
+            let isPlaying = true;
+            playPauseBtn.addEventListener('click', function() {
+                const container = document.querySelector('.animation-container');
+                
+                if (isPlaying) {
+                    container.classList.add('paused');
+                    playPauseBtn.textContent = '继续播放';
+                } else {
+                    container.classList.remove('paused');
+                    playPauseBtn.textContent = '暂停动画';
+                }
+                
+                isPlaying = !isPlaying;
+            });
+            
+            // 重置动画
+            resetBtn.addEventListener('click', function() {
+                const container = document.querySelector('.animation-container');
+                container.classList.remove('paused');
+                playPauseBtn.textContent = '暂停动画';
+                isPlaying = true;
+                
+                // 重置地球位置
+                earth.style.transform = 'rotate(0deg)';
+                
+                // 重新应用动画
+                requestAnimationFrame(() => {
+                    earth.style.animation = 'none';
+                    void earth.offsetWidth; // 触发重排
+                    earth.style.animation = 'rotate 20s linear infinite';
+                });
+            });
+            
+            // 模拟实时自转时间显示
+            let seconds = 0;
+            setInterval(() => {
+                seconds += 1;
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const secs = seconds % 60;
+                rotationTimeDisplay.textContent = `${hours}小时${minutes}分${secs}秒`;
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
