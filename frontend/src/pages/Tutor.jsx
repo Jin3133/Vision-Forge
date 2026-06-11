@@ -681,30 +681,44 @@ export default function Tutor() {
   const scrollToBottom = () => msgEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   useEffect(() => { scrollToBottom(); }, [messages]);
 
-  const sendQuestion = (text) => {
-    if (!text.trim()) return;
-    const q = text.trim();
-    setMessages((prev) => [...prev, { from: 'user', text: q }]);
-    setInputText('');
+  // 改写后：调用后端 17077 端口的 /api/chat 接口
+const sendQuestion = async (text) => {
+  if (!text.trim()) return;
+  const q = text.trim();
 
-    const found = QA_PAIRS.find((p) => q.includes(p.q.replace(/什么是|如何/g, '').trim()) || p.q.includes(q.slice(0, 6)));
+  // 先把用户消息显示到页面
+  setMessages((prev) => [...prev, { from: 'user', text: q }]);
+  setInputText('');
 
-    setTimeout(() => {
-      if (found) {
-        const reply = { from: 'ai', text: found.answer, latex: found.latex, code: found.code, table: found.table };
-        setMessages((prev) => [...prev, reply]);
-        if (found.q.includes('注意力')) setCurrentTopic('注意力机制');
-        else if (found.q.includes('SAM')) setCurrentTopic('SAM模型');
-        else if (found.q.includes('微调')) setCurrentTopic('模型微调');
-        else if (found.q.includes('分割')) setCurrentTopic('图像分割');
-      } else {
-        setMessages((prev) => [...prev, {
-          from: 'ai',
-          text: `抱歉，我暂时无法回答"${q}"。\n\n你可以尝试以下问题：\n• 什么是注意力机制？\n• SAM模型原理\n• 如何微调模型？\n• 图像分割方法`,
-        }]);
-      }
-    }, 400);
-  };
+  try {
+    // 调用后端接口（自动转发到 17077 端口）
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messages: [{ role: "user", content: q }]
+      })
+    });
+
+    const data = await response.json();
+    // AI回复消息（保持原有格式，页面直接渲染）
+    const aiReply = {
+      from: 'ai',
+      text: data.content || "抱歉，我暂时无法回答这个问题~"
+    };
+    setMessages((prev) => [...prev, aiReply]);
+
+  } catch (error) {
+    // 请求失败提示
+    console.error("后端请求失败：", error);
+    setMessages((prev) => [...prev, {
+      from: 'ai',
+      text: `请求后端服务失败，请检查后端是否启动！`
+    }]);
+  }
+};
 
   /* -- Tab2: 源码阅读 -- */
   const [selectedFile, setSelectedFile] = useState('model.py');

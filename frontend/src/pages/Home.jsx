@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { AreaChart, Area, Tooltip, ResponsiveContainer } from 'recharts'
+import { fetchPipelineResult } from '../api' // ✅ 引入真实的后端请求接口
 
 export default function Home() {
   /* ═══════════════ state ═══════════════ */
@@ -130,12 +131,12 @@ export default function Home() {
     })
   }
 
-  /* ═══════════════ 发送消息 ═══════════════ */
-  const sendMessage = (overrideText) => {
+  /* ═══════════════ ✅ 发送消息 (核心修改区) ═══════════════ */
+  const sendMessage = async (overrideText) => {
     const text = overrideText !== undefined ? overrideText : input
     if (!text.trim()) return
 
-    /* 画像评估流程 */
+    /* 画像评估流程 (保持纯前端 UI 逻辑不变) */
     if (portraitStep > 0) {
       const newAnswers = [...portraitAnswers, text.trim()]
       setPortraitAnswers(newAnswers)
@@ -143,7 +144,6 @@ export default function Home() {
       setInput('')
 
       if (portraitStep < 6) {
-        /* 继续下一问 */
         const nextQ = portraitQuestions[portraitStep]
         setPortraitStep(portraitStep + 1)
         setIsTyping(true)
@@ -161,7 +161,6 @@ export default function Home() {
           }
         })
       } else {
-        /* 完成，生成报告 */
         setPortraitStep(0)
         setPortraitAnswers([])
         const report = generatePortraitReport(newAnswers)
@@ -183,58 +182,67 @@ export default function Home() {
       return
     }
 
-    /* 普通对话流程 */
+    /* 真实业务对话流程：调用后端 API */
     setMessages(prev => [...prev, { role: 'user', text, time: formatTime(new Date()) }])
     setInput('')
     setIsTyping(true)
-    setCurrentAgent(null)
 
-    setTimeout(() => {
-      setCurrentAgent('architect')
-      setTimeout(() => {
-        setCurrentAgent('tutor')
-        setTimeout(() => {
-          setCurrentAgent('generator')
-          setTimeout(() => {
-            let response = ''
-            let agent = ''
-
-            if (text.includes('模型') || text.includes('架构') || text.includes('搭建')) {
-              agent = 'architect'
-              response = '🏗️ 【架构引导智能体】\n\n根据你的需求，推荐使用 SAM 作为基础模型。\n\n**建议架构**：\n1. 图像编码器（ViT）\n2. 提示编码器\n3. 掩码解码器\n\n核心代码框架：\n```python\nclass SAM(nn.Module):\n    def __init__(self):\n        self.image_encoder = ImageEncoderViT()\n        self.prompt_encoder = PromptEncoder()\n        self.mask_decoder = MaskDecoder()\n\n    def forward(self, image, prompt):\n        image_embeds = self.image_encoder(image)\n        sparse_embeds, dense_embeds = self.prompt_encoder(prompt)\n        masks, scores = self.mask_decoder(image_embeds, sparse_embeds, dense_embeds)\n        return masks, scores\n```\n\n需要我继续讲解具体实现吗？'
-            } else if (text.includes('算法') || text.includes('原理') || text.includes('源码')) {
-              agent = 'tutor'
-              response = '📖 【算法教研智能体】\n\nSAM 模型的核心算法原理：\n\n**1. 图像编码器**\n采用 Vision Transformer (ViT) 将图像编码为特征嵌入。输入图像被划分为 16×16 的 patch，经过多层自注意力机制提取高级语义特征。\n\n**2. 提示编码器**\n支持稀疏提示（点、框）和密集提示（掩码）。将用户输入的提示转换为与图像特征对齐的嵌入表示。\n\n**3. 掩码解码器**\n核心创新：引入 Prompt 机制，实现可提示分割。通过交叉注意力融合图像特征和提示嵌入，预测分割掩码。\n\n**关键公式**：\n```\nAttention(Q, K, V) = softmax(QK^T / √d) · V\n```\n\n还有什么想了解的吗？'
-            } else if (text.includes('生成') || text.includes('讲义') || text.includes('资源')) {
-              agent = 'generator'
-              response = '📝 【资源生成智能体】\n\n已为你生成专属学习资源包：\n\n📖 **学习讲义**：SAM模型从入门到实战（36页）\n📝 **练习题**：5道选择题 + 3道编程题 + 2道思考题\n🗺️ **思维导图**：知识体系全景图\n📊 **对比表格**：SAM vs U-Net vs DeepLab\n\n**推荐学习路径**：\n理论基础 → 模型搭建 → 源码阅读 → 实战训练\n\n快去「资源中心」查看完整内容！'
-            } else if (text.includes('评估') || text.includes('学情')) {
-              agent = 'evaluator'
-              response = '📈 【学情评估智能体】\n\n基于你的学习数据分析：\n\n**综合评分**：78分\n📊 知识掌握：82分\n📊 实践能力：71分\n📊 代码水平：75分\n📊 创新思维：68分\n\n**优势领域**：\n• 理论基础扎实\n• 学习积极性高\n\n**待提升项**：\n• 项目实战经验\n• 模型调优能力\n• 论文阅读理解\n\n**建议**：增加每周实战练习时间，尝试复现经典论文。'
-            } else {
-              agent = 'architect'
-              response = '🤖 我可以调用4个专业智能体为你服务：\n\n• 说 **"帮我设计模型架构"** → 🏗️ 架构引导智能体\n• 说 **"讲解算法原理"** → 📖 算法教研智能体\n• 说 **"生成学习资料"** → 📝 资源生成智能体\n• 说 **"评估学习效果"** → 📈 学情评估智能体\n• 说 **"开始画像评估"** → 🎯 6轮画像评估（推荐新用户）\n\n试试问我这些问题吧！'
-            }
-
-            setCurrentAgent(agent)
-            setStreamText('')
-            typeMessage(response, (chunk) => {
-              if (chunk === null) {
-                setMessages(prev => [...prev, {
-                  role: 'assistant', text: response, agent,
-                  time: formatTime(new Date()),
-                }])
-                setStreamText('')
-                setIsTyping(false)
-                setCurrentAgent(null)
-              } else {
-                setStreamText(chunk)
-              }
-            })
-          }, 800)
-        }, 600)
-      }, 600)
+    // UI 特效：在等待后端返回时，循环点亮智能体图标
+    let agentSequence = ['architect', 'tutor', 'generator', 'evaluator']
+    let seqIndex = 0
+    const agentInterval = setInterval(() => {
+      setCurrentAgent(agentSequence[seqIndex % agentSequence.length])
+      seqIndex++
     }, 600)
+
+    try {
+      // 1. 发起真实请求
+      const result = await fetchPipelineResult(text)
+      
+      // 请求结束，关闭 UI 特效
+      clearInterval(agentInterval)
+      setCurrentAgent(null)
+
+      // 2. 解析后端数据
+      if (result.code === 200 && result.data) {
+        const data = result.data
+        const tutorReply = data.tutor_response || "四大智能体处理完毕，暂无文字输出。"
+        const evalReport = data.evaluation_report || ""
+        
+        // 拼装后端返回的报文
+        let finalContent = tutorReply
+        if (evalReport) {
+            finalContent += `\n\n📊 **【评估报告】**:\n${evalReport}`
+        }
+
+        // 3. 将后端数据传入原有的打字机函数
+        setStreamText('')
+        typeMessage(finalContent, (chunk) => {
+          if (chunk === null) {
+            setMessages(prev => [...prev, {
+              role: 'assistant', text: finalContent, agent: 'system',
+              time: formatTime(new Date()),
+            }])
+            setStreamText('')
+            setIsTyping(false)
+          } else {
+            setStreamText(chunk)
+          }
+        })
+      } else {
+        throw new Error(result.message || "后端返回状态异常")
+      }
+    } catch (error) {
+      clearInterval(agentInterval)
+      setCurrentAgent(null)
+      setIsTyping(false)
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        text: `❌ 后端连接失败: ${error.message}\n请检查网络环境或跨域(CORS)配置。`, 
+        agent: 'system', 
+        time: formatTime(new Date()) 
+      }])
+    }
   }
 
   /* 生成画像评估报告 */
@@ -377,7 +385,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* 正在输入提示（无流式文本时） */}
+          {/* 正在输入提示（等待后端响应，无流式文本时） */}
           {isTyping && !streamText && (
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
               <div style={{ padding: '10px 14px', borderRadius: 12, background: '#f1f5f9' }}>
