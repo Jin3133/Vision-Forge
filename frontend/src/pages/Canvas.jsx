@@ -161,13 +161,57 @@ export default function Canvas() {
     setEvalResult(null)
   }
 
-  const evaluateModel = () => {
+  // 🚨 核心修改 1：将写死的计分逻辑替换为真实的异步 API 请求
+  const evaluateModel = async () => {
     if (nodes.length === 0) { setEvalResult({ valid: false, score: '0%', suggest: '❌ 画布为空，请先添加节点' }); return }
     if (edges.length === 0) { setEvalResult({ valid: false, score: '0%', suggest: '⚠️ 请连接节点完成模型搭建' }); return }
-    const hasOutput = nodes.some(n => n.type === 'output')
-    if (!hasOutput) { setEvalResult({ valid: false, score: '0%', suggest: '⚠️ 模型缺少输出层，请添加输出节点' }); return }
-    const accuracy = Math.min(94.2, 85 + nodes.length * 2.1 + edges.length * 0.5).toFixed(1)
-    setEvalResult({ valid: true, score: accuracy + '%', suggest: '✅ 结构合理，可生成学习方案' })
+
+    // 设置请求中的 UI 状态
+    setEvalResult({ valid: true, score: '计算中...', suggest: '⏳ 评估智能体正在分析拓扑结构...' })
+
+    try {
+      // 提取画布数据构造契约负载
+      const payload = {
+        session_id: "default_canvas_session",
+        user_intent: "评估当前画板配置",
+        sandbox_config: {
+          nodes: nodes.map(n => ({
+            id: n.id,
+            type: n.type.toUpperCase(), // 契约要求如 BACKBONE, HEAD 等，这里做个简单映射转换
+            name: n.data.label,
+            data: {} 
+          })),
+          edges: edges.map(e => ({
+            source: e.source,
+            target: e.target
+          }))
+        }
+      }
+
+      // 发送真实请求给后端
+      const response = await fetch('/api/v1/agent/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const resJson = await response.json();
+
+      if (resJson.status === "success") {
+        const data = resJson.data;
+        // 把后端的反馈完整存入 state
+        setEvalResult({
+          valid: data.is_valid,
+          score: data.estimated_metrics?.optimized_value || 'N/A',
+          suggest: data.is_valid ? '✅ 模型结构合理，评估完成' : '⚠️ 模型结构存在逻辑问题',
+          details: data.feedback // 包含 strengths, warnings, learning_suggestions
+        });
+      } else {
+        setEvalResult({ valid: false, score: 'N/A', suggest: `❌ 评估失败: ${resJson.message}` });
+      }
+    } catch (error) {
+      setEvalResult({ valid: false, score: 'N/A', suggest: `❌ 网络错误: ${error.message}` });
+    }
   }
 
   const saveCurrentModel = () => {
@@ -187,15 +231,12 @@ export default function Canvas() {
 
   const navigate = useNavigate()
   const loadPresetModel = (model) => {
-    // 保存到 localStorage 以便跨页面加载
     localStorage.setItem('vf_pendingModel', JSON.stringify({
       type: model.type, name: model.name, accuracy: model.accuracy
     }))
-    // 跳转到模型搭建页面
     navigate('/canvas')
   }
 
-  // 检查是否有待加载的模型（从模型库跳转过来）
   useEffect(() => {
     if (activeTab === 'build') {
       const pending = localStorage.getItem('vf_pendingModel')
@@ -228,7 +269,6 @@ export default function Canvas() {
     localStorage.setItem('vf_savedModels', JSON.stringify(newModels))
   }
 
-  // 节点类型分布数据
   const nodeTypeDist = useMemo(() => {
     const dist = { base: 0, extract: 0, aggregate: 0, output: 0 }
     nodes.forEach(n => { if (dist[n.type] !== undefined) dist[n.type]++ })
@@ -240,7 +280,6 @@ export default function Canvas() {
     ]
   }, [nodes])
 
-  // ==================== Tab切换栏 ====================
   const TabNav = () => (
     <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid #e8ecf1', paddingBottom: 12 }}>
       {[
@@ -261,7 +300,6 @@ export default function Canvas() {
     </div>
   )
 
-  // ==================== 左侧面板（折叠分组） ====================
   const LeftPanel = () => {
     const [openGroups, setOpenGroups] = useState(['foundation', 'extract', 'fusion', 'output'])
     const toggleGroup = (key) => {
@@ -273,7 +311,6 @@ export default function Canvas() {
 
         {nodeGroups.map(group => (
           <div key={group.key} style={{ marginBottom: 6 }}>
-            {/* 分组标题 — 可点击折叠 */}
             <div
               onClick={() => toggleGroup(group.key)}
               style={{
@@ -292,7 +329,6 @@ export default function Canvas() {
               }}>▶</span>
             </div>
 
-            {/* 分组成员 */}
             {openGroups.includes(group.key) && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '2px 0 4px 4px' }}>
                 {group.nodes.map(type => {
@@ -337,7 +373,6 @@ export default function Canvas() {
     )
   }
 
-  // ==================== 右侧面板 ====================
   const RightPanel = () => (
     <div style={{ background: '#fff', borderRadius: 12, padding: '14px 12px', overflowY: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
       <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>⚙️ 操作</h3>
@@ -358,6 +393,7 @@ export default function Canvas() {
         </div>
       )}
 
+      {/* 🚨 核心修改 2：支持渲染后端返回的详细 feedback */}
       {evalResult && (
         <div style={{
           marginBottom: 14, padding: '14px 12px',
@@ -367,18 +403,36 @@ export default function Canvas() {
           <div style={{ fontSize: 12, color: evalResult.valid ? '#10b981' : '#ef4444', fontWeight: 600, marginBottom: 6 }}>
             {evalResult.suggest}
           </div>
-          {evalResult.valid && (
-            <div style={{ fontSize: 12, color: '#1e293b' }}>
+
+          {/* 动态渲染从后端拿到的详情数据 */}
+          {evalResult.details && (
+             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+               {evalResult.details.warnings?.length > 0 && (
+                 <div style={{ fontSize: 11, color: '#b45309', background: '#fef3c7', padding: '8px', borderRadius: 6, lineHeight: 1.5 }}>
+                   <strong>⚠️ 警告:</strong> {evalResult.details.warnings.join(' ')}
+                 </div>
+               )}
+               {evalResult.details.strengths?.length > 0 && (
+                 <div style={{ fontSize: 11, color: '#047857', background: '#d1fae5', padding: '8px', borderRadius: 6, lineHeight: 1.5 }}>
+                   <strong>👍 优点:</strong> {evalResult.details.strengths.join(' ')}
+                 </div>
+               )}
+               {evalResult.details.learning_suggestions?.length > 0 && (
+                 <div style={{ fontSize: 11, color: '#1d4ed8', background: '#dbeafe', padding: '8px', borderRadius: 6, lineHeight: 1.5 }}>
+                   <strong>💡 建议:</strong> {evalResult.details.learning_suggestions.join(' ')}
+                 </div>
+               )}
+             </div>
+          )}
+
+          {evalResult.score !== 'N/A' && evalResult.score !== '计算中...' && (
+            <div style={{ fontSize: 12, color: '#1e293b', marginTop: 10 }}>
               🎯 预估精度：<span style={{ fontWeight: 700, color: '#3b82f6', fontSize: 16 }}>{evalResult.score}</span>
-              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4, lineHeight: 1.5 }}>
-                💡 折中方案：基于轻量级效果模拟（避免直接修改基座源码导致兼容性问题，5.21会议决议）
-              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* 模型统计 */}
       <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px', marginBottom: 14 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>📊 模型统计</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 8 }}>
@@ -413,11 +467,9 @@ export default function Canvas() {
     </div>
   )
 
-  // ==================== 模型搭建 Tab ====================
   const BuildTab = () => (
     <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr 240px', gap: 14, height: 'calc(100vh - 160px)' }}>
       <LeftPanel />
-      {/* 中间画布 */}
       <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', position: 'relative', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         {nodes.length === 0 && <EmptyCanvasHint />}
         <ReactFlow
@@ -434,10 +486,8 @@ export default function Canvas() {
     </div>
   )
 
-  // ==================== 模型库 Tab ====================
   const LibraryTab = () => (
     <div style={{ overflowY: 'auto', height: 'calc(100vh - 160px)', paddingRight: 4 }}>
-      {/* 预置模型 */}
       <div style={{ marginBottom: 28 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', marginBottom: 14 }}>📦 预置模型库</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
@@ -470,7 +520,6 @@ export default function Canvas() {
         </div>
       </div>
 
-      {/* 我保存的模型 */}
       <div>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', marginBottom: 14 }}>💾 我保存的模型</h3>
         {savedModels.length === 0 ? (
@@ -511,11 +560,9 @@ export default function Canvas() {
     </div>
   )
 
-  // ==================== 模型评估 Tab ====================
   const EvaluateTab = () => (
     <div style={{ overflowY: 'auto', height: 'calc(100vh - 160px)', paddingRight: 4 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-        {/* 精度对比 */}
         <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>📊 模型精度对比</h3>
           <ResponsiveContainer width="100%" height={280}>
@@ -533,7 +580,6 @@ export default function Canvas() {
           </ResponsiveContainer>
         </div>
 
-        {/* 性能指标 */}
         <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>⚡ 模型性能指标</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -554,7 +600,6 @@ export default function Canvas() {
         </div>
       </div>
 
-      {/* 当前评估结果 */}
       <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>🔍 当前模型评估</h3>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 20 }}>
