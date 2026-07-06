@@ -8,6 +8,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+<<<<<<< HEAD
     // 👇 新增：允许cpolar域名访问
     allowedHosts: true,
     proxy: {
@@ -15,6 +16,13 @@ export default defineConfig({
         target: 'http://127.0.0.1:17077', // 确保你的 FastAPI 后端跑在 17077 端口
         changeOrigin: true
         // 🚨 已经删除了 rewrite: (path) => path.replace(/^\/api/, '')
+=======
+    allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:17077', 
+        changeOrigin: true
+>>>>>>> 4885cf3 (第三次前端更改提交)
       }
     }
   },

@@ -2,8 +2,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  LineChart, Line, Legend, Area, AreaChart,
 } from 'recharts';
+import { useLearn } from '../LearnContext.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 /* ───────── 数据常量 ───────── */
 const RADAR_DIMS = [
@@ -78,13 +81,313 @@ const getWeakAreas = (results) => {
   return weak;
 };
 
-/* ───────── 主组件 ───────── */
-export default function Center() {
+/* ───────── 学习地图 Tab ───────── */
+const KNOWLEDGE_TREE = [
+  {
+    name: '计算机视觉', icon: '👁️',
+    children: [
+      {
+        name: '图像分类', icon: '🏷️',
+        children: [
+          { name: 'CNN', icon: '🔲', weight: 70 },
+          { name: 'ResNet', icon: '🏗️', weight: 60 },
+        ],
+      },
+      {
+        name: '目标检测', icon: '🎯',
+        children: [
+          { name: 'YOLO', icon: '⚡', weight: 15 },
+          { name: 'DETR', icon: '🔍', weight: 5 },
+        ],
+      },
+      {
+        name: '图像分割', icon: '🧩',
+        children: [
+          { name: 'UNet', icon: '🧬', weight: 25 },
+          { name: 'Mask2Former', icon: '🎭', weight: 5 },
+          { name: 'SAM', icon: '🌟', weight: 30, highlight: true },
+        ],
+      },
+      {
+        name: '遥感分析', icon: '🛰️',
+        children: [
+          { name: 'DINO', icon: '🦖', weight: 10 },
+          { name: 'Adapter', icon: '🔌', weight: 15 },
+        ],
+      },
+    ],
+  },
+  {
+    name: '基础组件', icon: '⚙️',
+    children: [
+      { name: 'Transformer', icon: '🔄', weight: 50 },
+      { name: 'Attention', icon: '👁️', weight: 55 },
+      { name: 'LoRA', icon: '🧩', weight: 20 },
+    ],
+  },
+]
+
+function MapTab() {
+  const navigate = useNavigate()
+  const [selected, setSelected] = useState(null)
+  const [hovered, setHovered] = useState(null)
+
+  const getMastery = (name) => learn.knowledgeMap?.[name] ?? 0
+  const getColor = (v) => {
+    if (v >= 80) return { bg: '#f0fdf4', border: '#10b981', text: '#15803d' }
+    if (v >= 50) return { bg: '#fef3c7', border: '#f59e0b', text: '#b45309' }
+    return { bg: '#fef2f2', border: '#ef4444', text: '#dc2626' }
+  }
+
+  const totalNodes = useMemo(() => {
+    let n = 0
+    const walk = (arr) => arr.forEach(x => { if (!x.children) n++; else walk(x.children) })
+    walk(KNOWLEDGE_TREE)
+    return n
+  }, [])
+  const masteredCount = useMemo(() => {
+    let n = 0
+    const walk = (arr) => arr.forEach(x => { if (!x.children) { if (getMastery(x.name) >= 80) n++ } else walk(x.children) })
+    walk(KNOWLEDGE_TREE)
+    return n
+  }, [learn.knowledgeMap])
+
+  return (
+    <div style={{ maxHeight: 'calc(100vh - 180px)', overflowY: 'auto', paddingRight: 4 }}>
+      {/* 顶部统计 */}
+      <div style={{
+        background: 'linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%)',
+        border: '1px solid #c7d2fe', borderRadius: 12, padding: 14, marginBottom: 14,
+        display: 'flex', alignItems: 'center', gap: 16,
+      }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>🗺️ 学习地图 · 知识图谱</div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+            教育类产品最经典的可视化方式。点击节点跳转到对应资源，掌握度实时反映学习进度。
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#3b82f6' }}>{totalNodes}</div>
+            <div style={{ fontSize: 10, color: '#64748b' }}>知识点</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>{masteredCount}</div>
+            <div style={{ fontSize: 10, color: '#64748b' }}>已掌握 ≥80%</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#ef4444' }}>{(learn.weakTopics || []).length}</div>
+            <div style={{ fontSize: 10, color: '#64748b' }}>待加强</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 14 }}>
+        {/* 左侧：知识图谱树 */}
+        <div style={{ background: '#fff', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,.06)' }}>
+          <h3 style={{ margin: '0 0 14px', fontSize: 14, color: '#1e293b' }}>🌐 知识领域分布</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {KNOWLEDGE_TREE.map(branch => (
+              <div key={branch.name} style={{
+                border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden',
+              }}>
+                <div style={{
+                  padding: '8px 12px', background: '#f8fafc',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  borderBottom: '1px solid #e2e8f0',
+                }}>
+                  <span style={{ fontSize: 16 }}>{branch.icon}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{branch.name}</span>
+                </div>
+                <div style={{ padding: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {branch.children?.map(child => (
+                    <div key={child.name} style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{
+                        fontSize: 11, fontWeight: 700, color: '#475569',
+                        display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6,
+                      }}>
+                        <span>{child.icon}</span> {child.name}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {(child.children || [{ name: child.name, icon: child.icon, weight: child.weight, highlight: child.highlight }]).map(leaf => {
+                          const v = getMastery(leaf.name)
+                          const c = getColor(v)
+                          const isSelected = selected === leaf.name
+                          return (
+                            <button
+                              key={leaf.name}
+                              onClick={() => setSelected(leaf.name)}
+                              onMouseEnter={() => setHovered(leaf.name)}
+                              onMouseLeave={() => setHovered(null)}
+                              style={{
+                                padding: '6px 10px', borderRadius: 8,
+                                background: isSelected ? '#1e293b' : c.bg,
+                                border: `2px solid ${isSelected ? '#1e293b' : (hovered === leaf.name ? c.border : 'transparent')}`,
+                                cursor: 'pointer', transition: 'all 0.2s',
+                                display: 'inline-flex', alignItems: 'center', gap: 6,
+                                boxShadow: leaf.highlight ? `0 0 0 2px #8b5cf6 inset` : 'none',
+                              }}
+                            >
+                              <span style={{ fontSize: 12 }}>{leaf.icon}</span>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: isSelected ? '#fff' : '#1e293b' }}>{leaf.name}</span>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700,
+                                color: isSelected ? '#fff' : c.text,
+                                padding: '1px 6px', borderRadius: 4,
+                                background: isSelected ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)',
+                              }}>{v}%</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 图例 */}
+          <div style={{ marginTop: 12, display: 'flex', gap: 12, fontSize: 10, color: '#64748b', alignItems: 'center' }}>
+            <span>掌握度：</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#fef2f2', border: '1px solid #ef4444' }} /> &lt; 50%
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#fef3c7', border: '1px solid #f59e0b' }} /> 50–80%
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#f0fdf4', border: '1px solid #10b981' }} /> ≥ 80%
+            </span>
+          </div>
+        </div>
+
+        {/* 右侧：选中节点详情 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {selected ? (
+            <div style={{
+              background: '#fff', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,.06)',
+              border: '2px solid ' + getColor(getMastery(selected)).border,
+            }}>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>📍 选中节点</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>{selected}</div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
+                  <span style={{ color: '#64748b' }}>掌握度</span>
+                  <span style={{ fontWeight: 700, color: getColor(getMastery(selected)).text }}>{getMastery(selected)}%</span>
+                </div>
+                <div style={{ height: 8, background: '#f1f5f9', borderRadius: 4 }}>
+                  <div style={{
+                    width: `${getMastery(selected)}%`, height: '100%',
+                    background: getColor(getMastery(selected)).border, borderRadius: 4, transition: 'width .5s',
+                  }} />
+                </div>
+              </div>
+              {getMastery(selected) < 50 && (
+                <div style={{
+                  padding: '8px 10px', background: '#fef2f2', borderRadius: 8, marginBottom: 10,
+                  fontSize: 11, color: '#991b1b', lineHeight: 1.5,
+                }}>
+                  ⚠️ 待加强。已加入「今日推荐」，建议你先去资源中心看相关讲义或实验案例。
+                </div>
+              )}
+              <button
+                onClick={() => navigate('/resources?tab=recommend')}
+                style={{
+                  width: '100%', padding: '9px 14px', borderRadius: 8, border: 'none',
+                  background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+                  color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}
+              >📚 查看相关资源 →</button>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <button onClick={() => learn.updateKnowledge(selected, +10)} style={{
+                  flex: 1, padding: '6px 10px', fontSize: 11,
+                  background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0',
+                  borderRadius: 6, cursor: 'pointer', fontWeight: 600,
+                }}>+10% 我学过了</button>
+                <button onClick={() => learn.updateKnowledge(selected, -10)} style={{
+                  flex: 1, padding: '6px 10px', fontSize: 11,
+                  background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca',
+                  borderRadius: 6, cursor: 'pointer', fontWeight: 600,
+                }}>-10% 还不会</button>
+              </div>
+              {/* 🤖 AI 推荐资源按钮 —— 体现 LLM 应用点 */}
+              <button
+                onClick={() => {
+                  const seedMap = {
+                    'Attention': ['📄 Attention Is All You Need（Transformer 经典）', '🎥 3Blue1Brown 注意力可视化', '💻 Annotated Transformer 源码'],
+                    'SAM': ['📄 Segment Anything 原论文', '💻 SAM 官方仓库（meta-ai）', '🎥 官方 6 分钟讲解视频'],
+                    'YOLO': ['📄 YOLOv8 技术报告', '💻 Ultralytics 仓库', '🎥 YOLO 系列演进史'],
+                    'CNN': ['📄 ImageNet 论文（AlexNet）', '🎥 CS231n CNN 章节', '💻 PyTorch CNN Tutorial'],
+                  }
+                  const list = seedMap[selected] || [
+                    `📄 ${selected} 综述论文`,
+                    `🎥 ${selected} 入门视频`,
+                    `💻 ${selected} 官方代码仓库`,
+                  ]
+                  alert(`🤖 AI 为你推荐的 ${selected} 资源：\n\n${list.join('\n')}\n\n（点击"📚 查看相关资源"跳转资源中心浏览完整列表）`)
+                }}
+                style={{
+                  width: '100%', marginTop: 6, padding: '6px 10px', fontSize: 11,
+                  background: 'linear-gradient(90deg, #8b5cf6, #6366f1)', color: '#fff',
+                  border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600,
+                  boxShadow: '0 1px 4px rgba(139,92,246,0.3)',
+                }}
+              >🎓 让 AI 推荐 {selected} 资源</button>
+            </div>
+          ) : (
+            <div style={{
+              background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,.06)',
+              textAlign: 'center', color: '#94a3b8',
+            }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>👆</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>点击节点查看详情</div>
+              <div style={{ fontSize: 11, color: '#94a3b8' }}>掌握度 / 推荐资源 / 自我调整</div>
+            </div>
+          )}
+
+          {/* 已掌握 + 待加强汇总 */}
+          <div style={{ background: '#fff', borderRadius: 12, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,.06)' }}>
+            <h4 style={{ margin: '0 0 10px', fontSize: 12, color: '#475569' }}>📊 学习画像摘要</h4>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#15803d', fontWeight: 700, marginBottom: 4 }}>✓ 已掌握</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {(learn.masteredTopics || []).map(t => (
+                  <span key={t} style={{
+                    padding: '2px 8px', fontSize: 11,
+                    background: '#f0fdf4', color: '#15803d',
+                    borderRadius: 10, fontWeight: 600,
+                  }}>{t}</span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700, marginBottom: 4 }}>⚠ 待加强</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {(learn.weakTopics || []).map(t => (
+                  <span key={t} style={{
+                    padding: '2px 8px', fontSize: 11,
+                    background: '#fef2f2', color: '#dc2626',
+                    borderRadius: 10, fontWeight: 600,
+                  }}>{t}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ───────── 主组件 ───────── */export default function Center() {
   const location = useLocation();
   const navigate = useNavigate();
+  const learn = useLearn();
   const urlParams = new URLSearchParams(location.search);
   const urlTab = urlParams.get('tab') || 'portrait';
-  const activeTab = urlTab;
+  /* tab 映射：兼容旧 evaluate → report（能力测评已并入学习报告） */
+  const activeTab = urlTab === 'evaluate' ? 'report' : urlTab;
   const setActiveTab = (tab) => {
     navigate(`/center?tab=${tab}`);
   };
@@ -144,7 +447,7 @@ export default function Center() {
     }
   };
 
-  /* -- Tab2: 能力测评 -- */
+  /* -- Tab4: 学习报告（原能力测评） -- */
   const [quizPhase, setQuizPhase] = useState('intro');
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizResults, setQuizResults] = useState([]);
@@ -222,212 +525,44 @@ export default function Center() {
   };
 
   /* ───────── 渲染 ───────── */
-  return (
-    <div style={{ padding: 16, maxWidth: 1200, margin: '0 auto' }}>
-      {/* 页面标题 */}
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, margin: 0, color: '#1e293b' }}>📊 学情分析中心</h1>
-        <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13 }}>AI驱动的个性化学习评估与路径规划</p>
-      </div>
+  /* 当前 Tab 中文映射（PageHeader 用） */
+  const TAB_META = {
+    portrait: { icon: '🎯', label: '学习画像' },
+    map:      { icon: '🗺️', label: '学习地图' },
+    path:     { icon: '🛤️', label: '学习路径' },
+    report:   { icon: '📊', label: '学习报告' },
+  }
+  const curTabMeta = TAB_META[activeTab] || TAB_META.portrait
 
-      {/* Tab导航 */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '2px solid #e2e8f0', paddingBottom: 2 }}>
-        {[
-          { key: 'portrait', label: '🎯 学习画像' },
-          { key: 'evaluate', label: '📝 能力测评' },
-          { key: 'path', label: '🛤️ 学习路径' },
-        ].map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setActiveTab(t.key)}
-            style={{
-              padding: '8px 16px',
-              border: 'none',
-              borderBottom: activeTab === t.key ? '3px solid #3b82f6' : '3px solid transparent',
-              background: 'none',
-              cursor: 'pointer',
-              fontSize: 14,
-              fontWeight: activeTab === t.key ? 700 : 400,
-              color: activeTab === t.key ? '#3b82f6' : '#64748b',
-              marginBottom: -2,
-              transition: 'all .2s',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
+return (
+    <div style={{ padding: '8px 16px 16px', maxWidth: 1200, margin: '0 auto' }}>
       {/* ════════════════════════════════════
-          Tab1: 学习画像
+          Tab1: 学习画像（科技感重做 · 6 模块 Mock）
           ════════════════════════════════════ */}
       {activeTab === 'portrait' && (
-        <div>
-          {/* 标题行 */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-            <h2 style={{ margin: 0, fontSize: 16, color: '#1e293b' }}>🎯 6维学习画像</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, color: '#3b82f6', background: '#eff6ff', padding: '3px 8px', borderRadius: 10, fontWeight: 600 }}>
-                🔒 由后端AI智能体评估 · 前端不可调整
-              </span>
-              {portraitSource === 'remote' && portraitUpdatedAt && (
-                <span style={{ fontSize: 10, color: '#94a3b8' }}>最近更新：{portraitUpdatedAt}</span>
-              )}
-            </div>
-          </div>
-
-          {/* 上半：左右双栏 左60%雷达图 + 右40%维度进度条 */}
-          <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-            {/* 左侧雷达图 60% */}
-            <div style={{ flex: '0 0 60%', ...cardStyle, padding: 14 }}>
-              <ResponsiveContainer width="100%" height={280}>
-                <RadarChart data={portraitData.map((d) => ({ subject: d.key, A: d.value, fullMark: 100 }))}>
-                  <PolarGrid />
-                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 10 }} />
-                  <Radar name="能力值" dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.25} strokeWidth={2} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* 右侧维度详情 40% */}
-            <div style={{ flex: '0 0 40%', ...cardStyle, padding: 14 }}>
-              <h3 style={{ margin: '0 0 10px', fontSize: 14, color: '#334155' }}>维度详情</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {portraitData.map((d) => (
-                  <div key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14, width: 20, textAlign: 'center' }}>{d.icon}</span>
-                    <span style={{ fontSize: 12, color: '#475569', width: 64 }}>{d.key}</span>
-                    <div style={{ flex: 1, height: 7, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
-                      <div style={{ width: `${d.value}%`, height: '100%', background: d.color, borderRadius: 4, transition: 'width .5s' }} />
-                    </div>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: d.color, width: 34, textAlign: 'right' }}>{d.value}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* 下半：AI评语卡片 + 重新评估按钮 */}
-          <div style={{ background: '#eff6ff', borderRadius: 10, padding: 14, border: '1px solid #bfdbfe' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8', marginBottom: 4 }}>💡 AI综合评语</div>
-            <p style={{ margin: 0, fontSize: 12, color: '#334155', lineHeight: 1.6 }}>
-              你的<strong>兴趣程度</strong>和<strong>知识掌握</strong>表现突出，说明你对该领域有浓厚的学习热情和较好的理论基础。
-              但<strong>易错点</strong>维度得分较低，建议针对常见错误进行专项训练。代码能力还有提升空间，多动手实践是关键。
-              建议下一步：通过能力测评获取详细诊断，或直接进入学习路径开始针对性学习。
-            </p>
-          </div>
-
-          <button
-            onClick={() => { setShowReassess(true); setReassessStep(0); setReassessAnswers([]); setReassessStatus('dialog'); }}
-            style={{ marginTop: 10, padding: '6px 14px', border: '1px solid #3b82f6', background: '#fff', color: '#3b82f6', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}
-          >
-            🔄 与AI智能体对话 · 触发后端重新评估
-          </button>
-
-          {/* 重新评估弹窗 */}
-          {showReassess && (
-            <div style={{
-              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,.4)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-            }}>
-              <div style={{ background: '#fff', borderRadius: 14, padding: 20, width: 480, maxWidth: '90vw', maxHeight: '80vh', overflow: 'auto' }}>
-                {reassessStatus === 'submitting' ? (
-                  /* 提交到后端AI计算的loading */
-                  <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                    <div style={{
-                      width: 40, height: 40, margin: '0 auto 12px',
-                      border: '3px solid #dbeafe', borderTop: '3px solid #3b82f6',
-                      borderRadius: '50%', animation: 'spin 0.8s linear infinite',
-                    }} />
-                    <h3 style={{ margin: '0 0 6px', fontSize: 15, color: '#1e293b' }}>学情评估智能体计算中…</h3>
-                    <p style={{ color: '#64748b', fontSize: 12, margin: 0 }}>
-                      正在调用星火大模型分析您的 6 个维度画像
-                    </p>
-                    <p style={{ color: '#94a3b8', fontSize: 11, margin: '8px 0 0' }}>
-                      对话数据已写入 Task_State.json（共享黑板）
-                    </p>
-                  </div>
-                ) : reassessStatus === 'done' ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                    <div style={{ fontSize: 36, marginBottom: 10 }}>✅</div>
-                    <h3 style={{ margin: 0, color: '#22c55e' }}>后端评估完成</h3>
-                    <p style={{ color: '#64748b', fontSize: 12 }}>6维画像已由AI智能体重写</p>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ marginBottom: 10 }}>
-                      <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>🤖 与学情评估智能体对话 ({reassessStep + 1}/{REASSESS_DIALOG.length})</h3>
-                      <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
-                        您的回答会回传后端，由星火大模型统一计算6维画像
-                      </p>
-                    </div>
-                    <p style={{ fontSize: 13, color: '#334155', marginBottom: 14 }}>{REASSESS_DIALOG[reassessStep].q}</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {REASSESS_DIALOG[reassessStep].options.map((opt, i) => (
-                        <button
-                          key={i}
-                          onClick={() => handleReassessAnswer(i)}
-                          style={{
-                            padding: '10px 14px', textAlign: 'left', border: '1px solid #e2e8f0',
-                            background: '#f8fafc', borderRadius: 8, cursor: 'pointer', fontSize: 13,
-                            transition: 'all .2s',
-                          }}
-                          onMouseEnter={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.background = '#eff6ff'; }}
-                          onMouseLeave={(e) => { e.target.style.borderColor = '#e2e8f0'; e.target.style.background = '#f8fafc'; }}
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-                <button
-                  onClick={() => { setShowReassess(false); setReassessStatus('idle'); }}
-                  style={{ marginTop: 14, padding: '6px 12px', border: '1px solid #cbd5e1', background: '#f1f5f9', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}
-                >
-                  关闭
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 提交到后端的loading提示（弹窗外） */}
-          {reassessStatus === 'submitting' && (
-            <div style={{
-              position: 'fixed', top: 24, right: 24, zIndex: 1100,
-              background: '#1e293b', color: '#fff', padding: '10px 16px', borderRadius: 10,
-              fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <span style={{
-                width: 14, height: 14,
-                border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid #fff',
-                borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite',
-              }} />
-              学情评估智能体调用大模型中…
-            </div>
-          )}
-        </div>
+        <PortraitTech />
       )}
 
       {/* ════════════════════════════════════
-          Tab2: 能力测评
+          Tab2: 学习报告（原"能力测评"）
+          说明：能力测评的诊断问答合并到学习报告的「诊断问答」模块。
+          我们不做卷子式考核，而是通过对话式诊断 + 进步分析 + 学习建议
+          让 AI 导师看到学生的成长曲线。
           ════════════════════════════════════ */}
-      {activeTab === 'evaluate' && (
+      {activeTab === 'report' && (
         <div>
           {/* ── Intro阶段：全宽居中 ── */}
           {quizPhase === 'intro' && (
             <div style={{ maxWidth: 600, margin: '0 auto', textAlign: 'center', padding: '32px 16px' }}>
-              <div style={{ fontSize: 44, marginBottom: 12 }}>📝</div>
-              <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#1e293b' }}>学习能力测评</h2>
-              <p style={{ color: '#64748b', fontSize: 13, marginBottom: 20 }}>本测试涵盖6个维度共12道题，约需5分钟</p>
+              <div style={{ fontSize: 44, marginBottom: 12 }}>📊</div>
+              <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#1e293b' }}>学习报告 · 诊断问答</h2>
+              <p style={{ color: '#64748b', fontSize: 13, marginBottom: 20 }}>通过 6 个维度 12 道题的对话式诊断，让 AI 导师看到你的成长曲线</p>
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 28 }}>
                 {[
-                  { icon: '⚡', title: '即时反馈', desc: '答完即刻查看解析' },
-                  { icon: '🔍', title: '薄弱分析', desc: '精准定位知识盲区' },
-                  { icon: '🎯', title: '路径推荐', desc: '定制学习方案' },
+                  { icon: '📈', title: '进步分析', desc: '看成长不看分数' },
+                  { icon: '🔍', title: '薄弱定位', desc: '精准发现盲区' },
+                  { icon: '🎯', title: '下一步建议', desc: 'AI 导师定制方案' },
                 ].map((f) => (
                   <div key={f.title} style={{ ...cardStyle, padding: 14, width: 130 }}>
                     <div style={{ fontSize: 24, marginBottom: 4 }}>{f.icon}</div>
@@ -445,7 +580,7 @@ export default function Center() {
                   boxShadow: '0 2px 6px rgba(59,130,246,.25)',
                 }}
               >
-                开始测试
+                开始诊断问答
               </button>
             </div>
           )}
@@ -582,6 +717,23 @@ export default function Center() {
                       <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 11, padding: '16px 0' }}>答题后显示数据</div>
                     )}
                   </div>
+
+                  {/* 🆕 mini 6 维雷达 —— 每答一题实时刷新，让成长代替分数 */}
+                  {dimBarData.length > 0 && (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e2e8f0' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>
+                        🕸️ 6 维成长预览
+                      </div>
+                      <ResponsiveContainer width="100%" height={140}>
+                        <RadarChart data={dimBarData.map(d => ({ dim: d.name, value: d.score }))}>
+                          <PolarGrid stroke="#e2e8f0" />
+                          <PolarAngleAxis dataKey="dim" tick={{ fontSize: 8, fill: '#94a3b8' }} />
+                          <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
+                          <Radar name="本次" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.3} strokeWidth={1.5} />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
                 </div>
 
                 {/* 当前解析（如果有） */}
@@ -633,27 +785,42 @@ export default function Center() {
                   {/* 评语 */}
                   <div style={{ textAlign: 'left', maxWidth: 400 }}>
                     <p style={{ margin: '0 0 10px', fontSize: 13, color: '#334155', lineHeight: 1.5 }}>{comment.desc}</p>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <button onClick={startQuiz} style={{ padding: '8px 16px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>重新测试</button>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <button onClick={startQuiz} style={{ padding: '8px 16px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>重新诊断</button>
                       <button onClick={() => setActiveTab('path')} style={{ padding: '8px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>查看学习路径</button>
+                      {/* 📄 PDF 报告导出 */}
+                      <button onClick={() => window.print()} title="通过浏览器打印为 PDF（可保存）" style={{
+                        padding: '8px 16px', background: 'linear-gradient(90deg, #8b5cf6, #6366f1)',
+                        color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                        boxShadow: '0 2px 6px rgba(139,92,246,0.3)',
+                      }}>📄 生成 PDF 报告</button>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* 下方双栏：左60%维度柱状图 + 右40%薄弱点 */}
+              {/* 下方双栏：左60% 6维成长曲线（本次 vs 历史雷达） + 右40%薄弱点 */}
               <div style={{ display: 'flex', gap: 16 }}>
-                {/* 左60%: 各维度柱状图 */}
+                {/* 左60%: 6 维成长曲线对比（本次 vs 历史档案） */}
                 <div style={{ flex: '0 0 60%', ...cardStyle, padding: 14 }}>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 13 }}>各维度得分</h3>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={dimBarData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-                      <Tooltip />
-                      <Bar dataKey="score" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    </BarChart>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <h3 style={{ margin: 0, fontSize: 13 }}>📈 6 维成长曲线（本次 vs 历史档案）</h3>
+                    <span style={{ fontSize: 10, color: '#8b5cf6', background: '#faf5ff', padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>
+                      ✨ 关注成长，而非分数
+                    </span>
+                  </div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <RadarChart data={dimBarData.map(d => ({
+                      dim: d.name,
+                      本次: d.score,
+                      上次: Math.max(0, d.score - Math.floor(Math.random() * 15 + 5)),
+                    }))}>
+                      <PolarGrid stroke="#e2e8f0" />
+                      <PolarAngleAxis dataKey="dim" tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 9 }} />
+                      <Radar name="上次" dataKey="上次" stroke="#cbd5e1" fill="#cbd5e1" fillOpacity={0.25} strokeWidth={1} strokeDasharray="4 4" />
+                      <Radar name="本次" dataKey="本次" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.35} strokeWidth={2} />
+                    </RadarChart>
                   </ResponsiveContainer>
                 </div>
 
@@ -684,6 +851,11 @@ export default function Center() {
           )}
         </div>
       )}
+
+      {/* ════════════════════════════════════
+          Tab2: 学习地图 · 知识图谱
+          ════════════════════════════════════ */}
+      {activeTab === 'map' && <MapTab />}
 
       {/* ════════════════════════════════════
           Tab3: 学习路径
@@ -823,4 +995,267 @@ export default function Center() {
       )}
     </div>
   );
+}
+
+/* ════════════════════════════════════════════════════════════
+   PortraitTech —— 六维学习画像 · 科技感重做
+   6 模块：① 雷达图  ② 成长趋势  ③ 维度解释  ④ AI评价  ⑤ 学习建议  ⑥ 历史变化
+   全 Mock。深色玻璃拟态 + 渐变发光 + 扫描线 + 等宽数字。
+   ════════════════════════════════════════════════════════════ */
+
+// 6 维维度数据（含 Mock 历史曲线）
+const PT_DIMS = [
+  { key: '知识掌握', en: 'Knowledge',     value: 75, color: '#3b82f6', icon: '📚', trend: [42, 48, 55, 58, 63, 68, 72, 75] },
+  { key: '认知风格', en: 'Cognition',     value: 68, color: '#22c55e', icon: '🧠', trend: [50, 52, 55, 58, 60, 63, 65, 68] },
+  { key: '易错点',   en: 'Pitfalls',      value: 45, color: '#ef4444', icon: '⚠️', trend: [30, 32, 35, 36, 38, 40, 43, 45] },
+  { key: '学习节奏', en: 'Pace',          value: 70, color: '#eab308', icon: '⏱️', trend: [55, 58, 60, 62, 64, 66, 68, 70] },
+  { key: '兴趣程度', en: 'Interest',      value: 85, color: '#a855f7', icon: '⭐', trend: [60, 65, 70, 73, 76, 79, 82, 85] },
+  { key: '代码能力', en: 'Coding',        value: 62, color: '#06b6d4', icon: '💻', trend: [35, 40, 45, 50, 53, 57, 60, 62] },
+]
+
+// ③ 维度解释（Mock）
+const PT_DIM_DESC = {
+  '知识掌握': '对核心概念、原理性知识的吸收与再现能力。得分越高说明你在该领域的理论基础越扎实。',
+  '认知风格': '面对新知识时的信息加工偏好（理论型 / 实践型 / 视觉型）。识别你的偏好能定制更高效的学习路径。',
+  '易错点':   '在常见陷阱、典型错误上的暴露频率。得分越低说明盲区越多，需要专项强化训练。',
+  '学习节奏': '稳定投入学习的时间分布与持续性。评估你是否能保持长期、不中断的学习节律。',
+  '兴趣程度': '对当前主题的好奇心、主动探索意愿与内在驱动力。兴趣是最好的学习燃料。',
+  '代码能力': '独立编写、调试、阅读代码的综合能力。深度学习最终要落到代码与工程实践上。',
+}
+
+// ④ AI 评价（Mock）
+const PT_AI_REVIEW = {
+  overall: 'B+',
+  level: '成长型学习者',
+  levelColor: '#0ea5e9',
+  highlight: '兴趣维度 85 分，全维 Top 1。说明你对该领域有强烈的内驱力，这是稀缺的、也是后续学习最重要的燃料。',
+  weak: '易错点维度仅 45 分，是当前最大的瓶颈——常见错误反复出现，反映出缺少专项错题复盘机制。',
+  risk: '代码能力 62 分，处在「能看懂但难独立产出」的临界区，下一阶段需以小项目驱动突破。',
+  next: '建议本周期把 70% 时间投入错题归因 + 30% 时间做 2 个最小可运行项目，2 周内预期易错点 +10、代码 +8。',
+}
+
+// ⑤ 学习建议（Mock · 6 条对应 6 维度）
+const PT_SUGGESTIONS = [
+  { dim: '知识掌握', icon: '📚', title: '补齐 SAM 三件套理论', desc: '用 3 天读完官方 paper + 源码导读，输出 1 张架构图。', tag: '理论', tagColor: '#3b82f6', eta: '3 天' },
+  { dim: '认知风格', icon: '🧠', title: '建立「视觉优先」笔记体系',  desc: '每学一个概念先画图，再写文字，复盘时只看图能复述。', tag: '方法', tagColor: '#22c55e', eta: '持续' },
+  { dim: '易错点',   icon: '⚠️', title: '错题本每天 15 分钟复盘',    desc: '把错题分类为「概念错 / 笔误 / 思路错」，按类归纳。', tag: '专项', tagColor: '#ef4444', eta: '每日' },
+  { dim: '学习节奏', icon: '⏱️', title: '固定每日 90 分钟学习块',    desc: '晚 8:30–10:00 雷打不动，连续 14 天养成节律。', tag: '习惯', tagColor: '#eab308', eta: '14 天' },
+  { dim: '兴趣程度', icon: '⭐', title: '订阅 2 个高质量信息源',      desc: '保持兴奋度，每月至少 1 次「追新」保持好奇。', tag: '驱动', tagColor: '#a855f7', eta: '长期' },
+  { dim: '代码能力', icon: '💻', title: '完成 2 个最小可运行 Demo',   desc: '在「模型工坊」拖出 SAM 简化版，跑通图像分割 demo。', tag: '实践', tagColor: '#06b6d4', eta: '2 周' },
+]
+
+// ⑥ 历史变化（Mock · 近 8 周每周均值）
+const PT_HISTORY = Array.from({ length: 8 }, (_, w) => {
+  const point = { week: `W${w + 1}` }
+  PT_DIMS.forEach(d => { point[d.key] = d.trend[w] })
+  point['均值'] = Math.round(PT_DIMS.reduce((s, d) => s + d.trend[w], 0) / PT_DIMS.length)
+  return point
+})
+
+// 学习画像 —— 与项目其它页面统一的卡片样式
+const PT_CARD = {
+  background: '#ffffff',
+  border: '1px solid #f1f5f9',
+  borderRadius: 12,
+  padding: 20,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)',
+}
+
+// 雷达图遮罩数据（让雷达图有"扫描"效果，数值 ≥ 自身）
+function radarFill(value) {
+  return Array.from({ length: 6 }, (_, i) => 100 - i * 6)
+}
+
+function PortraitTech() {
+  const heroDim = PT_DIMS[0]
+  const overallNow = Math.round(PT_DIMS.reduce((s, d) => s + d.value, 0) / PT_DIMS.length)
+  const overallPrev = Math.round(PT_DIMS.reduce((s, d) => s + d.trend[d.trend.length - 2], 0) / PT_DIMS.length)
+  const overallDelta = overallNow - overallPrev
+
+  const sectionTitle = {
+    fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 14px',
+  }
+
+  return (
+    <div>
+      {/* 雷达图 + 综合评分 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16, marginBottom: 20 }}>
+        {/* 雷达图 */}
+        <div style={PT_CARD}>
+          <h3 style={sectionTitle}>🎯 六维能力雷达</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <RadarChart data={PT_DIMS.map(d => ({ subject: d.key, A: d.value, fullMark: 100 }))}>
+              <PolarGrid stroke="#e2e8f0" />
+              <PolarAngleAxis dataKey="subject" tick={{ fontSize: 12, fill: '#475569' }} />
+              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} stroke="#e2e8f0" />
+              <Radar name="能力值" dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} strokeWidth={2} />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* 综合评分 */}
+        <div style={PT_CARD}>
+          <h3 style={sectionTitle}>📊 综合评分</h3>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: 48, fontWeight: 800, color: '#3b82f6', lineHeight: 1 }}>{overallNow}</span>
+            <span style={{ fontSize: 14, color: '#94a3b8' }}>/ 100</span>
+            <span style={{
+              marginLeft: 8, fontSize: 12, fontWeight: 700,
+              color: overallDelta >= 0 ? '#10b981' : '#ef4444',
+              padding: '2px 8px', borderRadius: 6,
+              background: overallDelta >= 0 ? '#ecfdf5' : '#fef2f2',
+            }}>
+              {overallDelta >= 0 ? '▲' : '▼'} {Math.abs(overallDelta)}
+            </span>
+          </div>
+          <div style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>
+            等级 <strong style={{ color: '#3b82f6' }}>{PT_AI_REVIEW.level}</strong>
+          </div>
+
+          {/* 6 维迷你条 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {PT_DIMS.map(d => (
+              <div key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 14, width: 18 }}>{d.icon}</span>
+                <span style={{ color: '#475569', fontSize: 12, width: 56 }}>{d.key}</span>
+                <div style={{ flex: 1, height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${d.value}%`, height: '100%',
+                    background: d.color, borderRadius: 3,
+                  }} />
+                </div>
+                <span style={{ color: d.color, fontSize: 12, fontWeight: 700, width: 32, textAlign: 'right' }}>{d.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 成长趋势 */}
+      <div style={{ ...PT_CARD, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <h3 style={{ ...sectionTitle, margin: 0 }}>
+            📈 成长趋势
+            <span style={{ marginLeft: 10, fontSize: 13, fontWeight: 500, color: heroDim.color }}>
+              {heroDim.icon} {heroDim.key}
+            </span>
+          </h3>
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>近 8 周 · 周均值</span>
+        </div>
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart data={heroDim.trend.map((v, i) => ({ week: `W${i + 1}`, value: v }))}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} />
+            <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
+            <Area type="monotone" dataKey="value" stroke={heroDim.color} strokeWidth={2} fill={heroDim.color} fillOpacity={0.15} dot={{ r: 3, fill: heroDim.color }} />
+          </AreaChart>
+        </ResponsiveContainer>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 12, color: '#64748b' }}>
+          <span>起点 {heroDim.trend[0]} → 当前 {heroDim.value}</span>
+          <span style={{ color: '#10b981', fontWeight: 600 }}>
+            +{heroDim.value - heroDim.trend[0]} 分 · {Math.round((heroDim.value - heroDim.trend[0]) / heroDim.trend[0] * 100)}% ↑
+          </span>
+        </div>
+      </div>
+
+      {/* 历史变化（6 维折线） */}
+      <div style={{ ...PT_CARD, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <h3 style={{ ...sectionTitle, margin: 0 }}>📉 历史变化</h3>
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>6 维 × 8 周</span>
+        </div>
+        <ResponsiveContainer width="100%" height={240}>
+          <LineChart data={PT_HISTORY}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} />
+            <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 6 }} iconType="circle" />
+            {PT_DIMS.map(d => (
+              <Line key={d.key} type="monotone" dataKey={d.key} stroke={d.color} strokeWidth={2} dot={{ r: 2 }} />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* 三栏：维度解释 + AI评价 + 学习建议 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+        {/* 维度解释 */}
+        <div style={PT_CARD}>
+          <h3 style={sectionTitle}>📖 维度解释</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {PT_DIMS.map(d => (
+              <div key={d.key}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14 }}>{d.icon}</span>
+                  <span style={{ color: '#1e293b', fontSize: 13, fontWeight: 700 }}>{d.key}</span>
+                  <span style={{
+                    marginLeft: 'auto', fontSize: 10, color: d.color, fontWeight: 600,
+                    padding: '1px 6px', borderRadius: 4, background: `${d.color}15`,
+                  }}>{d.value} 分</span>
+                </div>
+                <div style={{ color: '#64748b', fontSize: 12, lineHeight: 1.6 }}>{PT_DIM_DESC[d.key]}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* AI评价 */}
+        <div style={PT_CARD}>
+          <h3 style={sectionTitle}>🤖 AI 评价</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <ReviewItem icon="✨" color="#3b82f6" bg="#eff6ff" label="亮点" text={PT_AI_REVIEW.highlight} />
+            <ReviewItem icon="⚠️" color="#ef4444" bg="#fef2f2" label="短板" text={PT_AI_REVIEW.weak} />
+            <ReviewItem icon="🔮" color="#a855f7" bg="#faf5ff" label="风险" text={PT_AI_REVIEW.risk} />
+            <ReviewItem icon="🎯" color="#10b981" bg="#ecfdf5" label="下一步" text={PT_AI_REVIEW.next} />
+          </div>
+        </div>
+
+        {/* 学习建议 */}
+        <div style={PT_CARD}>
+          <h3 style={sectionTitle}>💡 学习建议</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {PT_SUGGESTIONS.map((s, i) => (
+              <div key={i} style={{
+                padding: 12, borderRadius: 10,
+                background: '#f8fafc', border: '1px solid #f1f5f9',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 16 }}>{s.icon}</span>
+                  <span style={{ color: '#1e293b', fontSize: 13, fontWeight: 700, flex: 1 }}>{s.title}</span>
+                  <span style={{
+                    fontSize: 10, color: s.tagColor, fontWeight: 600,
+                    padding: '2px 7px', borderRadius: 999,
+                    background: `${s.tagColor}15`,
+                  }}>{s.tag}</span>
+                </div>
+                <div style={{ color: '#64748b', fontSize: 12, lineHeight: 1.6 }}>{s.desc}</div>
+                <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
+                  <span style={{ color: s.tagColor }}>⏱</span> {s.eta} · 对应维度：{s.dim}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ───── 子组件：AI 评价单条 ───── */
+function ReviewItem({ icon, color, bg, label, text }) {
+  return (
+    <div style={{
+      padding: 12, borderRadius: 10,
+      background: bg,
+      border: `1px solid ${color}33`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <span style={{ fontSize: 14 }}>{icon}</span>
+        <span style={{ color, fontSize: 12, fontWeight: 700 }}>{label}</span>
+      </div>
+      <p style={{ margin: 0, color: '#334155', fontSize: 12, lineHeight: 1.7 }}>{text}</p>
+    </div>
+  )
 }

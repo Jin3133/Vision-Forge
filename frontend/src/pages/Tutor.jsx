@@ -1,5 +1,12 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { AIMessage } from '../components/chat/AIMessage';
+import { UserMessage } from '../components/chat/UserMessage';
+import { QuickQuestions } from '../components/chat/QuickQuestions';
+import { AgentStatusBar } from '../components/chat/AgentStatusBar';
+import { streamChat, plainChat } from '../components/chat/chatService';
+import { createAgentOrchestrator, AGENTS } from '../components/chat/agentMock';
+import '../components/chat/chat.css';
 
 /* ───────── 预设数据 ───────── */
 const QA_PAIRS = [
@@ -672,53 +679,159 @@ export default function Tutor() {
 
   /* -- Tab1: 智能答疑 -- */
   const [messages, setMessages] = useState([
-    { from: 'ai', text: '你好！我是你的AI学习助手 🤖\n\n你可以问我关于深度学习、SAM模型、PyTorch等方面的问题。我会提供文字解答、图解说明和代码示例。' },
+    {
+      from: 'ai',
+      text: `# 你好！我是你的 AI 学习助手 🤖
+
+我可以帮你：
+- 解答 **深度学习 / 视觉模型 / PyTorch** 等问题
+- 给出**代码示例**（带高亮）
+- 画 **Mermaid 流程图**
+- 推**数学公式**（LaTeX / KaTeX）
+
+试试下面这些快捷问题，或直接输入你的问题 ✨`,
+    },
   ]);
   const [inputText, setInputText] = useState('');
   const [currentTopic, setCurrentTopic] = useState('深度学习基础');
+  const [streaming, setStreaming] = useState(false);     // 是否在流式生成中
+  const [streamingId, setStreamingId] = useState(null);  // 当前正在生成的 AI 消息 id
+  // 四智能体状态（独立于 chat 流式，UI 实时驱动）
+  const [agents, setAgents] = useState(() =>
+    AGENTS.map((a) => ({ ...a, status: 'idle', progress: 0, message: '待命中' })),
+  );
+  const orchestratorRef = useRef(null);
+  // 用 ref 记录上一次每个 Agent 的状态，用于触发"状态变化"动画
+  const prevAgentStatusRef = useRef({});
+  const abortRef = useRef(null);
+  const lastUserTextRef = useRef('');
   const msgEndRef = useRef(null);
 
-  const scrollToBottom = () => msgEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  useEffect(() => { scrollToBottom(); }, [messages]);
+  /** 当任意 Agent 状态发生变化，给对应卡片加 flash class 一闪而过 */
+  const flashChangedAgents = (next) => {
+    const prev = prevAgentStatusRef.current;
+    const changedIds = next
+      .filter((a) => prev[a.id] && prev[a.id] !== a.status)
+      .map((a) => a.id);
+    prevAgentStatusRef.current = Object.fromEntries(next.map((a) => [a.id, a.status]));
+    if (!changedIds.length) return;
+    setAgents((curr) =>
+      curr.map((a) => (changedIds.includes(a.id) ? { ...a, _flash: Date.now() } : a)),
+    );
+  };
 
-  // 改写后：调用后端 17077 端口的 /api/chat 接口
-const sendQuestion = async (text) => {
-  if (!text.trim()) return;
-  const q = text.trim();
+  const scrollToBottom = useCallback(() => {
+    msgEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+  useEffect(() => { scrollToBottom(); }, [messages, streaming]);
 
-  // 先把用户消息显示到页面
-  setMessages((prev) => [...prev, { from: 'user', text: q }]);
-  setInputText('');
+  /** 通用：发起一次对话（保持原 sendQuestion 签名，兼容外部调用） */
+  const sendQuestion = async (text) => {
+    if (!text || !text.trim()) return;
+    if (streaming) return; // 生成中禁止重复发送
+    const q = text.trim();
+    lastUserTextRef.current = q;
 
-  try {
-    // 调用后端接口（自动转发到 17077 端口）
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    // 用户消息
+    const userMsg = { id: 'u_' + Date.now(), from: 'user', text: q };
+    // AI 占位消息（用于流式追加）
+    const aiId = 'a_' + Date.now();
+    const aiPlaceholder = {
+      id: aiId,
+      from: 'ai',
+      text: '',
+      thinking: '',
+      feedback: null,
+    };
+    setMessages((prev) => [...prev, userMsg, aiPlaceholder]);
+    setInputText('');
+    setStreaming(true);
+    setStreamingId(aiId);
+
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
+    // 启动 4 Agent mock 协同流水线
+    if (orchestratorRef.current) orchestratorRef.current.stop?.();
+    const orch = createAgentOrchestrator();
+    orchestratorRef.current = orch;
+    orch.start(q, {
+      onUpdate: (next) => {
+        flashChangedAgents(next);
+        setAgents(next);
       },
-      body: JSON.stringify({
-        messages: [{ role: "user", content: q }]
-      })
+      onComplete: () => {
+        orchestratorRef.current = null;
+      },
     });
 
-    const data = await response.json();
-    // AI回复消息（保持原有格式，页面直接渲染）
-    const aiReply = {
-      from: 'ai',
-      text: data.content || "抱歉，我暂时无法回答这个问题~"
+    // 流式回调：增量更新最后一条 AI 消息
+    const patchAi = (patch) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiId ? { ...m, ...patch } : m)),
+      );
     };
-    setMessages((prev) => [...prev, aiReply]);
 
-  } catch (error) {
-    // 请求失败提示
-    console.error("后端请求失败：", error);
-    setMessages((prev) => [...prev, {
-      from: 'ai',
-      text: `请求后端服务失败，请检查后端是否启动！`
-    }]);
-  }
-};
+    try {
+      // —— 优先尝试流式（mock 或 /api/chat/stream）——
+      await streamChat(
+        { messages: [{ role: 'user', content: q }] },
+        {
+          abortSignal: ctrl.signal,
+          onThinking: (chunk) =>
+            patchAi({ thinking: (aiPlaceholder.thinking || '') + chunk }),
+          onDelta: (chunk) =>
+            patchAi({ text: (aiPlaceholder.text || '') + chunk, _tick: Date.now() }),
+          onDone: () => {
+            // 流式结束
+          },
+          onError: async (err) => {
+            // 流式失败 → 回退到原 /api/chat（非流式）
+            try {
+              const text = await plainChat({
+                messages: [{ role: 'user', content: q }],
+              });
+              patchAi({ text: text || '抱歉，暂时无法回答这个问题。' });
+            } catch (e2) {
+              patchAi({ text: '请求后端服务失败，请检查后端是否启动！' });
+            }
+          },
+        },
+      );
+    } catch (e) {
+      // 用户主动 abort 不报错
+      if (e?.name !== 'AbortError') {
+        patchAi({ text: '请求后端服务失败，请检查后端是否启动！' });
+      }
+    } finally {
+      setStreaming(false);
+      setStreamingId(null);
+      abortRef.current = null;
+      // 让 orchestrator 自然跑完即可，不在这里 stop（避免把后段状态强制标红）
+      // 若用户主动 handleStop，handleStop 已清过 ref
+    }
+  };
+
+  /** 停止生成 */
+  const handleStop = () => {
+    abortRef.current?.abort?.();
+    orchestratorRef.current?.stop?.();
+    orchestratorRef.current = null;
+  };
+
+  /** 重新生成：把上一条用户问题再发一次 */
+  const handleRegenerate = () => {
+    if (streaming) return;
+    if (!lastUserTextRef.current) return;
+    sendQuestion(lastUserTextRef.current);
+  };
+
+  /** 点赞 / 点踩 */
+  const handleFeedback = (aiId, kind) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === aiId ? { ...m, feedback: kind } : m)),
+    );
+  };
 
   /* -- Tab2: 源码阅读 -- */
   const [selectedFile, setSelectedFile] = useState('model.py');
@@ -784,110 +897,68 @@ const sendQuestion = async (text) => {
         <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 180px)', minHeight: 500 }}>
           {/* 左侧对话区 70% */}
           <div style={{ flex: '0 0 70%', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,.08)', overflow: 'hidden' }}>
+            {/* 四智能体协同状态栏 */}
+            <AgentStatusBar agents={agents} />
+
             {/* 顶部标题条 */}
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>🎓 智能辅导</span>
-                <span style={{ fontSize: 11, color: '#64748b', marginLeft: 10 }}>文字解答 · 图解说明 · 代码示例</span>
+            <div className="chat-header">
+              <div className="chat-header-title">
+                <span className="chat-header-title-main">🎓 智能辅导</span>
+                <span className="chat-header-title-sub">文字解答 · 代码示例 · 流程图 · 数学公式</span>
               </div>
-              <span style={{ fontSize: 11, color: '#22c55e', background: '#f0fdf4', padding: '2px 8px', borderRadius: 6 }}>在线</span>
+              <span className="chat-header-status">
+                <span className="chat-header-status-dot" />
+                在线
+              </span>
             </div>
 
             {/* 消息列表 */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
-              {messages.map((msg, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: msg.from === 'user' ? 'flex-end' : 'flex-start' }}>
-                  <div style={{ maxWidth: '80%' }}>
-                    {/* 气泡 */}
-                    <div style={{
-                      padding: '10px 14px', borderRadius: msg.from === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-                      background: msg.from === 'user' ? '#3b82f6' : '#fff',
-                      color: msg.from === 'user' ? '#fff' : '#334155',
-                      fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap',
-                      boxShadow: msg.from === 'user' ? 'none' : '0 1px 2px rgba(0,0,0,.06)',
-                    }}>
-                      {msg.text}
-
-                      {/* LaTeX公式 */}
-                      {msg.latex && (
-                        <div style={{
-                          marginTop: 10, padding: 10, background: '#f1f5f9', borderRadius: 8,
-                          fontFamily: '"Times New Roman", serif', fontStyle: 'italic', color: '#1e293b', textAlign: 'center',
-                        }}>
-                          {msg.latex}
-                        </div>
-                      )}
-
-                      {/* 代码块 */}
-                      {msg.code && (
-                        <div style={{ marginTop: 10, position: 'relative' }}>
-                          <div style={{ background: '#1e293b', color: '#e2e8f0', padding: '8px 12px', borderRadius: '8px 8px 0 0', fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
-                            <span>Python</span>
-                            <span style={{ cursor: 'pointer', color: '#94a3b8' }} onClick={() => { navigator.clipboard.writeText(msg.code); }}>📋</span>
-                          </div>
-                          <pre style={{ margin: 0, padding: 12, background: '#0f172a', color: '#e2e8f0', borderRadius: '0 0 8px 8px', overflowX: 'auto', fontSize: 12, lineHeight: 1.6, maxHeight: 300, overflowY: 'auto' }}>
-                            <code>{msg.code}</code>
-                          </pre>
-                        </div>
-                      )}
-
-                      {/* 表格 */}
-                      {msg.table && (
-                        <div style={{ marginTop: 10, overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, background: '#fff', borderRadius: 8, overflow: 'hidden' }}>
-                            <thead>
-                              <tr style={{ background: '#f1f5f9' }}>
-                                {msg.table.headers.map((h, i) => (
-                                  <th key={i} style={{ padding: '8px 10px', borderBottom: '1px solid #e2e8f0', textAlign: 'left', fontWeight: 700, color: '#475569' }}>{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {msg.table.rows.map((row, ri) => (
-                                <tr key={ri} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                  {row.map((cell, ci) => (
-                                    <td key={ci} style={{ padding: '8px 10px', color: '#334155' }}>{cell}</td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="chat-area" style={{ flex: 1, overflowY: 'auto', background: '#f8fafc' }}>
+              {messages.map((msg) => {
+                if (msg.from === 'user') {
+                  return <UserMessage key={msg.id || msg._idx} message={msg} />;
+                }
+                return (
+                  <AIMessage
+                    key={msg.id || msg._idx}
+                    message={msg}
+                    isStreaming={streaming && streamingId === msg.id}
+                    onStop={handleStop}
+                    onRegenerate={handleRegenerate}
+                    onFeedback={(kind) => handleFeedback(msg.id, kind)}
+                  />
+                );
+              })}
               <div ref={msgEndRef} />
             </div>
 
             {/* 快捷问题 */}
-            <div style={{ padding: '8px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 8, overflowX: 'auto' }}>
-              {QUICK_QUESTIONS.map((q) => (
-                <button
-                  key={q}
-                  onClick={() => sendQuestion(q)}
-                  style={{ padding: '4px 12px', border: '1px solid #e2e8f0', background: '#fff', borderRadius: 12, fontSize: 12, color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
+            <QuickQuestions
+              onPick={(q) => sendQuestion(q)}
+              extra={streaming ? [] : QUICK_QUESTIONS}
+            />
 
             {/* 输入框 */}
-            <div style={{ padding: '10px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 8 }}>
-              <input
+            <div className="chat-inputbar">
+              <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && sendQuestion(inputText)}
-                placeholder="输入你的问题..."
-                style={{ flex: 1, padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, outline: 'none' }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendQuestion(inputText);
+                  }
+                }}
+                placeholder={streaming ? 'AI 正在回答，可以等待或停止生成…' : '输入你的问题，Enter 发送，Shift+Enter 换行'}
+                rows={1}
+                disabled={streaming}
               />
               <button
+                className="chat-send-btn"
                 onClick={() => sendQuestion(inputText)}
-                style={{ padding: '8px 18px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 700 }}
+                disabled={streaming || !inputText.trim()}
               >
-                发送
+                {streaming ? '生成中…' : '发送'}
               </button>
             </div>
           </div>

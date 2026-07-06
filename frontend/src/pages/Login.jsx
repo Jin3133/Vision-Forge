@@ -1,6 +1,8 @@
 import { useState, useContext, useEffect } from 'react'
 import { UserContext } from '../App'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { useAuth } from '../AuthContext.jsx'
+import { useToast } from '../components/Toast.jsx'
 
 export default function Login() {
   const [username, setUsername] = useState('')
@@ -11,15 +13,29 @@ export default function Login() {
   const [errors, setErrors] = useState({})
   const { setUser } = useContext(UserContext)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const { login, isAuthenticated } = useAuth()
+  const { showToast } = useToast()
 
-  /* 进入页面时回填记住的用户名 */
+  /* 进入页面时回填记住的用户名 + 处理「会话过期被踢回」的场景 */
   useEffect(() => {
     const saved = localStorage.getItem('rememberUsername')
     if (saved) {
       setUsername(saved)
       setRememberMe(true)
     }
-  }, [])
+    const reason = searchParams.get('reason')
+    if (reason === 'expired') {
+      showToast('登录已过期，请重新登录', 'warning', 3000)
+    }
+  }, [searchParams, showToast])
+
+  /* 已登录直接放行（避免重复登录） */
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(searchParams.get('next') || '/', { replace: true })
+    }
+  }, [isAuthenticated, navigate, searchParams])
 
   const validate = () => {
     const newErrors = {}
@@ -30,29 +46,57 @@ export default function Login() {
     return Object.keys(newErrors).length === 0
   }
 
-  const doLogin = (uname, pwd) => {
+  /**
+   * 登录后跳转策略（按用户名维度判断新/老用户）：
+   *  - 老用户 → 直接 /（不再弹 Welcome）
+   *  - 新用户 → /welcome（一次性介绍页）
+   */
+  const navigateAfterLogin = (isNewUser) => {
+    if (isNewUser) {
+      navigate('/welcome', { replace: true })
+    } else {
+      navigate(searchParams.get('next') || '/', { replace: true })
+    }
+  }
+
+  const doLogin = async (uname, pwd) => {
     setLoading(true)
-    setTimeout(() => {
-      localStorage.setItem('isLoggedIn', 'true')
-      if (rememberMe || uname) {
-        localStorage.setItem('rememberUsername', uname)
-      } else {
-        localStorage.removeItem('rememberUsername')
-      }
-      setUser({
-        name: uname || '学习者',
-        studentId: '2022105430066',
-        college: '计算机与软件学院',
-        major: '软件工程',
-        avatar: '👤',
-      })
-      setLoading(false)
-      navigate('/')
-    }, 800)
+    /* 输入框抖动动画 */
+    const card = document.getElementById('vf-login-card')
+    if (card) {
+      card.style.animation = 'none'
+      void card.offsetWidth
+      card.style.animation = ''
+    }
+    const resp = await login({ username: uname, password: pwd, rememberMe })
+    if (resp.ok) {
+      const isNewUser = !!resp.data?.isNewUser
+      showToast(
+        isNewUser ? '欢迎首次来到 Vision-Forge 🎉' : '登录成功，欢迎回来 👋',
+        'success', 1800
+      )
+      setUser(resp.data.user)
+      /* 短暂延迟让 success toast 出现再跳转，体验更顺 */
+      setTimeout(() => {
+        navigateAfterLogin(isNewUser)
+      }, 500)
+    } else {
+      showToast(resp.message || '登录失败', 'error', 2800)
+      /* 触发输入框抖动 */
+      setErrors({ shake: true })
+      setTimeout(() => setErrors({}), 600)
+    }
+    setLoading(false)
   }
 
   const handleLogin = () => {
-    if (!validate()) return
+    if (!validate()) {
+      /* 校验失败也抖动 */
+      showToast('请检查输入项', 'warning', 2000)
+      setErrors((p) => ({ ...p, shake: true }))
+      setTimeout(() => setErrors((p) => ({ ...p, shake: false })), 600)
+      return
+    }
     doLogin(username, password)
   }
 
@@ -78,6 +122,7 @@ export default function Login() {
       }}
     >
       <div
+        id="vf-login-card"
         style={{
           width: '100%',
           maxWidth: 920,
@@ -87,6 +132,7 @@ export default function Login() {
           display: 'flex',
           overflow: 'hidden',
           minHeight: 540,
+          animation: 'cardEnter 0.5s ease',
         }}
       >
         {/* ═══════════ 左侧品牌区 ═══════════ */}
@@ -394,7 +440,7 @@ export default function Login() {
             )}
           </div>
 
-          {/* 记住我 + 找回密码 */}
+          {/* 记住我 + 忘记密码 */}
           <div
             style={{
               display: 'flex',
@@ -420,20 +466,21 @@ export default function Login() {
                 onChange={(e) => setRememberMe(e.target.checked)}
                 style={{ cursor: 'pointer', accentColor: '#3b82f6' }}
               />
-              记住我
+              记住登录
             </label>
-            <a
-              href="#"
-              onClick={(e) => e.preventDefault()}
+            <Link
+              to="/forgot-password"
               style={{
                 fontSize: 12,
                 color: '#3b82f6',
                 textDecoration: 'none',
                 fontWeight: 500,
               }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#1d4ed8'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#3b82f6'}
             >
-              找回密码？
-            </a>
+              忘记密码？
+            </Link>
           </div>
 
           {/* 登录按钮 */}
@@ -457,6 +504,20 @@ export default function Login() {
                 ? 'none'
                 : '0 6px 16px -2px rgba(59, 130, 246, 0.4)',
               letterSpacing: '3px',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.transform = 'translateY(-1px)'
+                e.currentTarget.style.boxShadow = '0 8px 20px -2px rgba(59,130,246,0.5)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              if (!loading) {
+                e.currentTarget.style.boxShadow = '0 6px 16px -2px rgba(59, 130, 246, 0.4)'
+              }
             }}
           >
             {loading ? (
@@ -558,6 +619,14 @@ export default function Login() {
             <span style={{ fontSize: 15 }}>⚡</span>
             <span>测试账号快速登录</span>
           </button>
+
+          {/* 演示用错误触发提示：输入 wrongdemo/123456 体验错误提示 */}
+          <div style={{
+            textAlign: 'center', marginTop: 10,
+            fontSize: 10, color: '#cbd5e1',
+          }}>
+            💡 演示：用 <strong style={{ color: '#94a3b8' }}>wrongdemo</strong> / 123456 可触发错误提示
+          </div>
         </div>
       </div>
 
@@ -570,12 +639,28 @@ export default function Login() {
           0%, 100% { opacity: 0.6; }
           50% { opacity: 1; }
         }
+        @keyframes cardEnter {
+          from { opacity: 0; transform: translateY(16px) scale(0.98); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes cardShake {
+          0%, 100% { transform: translateX(0); }
+          20%      { transform: translateX(-8px); }
+          40%      { transform: translateX(8px); }
+          60%      { transform: translateX(-6px); }
+          80%      { transform: translateX(6px); }
+        }
+        /* 抖动由 Login 组件通过给 #vf-login-card 加 inline animation 触发，
+           此处保留类名兜底 */
+        #vf-login-card[style*="shake"] {
+          animation: cardShake 0.5s ease;
+        }
       `}</style>
     </div>
   )
 }
 
-/* ═══════════ 大脑+人物插图（还原 Kimi 设计图风格） ═══════════ */
+/* ═══════════ 大脑+人物插图（保留原样） ═══════════ */
 function BrainIllustration() {
   return (
     <svg
@@ -586,7 +671,6 @@ function BrainIllustration() {
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
-        {/* 大脑渐变（蓝→紫，半透明云朵） */}
         <linearGradient id="brainBlue" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#bfdbfe" stopOpacity="0.9" />
           <stop offset="50%" stopColor="#c7d2fe" stopOpacity="0.85" />
@@ -596,7 +680,6 @@ function BrainIllustration() {
           <stop offset="0%" stopColor="#e0e7ff" stopOpacity="0.95" />
           <stop offset="100%" stopColor="#ede9fe" stopOpacity="0.95" />
         </linearGradient>
-        {/* 立方体渐变 */}
         <linearGradient id="cubeTop" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#dbeafe" />
           <stop offset="100%" stopColor="#bfdbfe" />
@@ -611,31 +694,26 @@ function BrainIllustration() {
         </linearGradient>
       </defs>
 
-      {/* ==== 装饰：左下角立方体 ==== */}
       <g transform="translate(20, 140)">
         <polygon points="0,8 14,0 28,8 14,16" fill="url(#cubeTop)" />
         <polygon points="0,8 0,28 14,36 14,16" fill="url(#cubeLeft)" />
         <polygon points="28,8 28,28 14,36 14,16" fill="url(#cubeRight)" />
       </g>
 
-      {/* ==== 装饰：左上角小立方体 ==== */}
       <g transform="translate(45, 30) scale(0.7)">
         <polygon points="0,8 14,0 28,8 14,16" fill="url(#cubeTop)" />
         <polygon points="0,8 0,28 14,36 14,16" fill="url(#cubeLeft)" />
         <polygon points="28,8 28,28 14,36 14,16" fill="url(#cubeRight)" />
       </g>
 
-      {/* ==== 装饰：右侧三角锥 ==== */}
       <g transform="translate(195, 35)">
         <polygon points="0,20 12,0 24,20" fill="#c7d2fe" />
         <polygon points="12,0 24,20 22,20" fill="#a5b4fc" />
         <polygon points="12,0 0,20 2,20" fill="#818cf8" />
       </g>
 
-      {/* ==== 装饰：右下小三角 ==== */}
       <polygon points="200,150 212,135 218,152" fill="#a5b4fc" opacity="0.7" />
 
-      {/* ==== 装饰：散落的圆点 ==== */}
       <circle cx="35" cy="80" r="2.5" fill="#60a5fa" opacity="0.7" />
       <circle cx="55" cy="110" r="1.5" fill="#3b82f6" opacity="0.6" />
       <circle cx="210" cy="90" r="2" fill="#a78bfa" opacity="0.7" />
@@ -646,7 +724,6 @@ function BrainIllustration() {
       <circle cx="175" cy="20" r="2" fill="#818cf8" opacity="0.6" />
       <circle cx="115" cy="20" r="1.5" fill="#60a5fa" opacity="0.6" />
 
-      {/* ==== 装饰：十字星 ==== */}
       <g transform="translate(165, 55)" stroke="#a78bfa" strokeWidth="1.2" opacity="0.8">
         <line x1="-4" y1="0" x2="4" y2="0" />
         <line x1="0" y1="-4" x2="0" y2="4" />
@@ -660,8 +737,6 @@ function BrainIllustration() {
         <line x1="0" y1="-3" x2="0" y2="3" />
       </g>
 
-      {/* ==== 核心：云朵状大脑（半透明+神经元网络） ==== */}
-      {/* 大脑外轮廓（云朵状） */}
       <path
         d="M 70 50
            C 55 50, 50 65, 55 78
@@ -680,7 +755,6 @@ function BrainIllustration() {
         strokeOpacity="0.4"
       />
 
-      {/* 大脑内部浅色背景 */}
       <path
         d="M 75 58
            C 65 58, 62 70, 66 80
@@ -697,7 +771,6 @@ function BrainIllustration() {
         opacity="0.6"
       />
 
-      {/* 大脑内部神经元节点和连接线 */}
       <g stroke="#818cf8" strokeWidth="0.6" fill="none" opacity="0.7">
         <line x1="80" y1="70" x2="95" y2="75" />
         <line x1="95" y1="75" x2="110" y2="68" />
@@ -724,55 +797,44 @@ function BrainIllustration() {
         <circle cx="112" cy="100" r="2" />
       </g>
 
-      {/* ==== 核心：盘腿而坐的学生（抱着平板） ==== */}
       <g transform="translate(85, 120)">
-        {/* 双肩包（背后） */}
         <ellipse cx="35" cy="32" rx="14" ry="18" fill="#3b82f6" opacity="0.9" />
         <rect x="22" y="20" width="6" height="20" rx="2" fill="#1e40af" />
         <rect x="42" y="20" width="6" height="20" rx="2" fill="#1e40af" />
 
-        {/* 头 */}
         <circle cx="35" cy="14" r="12" fill="#fcd9b6" />
-        {/* 头发（深蓝） */}
         <path
           d="M 23 12 Q 23 2, 35 2 Q 47 2, 47 12 Q 47 9, 42 7 Q 38 5, 35 5 Q 32 5, 28 7 Q 23 9, 23 12 Z"
           fill="#1e293b"
         />
-        {/* 脖子 */}
         <rect x="32" y="24" width="6" height="4" fill="#fcd9b6" />
 
-        {/* 上身（浅蓝短袖） */}
         <path
           d="M 20 32 Q 20 28, 35 28 Q 50 28, 50 32 L 52 50 L 18 50 Z"
           fill="#93c5fd"
         />
 
-        {/* 手臂（抱着平板） */}
         <path d="M 18 38 Q 12 44, 18 50 L 24 48 Q 22 42, 22 38 Z" fill="#93c5fd" />
         <path d="M 52 38 Q 58 44, 52 50 L 46 48 Q 48 42, 48 38 Z" fill="#93c5fd" />
         <ellipse cx="20" cy="50" rx="4" ry="3" fill="#fcd9b6" />
         <ellipse cx="50" cy="50" rx="4" ry="3" fill="#fcd9b6" />
 
-        {/* 平板 */}
         <rect x="22" y="44" width="26" height="14" rx="2" fill="#1e293b" />
         <rect x="24" y="46" width="22" height="10" rx="1" fill="#60a5fa" />
         <rect x="26" y="48" width="6" height="1.5" fill="#fff" opacity="0.7" />
         <rect x="26" y="51" width="10" height="1" fill="#fff" opacity="0.5" />
         <rect x="26" y="53" width="8" height="1" fill="#fff" opacity="0.5" />
 
-        {/* 腿（盘腿，深蓝长裤） */}
         <ellipse cx="20" cy="62" rx="11" ry="6" fill="#1e3a5f" />
         <ellipse cx="50" cy="62" rx="11" ry="6" fill="#1e3a5f" />
         <ellipse cx="35" cy="66" rx="18" ry="5" fill="#1e3a5f" />
 
-        {/* 脚（运动鞋） */}
         <ellipse cx="14" cy="64" rx="6" ry="4" fill="#fff" />
         <ellipse cx="56" cy="64" rx="6" ry="4" fill="#fff" />
         <ellipse cx="14" cy="65" rx="6" ry="2" fill="#3b82f6" />
         <ellipse cx="56" cy="65" rx="6" ry="2" fill="#3b82f6" />
       </g>
 
-      {/* ==== 装饰：连接线（思维发散） ==== */}
       <g stroke="#a5b4fc" strokeWidth="0.8" fill="none" opacity="0.5" strokeDasharray="2,2">
         <path d="M 60 90 Q 40 100, 30 130" />
         <path d="M 180 80 Q 200 90, 215 110" />
