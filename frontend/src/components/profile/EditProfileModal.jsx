@@ -47,6 +47,9 @@ export default function EditProfileModal({ open, onClose, user, onSave }) {
   const handleSubmit = async () => {
     setSaving(true)
     /* 预留真接口：
+       // ⬇️ PUT /api/profile → FastAPI 17077 端口（Vite /api 代理，见 vite.config.js）
+       //    ⚠️ 后端端口提示：dev 环境走代理；prod 需反向代理指向 17077
+       //    联调前确认后端 main.py 已启动并监听 17077
        await fetch('/api/profile', {
          method: 'PUT',
          headers: { 'Content-Type': 'application/json' },

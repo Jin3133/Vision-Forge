@@ -12,6 +12,7 @@ import { NodeDetailDrawer } from '../components/canvas/NodeDetailDrawer'
 import { VersionHistoryDrawer } from '../components/canvas/VersionHistoryDrawer'
 import { TemplateLibraryDrawer } from '../components/canvas/TemplateLibraryDrawer'
 import { CanvasTopBar } from '../components/canvas/CanvasTopBar'
+import { SourceCodeDrawer } from '../components/canvas/SourceCodeDrawer'
 import { TEMPLATES } from '../components/canvas/templates'
 import '../components/canvas/canvas-extras.css'
 
@@ -235,6 +236,9 @@ function CanvasInner() {
   const [detailNodeId, setDetailNodeId] = useState(null)
   const [versionDrawerOpen, setVersionDrawerOpen] = useState(false)
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false)
+  /* 教研智能体工作台：源码伴读 Drawer（独立于 NodeDetailDrawer） */
+  const [sourceDrawerOpen, setSourceDrawerOpen] = useState(false)
+  const [sourceNodeType, setSourceNodeType] = useState(null)
 
   const detailNode = useMemo(
     () => detailNodeId ? nodes.find((n) => n.id === detailNodeId) : null,
@@ -462,6 +466,9 @@ function CanvasInner() {
       }
 
       // 发送真实请求给后端
+      // ⬇️ POST /api/v1/agent/evaluate → FastAPI 17077（Vite /api 代理，见 vite.config.js）
+      //    ⚠️ 后端端口提示：dev 环境走代理；prod 需反向代理到 17077
+      //    联调前确认后端 main.py 已启动并监听 17077 端口
       const response = await fetch('/api/v1/agent/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -717,6 +724,31 @@ function CanvasInner() {
 
   const RightPanel = () => (
     <div style={{ background: '#fff', borderRadius: 12, padding: '14px 12px', overflowY: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+      {/* 📖 教研智能体工作台入口 —— 让用户随时知道有源码伴读（白系风格） */}
+      <button
+        onClick={() => { setSourceNodeType(detailNode?.type || null); setSourceDrawerOpen(true) }}
+        title="教研智能体 · 源码伴读"
+        style={{
+          width: '100%', marginBottom: 10, padding: '9px 10px', borderRadius: 10,
+          background: '#ffffff',
+          color: '#3b82f6', border: '1px solid #bfdbfe',
+          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+          boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = '#eff6ff' }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = '#ffffff' }}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 14 }}>📖</span>
+          源码伴读
+        </span>
+        <span style={{
+          fontSize: 9, padding: '1px 6px', borderRadius: 4,
+          background: '#dbeafe', color: '#1d4ed8', fontWeight: 700,
+        }}>教研</span>
+      </button>
+
       <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>⚙️ 操作</h3>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
         <button onClick={evaluateModel} style={{
@@ -896,17 +928,20 @@ function CanvasInner() {
     }, [undo, redo, saveNow, pushToast])
 
     // 节点点击回调：包一层 setNodesChange，在选中时同时打开 Drawer
+    // 同时联动教研智能体：自动弹出该节点对应的源码伴读
     const handleNodeClick = useCallback((_, node) => {
       setDetailNodeId(node.id)
+      setSourceNodeType(node.type)
+      setSourceDrawerOpen(true)
     }, [])
     const handlePaneClick = useCallback(() => {
       setDetailNodeId(null)
     }, [])
 
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr 260px', gap: 14, height: 'calc(100vh - 160px)' }} ref={containerRef} tabIndex={-1}>
+      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr 260px', gap: 14, height: 'calc(100vh - 96px)' }} ref={containerRef} tabIndex={-1}>
         <LeftPanel />
-        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
           <CanvasTopBar
             autosaveStatus={autosaveStatus}
             lastSavedAt={lastSavedAt}
@@ -972,6 +1007,13 @@ function CanvasInner() {
           onPick={loadTemplate}
         />
 
+        {/* 教研智能体工作台：源码伴读 Drawer（独立 Drawer，与 NodeDetailDrawer 共存） */}
+        <SourceCodeDrawer
+          open={sourceDrawerOpen}
+          nodeType={sourceNodeType}
+          onClose={() => setSourceDrawerOpen(false)}
+        />
+
         {/* 全局 Toast 栈 */}
         <ToastStack toasts={toasts} onClose={removeToast} />
       </div>
@@ -981,7 +1023,7 @@ function CanvasInner() {
   /* 实验记录：保留我保存的模型 + 预置模型库作为参考模板，
      重点呈现「保存的实验」是学生的学习足迹 */
   const RecordTab = () => (
-    <div style={{ overflowY: 'auto', height: 'calc(100vh - 180px)', paddingRight: 4 }}>
+    <div style={{ overflowY: 'auto', height: 'calc(100vh - 96px)', paddingRight: 4 }}>
       <div style={{ marginBottom: 24 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', marginBottom: 14 }}>📓 我的实验记录</h3>
         {savedModels.length === 0 ? (
@@ -1055,34 +1097,41 @@ function CanvasInner() {
   )
 
   const EvaluateTab = () => (
-    <div style={{ overflowY: 'auto', height: 'calc(100vh - 180px)', paddingRight: 4 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-        <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>📊 模型精度对比</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={compareData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" fontSize={11} tick={{ fill: '#64748b' }} />
-              <YAxis fontSize={11} tick={{ fill: '#64748b' }} domain={[80, 100]} />
-              <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12, border: '1px solid #e2e8f0' }} />
-              <Bar dataKey="精度" radius={[8, 8, 0, 0]}>
-                {compareData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][index]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      height: 'calc(100vh - 96px)', paddingRight: 4, gap: 12,
+      boxSizing: 'border-box',
+    }}>
+      {/* 上半部分：精度对比 + 性能指标  → 撑满剩余空间 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, flex: 1, minHeight: 0 }}>
+        <div style={{ background: '#fff', borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 10, flexShrink: 0 }}>📊 模型精度对比</h3>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={compareData} margin={{ top: 6, right: 6, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="name" fontSize={11} tick={{ fill: '#64748b' }} />
+                <YAxis fontSize={11} tick={{ fill: '#64748b' }} domain={[80, 100]} />
+                <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12, border: '1px solid #e2e8f0' }} />
+                <Bar dataKey="精度" radius={[8, 8, 0, 0]}>
+                  {compareData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][index]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>⚡ 模型性能指标</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ background: '#fff', borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 10, flexShrink: 0 }}>⚡ 模型性能指标</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, justifyContent: 'space-between', minHeight: 0 }}>
             {compareData.map((model, i) => (
               <div key={model.name} style={{
-                padding: '12px 14px', background: '#f8fafc', borderRadius: 10,
+                padding: '10px 14px', background: '#f8fafc', borderRadius: 10,
                 borderLeft: `3px solid ${['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][i]}`,
               }}>
-                <div style={{ fontWeight: 600, fontSize: 13, color: '#1e293b', marginBottom: 6 }}>{model.name}</div>
+                <div style={{ fontWeight: 600, fontSize: 13, color: '#1e293b', marginBottom: 4 }}>{model.name}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, fontSize: 12, color: '#64748b' }}>
                   <div>🎯 <span style={{ fontWeight: 600, color: '#3b82f6' }}>{model.精度}%</span></div>
                   <div>⚡ <span style={{ fontWeight: 600, color: '#10b981' }}>{model.速度}FPS</span></div>
@@ -1094,23 +1143,24 @@ function CanvasInner() {
         </div>
       </div>
 
-      <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>🔍 当前画板模型评估</h3>
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 20 }}>
+      {/* 下半部分：当前画板模型评估 → 高度自适应，保证按钮完整显示 */}
+      <div style={{ background: '#fff', borderRadius: 12, padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', flexShrink: 0 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>🔍 当前画板模型评估</h3>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
           {[
             { label: '当前节点数', value: nodes.length, color: '#3b82f6', bg: '#eff6ff', icon: '🔵' },
             { label: '预估精度', value: evalResult?.score || '未评估', color: '#10b981', bg: '#f0fdf4', icon: '🎯' },
             { label: '模型状态', value: evalResult?.valid ? '✓ 合格' : '待检查', color: evalResult?.valid ? '#f59e0b' : '#94a3b8', bg: '#fffbeb', icon: '📋' },
             { label: '连接数', value: edges.length, color: '#8b5cf6', bg: '#faf5ff', icon: '🔗' },
           ].map(item => (
-            <div key={item.label} style={{ flex: '1 1 160px', padding: '18px 16px', background: item.bg, borderRadius: 12, textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>{item.icon} {item.label}</div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: item.color }}>{item.value}</div>
+            <div key={item.label} style={{ flex: '1 1 140px', padding: '12px 14px', background: item.bg, borderRadius: 10, textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{item.icon} {item.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: item.color }}>{item.value}</div>
             </div>
           ))}
         </div>
         <button onClick={evaluateModel} style={{
-          width: '100%', padding: '12px', borderRadius: 12, border: 'none',
+          width: '100%', padding: '11px', borderRadius: 10, border: 'none',
           background: '#3b82f6', color: '#fff', fontSize: 13, fontWeight: 600,
           cursor: 'pointer', transition: 'all 0.2s',
         }}>🔍 重新评估模型</button>

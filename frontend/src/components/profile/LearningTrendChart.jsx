@@ -101,10 +101,10 @@ export default function LearningTrendChart({ data7d = [], data30d = [], data90d 
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} interval="preserveStartEnd" minTickGap={28} />
             <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
             <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} />
-            <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 4 }} iconType="circle" />
             <Area type="monotone" dataKey="duration" name="时长(分钟)"
               stroke="#3b82f6" strokeWidth={2.5} fill="url(#gradDuration)" />
             <Area type="monotone" dataKey="score" name="得分"
@@ -112,12 +112,12 @@ export default function LearningTrendChart({ data7d = [], data30d = [], data90d 
           </AreaChart>
         ) : (
           // 30/90 天用折线图，避免太密
-          <LineChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          <LineChart data={data} margin={{ top: 10, right: 12, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} interval="preserveStartEnd" minTickGap={28} />
             <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
             <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} />
-            <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 4 }} iconType="circle" />
             <Line type="monotone" dataKey="duration" name="时长(分钟)"
               stroke="#3b82f6" strokeWidth={2} dot={false} />
             <Line type="monotone" dataKey="score" name="得分"

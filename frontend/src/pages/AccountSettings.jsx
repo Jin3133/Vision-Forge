@@ -70,13 +70,11 @@ export default function AccountSettings({ embedded = false, onClose }) {
   const initialTab = searchParams.get('tab') || 'profile'
   const [tab, setTab] = useState(initialTab) // 'profile' | 'password' | 'security'
 
-  /* 当 URL 上的 ?tab= 变化时（比如从 Profile 跳转过来），同步到本地 tab */
   useEffect(() => {
     const t = searchParams.get('tab')
     if (t === 'profile' || t === 'password' || t === 'security') setTab(t)
   }, [searchParams])
 
-  /* 数据初始化（回填本地缓存） */
   const [profile, setProfile] = useState(() => {
     try {
       const cached = JSON.parse(localStorage.getItem('vf_profile') || 'null')
@@ -86,11 +84,8 @@ export default function AccountSettings({ embedded = false, onClose }) {
 
   const [errors, setErrors] = useState({})
   const [toast, setToast] = useState({ kind: 'info', message: '' })
-
-  /* ── 密码表单 ── */
   const [pwdForm, setPwdForm] = useState({ old: '', next: '', confirm: '' })
 
-  /* ── 注册时间（首次进入写一次） ── */
   const accountCreatedAt = useMemo(() => {
     try {
       const ts = localStorage.getItem('vf_account_created_at')
@@ -101,19 +96,16 @@ export default function AccountSettings({ embedded = false, onClose }) {
     } catch { return '—' }
   }, [])
 
-  /* 把 profile 持久化 */
   useEffect(() => {
     try { localStorage.setItem('vf_profile', JSON.stringify(profile)) } catch {}
   }, [profile])
 
-  /* toast 自动消失 */
   useEffect(() => {
     if (!toast.message) return
     const t = setTimeout(() => setToast({ kind: 'info', message: '' }), 3500)
     return () => clearTimeout(t)
   }, [toast])
 
-  /* ────────────────── 校验：个人信息 ────────────────── */
   const validateProfile = () => {
     const e = {}
     if (!profile.name?.trim()) e.name = '请输入姓名'
@@ -131,7 +123,6 @@ export default function AccountSettings({ embedded = false, onClose }) {
     setToast({ kind: 'success', message: '个人信息已保存' })
   }
 
-  /* ────────────────── 校验：修改密码 ────────────────── */
   const validatePwd = () => {
     const e = {}
     if (!pwdForm.old) e.old = '请输入原密码'
@@ -146,11 +137,9 @@ export default function AccountSettings({ embedded = false, onClose }) {
 
   const submitPassword = () => {
     if (!validatePwd()) return
-    /* 真实场景：调用后端 /api/user/change-password
-     * 这里用本地 hash 做演示（生产请用后端验证 + bcrypt） */
     try {
       const stored = JSON.parse(localStorage.getItem('vf_password') || 'null')
-      const currentHash = stored?.hash || btoa('123456') /* 默认 demo 密码 */
+      const currentHash = stored?.hash || btoa('123456')
       if (btoa(pwdForm.old) !== currentHash) {
         setErrors({ old: '原密码不正确，默认密码为 123456' })
         return
@@ -161,7 +150,6 @@ export default function AccountSettings({ embedded = false, onClose }) {
       }))
       setToast({ kind: 'success', message: '密码修改成功，3 秒后将自动退出登录…' })
       setPwdForm({ old: '', next: '', confirm: '' })
-      /* 3 秒后清登录态，强制重新登录 */
       setTimeout(() => {
         localStorage.removeItem('isLoggedIn')
         window.location.hash = '#/login'
@@ -172,7 +160,6 @@ export default function AccountSettings({ embedded = false, onClose }) {
     }
   }
 
-  /* ────────────────── UI ────────────────── */
   return (
     <div style={{ maxWidth: embedded ? '100%' : 880, margin: '0 auto' }}>
       {!embedded && (
@@ -182,7 +169,6 @@ export default function AccountSettings({ embedded = false, onClose }) {
         </div>
       )}
 
-      {/* Tab */}
       <div style={{
         display: 'flex', gap: 8, marginBottom: 20,
         borderBottom: '1px solid #e8ecf1', paddingBottom: 12,
@@ -215,7 +201,6 @@ export default function AccountSettings({ embedded = false, onClose }) {
         background: '#fff', borderRadius: 12, padding: 28,
         boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
       }}>
-        {/* ═════ TAB 1：个人信息 ═════ */}
         {tab === 'profile' && (
           <div>
             <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 6px' }}>完善你的基本信息</h3>
@@ -223,7 +208,6 @@ export default function AccountSettings({ embedded = false, onClose }) {
               以下信息将显示在个人档案、学习报告、组卷关联等场景
             </p>
 
-            {/* 头像选择 */}
             <div style={{ marginBottom: 20, display: 'flex', gap: 16, alignItems: 'center' }}>
               <div style={{
                 width: 72, height: 72, borderRadius: '50%',
@@ -303,7 +287,6 @@ export default function AccountSettings({ embedded = false, onClose }) {
           </div>
         )}
 
-        {/* ═════ TAB 2：修改密码 ═════ */}
         {tab === 'password' && (
           <div style={{ maxWidth: 480, margin: '0 auto' }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 6px' }}>修改登录密码</h3>
@@ -359,7 +342,6 @@ export default function AccountSettings({ embedded = false, onClose }) {
           </div>
         )}
 
-        {/* ═════ TAB 3：账号安全 ═════ */}
         {tab === 'security' && (
           <div>
             <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 20px' }}>账号安全信息</h3>
@@ -395,7 +377,6 @@ export default function AccountSettings({ embedded = false, onClose }) {
               <div style={{ marginTop: 10 }}>
                 <button onClick={() => {
                   if (window.confirm('确定要注销账号吗？此操作不可撤销！')) {
-                    /* 清空本地缓存并退出登录 */
                     Object.keys(localStorage).filter(k => k.startsWith('vf_')).forEach(k => localStorage.removeItem(k))
                     localStorage.removeItem('isLoggedIn')
                     window.location.hash = '#/login'

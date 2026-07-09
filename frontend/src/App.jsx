@@ -11,13 +11,10 @@ import Resources from './pages/Resources.jsx'
 import Profile from './pages/Profile.jsx'
 import Onboarding from './pages/Onboarding.jsx'
 import AccountSettings from './pages/AccountSettings.jsx'
-import WrongBook from './pages/WrongBook.jsx'
 import { LearnProvider, useLearn } from './LearnContext.jsx'
 import { AuthProvider, useAuth } from './AuthContext.jsx'
 import { ToastProvider } from './components/Toast.jsx'
 import NotificationCenter from './components/notifications/NotificationCenter.jsx'
-
-/* Tutor.jsx 已并入首页 Tab（智能答疑/源码阅读/关于开源），保留文件作为源码参考。*/
 
 export const UserContext = createContext()
 
@@ -32,7 +29,7 @@ function getDynamicTitle(pathname, tab) {
     '/settings': '⚙️ 账户设置',
   }
   const tabTitleMap = {
-    '/center': { 'portrait': '🎯 学习画像', 'path': '🛤️ 学习路径', 'report': '📊 学习报告' },
+    '/center': { 'portrait': '📊 学习分析', 'map': '🗺️ 学习地图' },
     '/canvas': { 'workshop': '🧱 模型工坊', 'record': '📓 实验记录', 'compare': '📊 模型对比' },
     '/resources': { 'recommend': '⭐ 推荐资源', 'generate': '✨ 资源生成' },
     '/profile': { 'favorites': '❤️ 我的收藏' },
@@ -52,7 +49,7 @@ function getBreadcrumb(pathname, tab) {
     '/profile': ['👤 个人空间'],
   }
   const tabNameMap = {
-    '/center': { 'portrait': '学习画像', 'path': '学习路径', 'report': '学习报告' },
+    '/center': { 'portrait': '学习分析', 'map': '学习地图' },
     '/canvas': { 'workshop': '模型工坊', 'record': '实验记录', 'compare': '模型对比' },
     '/resources': { 'recommend': '推荐资源', 'generate': '资源生成' },
     '/profile': { 'favorites': '我的收藏' },
@@ -96,21 +93,19 @@ function Layout({ children }) {
   /* ─────────────────────────────────────────────
      侧栏按「学习闭环」重新分组（5 组）：
        🏠 智能对话 → 首页，AI 导师调度一切
-       📚 我的学习 → 学习画像 / 学习路径 / 学习报告
+       📚 我的学习 → 学习分析（分析过去） / 学习地图（规划未来 · 内嵌知识树）
        🛠️ 模型实践 → 模型工坊 / 实验记录 / 模型对比
        📖 资源中心 → 推荐资源 / 资源生成 / 我的收藏
        👤 个人空间 → 个人档案
-     知识辅导（智能答疑 / 源码阅读 / 关于开源）并入首页 Tab，不再是独立菜单。
+     知识树不单独成页——融合进「学习地图」的点击展开，右侧详情 + Drawer 知识图谱内嵌。
   ───────────────────────────────────────────── */
   const navGroups = [
     { name: '智能对话', icon: '🏠', path: '/' },
     {
       name: '我的学习', icon: '📚',
       children: [
-        { name: '学习画像', path: '/center?tab=portrait', icon: '🎯' },
-        { name: '学习路径', path: '/center?tab=path', icon: '🛤️' },
-        { name: '学习报告', path: '/center?tab=report', icon: '📊' },
-        { name: '错题本',   path: '/wrong-book',           icon: '📝' },
+        { name: '学习分析', path: '/center?tab=portrait', icon: '📊' },
+        { name: '学习地图', path: '/center?tab=map', icon: '🗺️' },
       ]
     },
     {
@@ -144,7 +139,6 @@ function Layout({ children }) {
     if (!itemPath) return false
     if (itemPath === '/') return path === '/' || path === '/chat'
     if (itemPath === '/profile') return path === '/profile' && !searchParams.get('tab')
-    if (itemPath === '/wrong-book') return path === '/wrong-book'
     // 对有子菜单的路径，精确匹配 pathname + tab
     const itemUrl = new URL('http://x' + itemPath)
     const currentUrl = new URL('http://x' + location.pathname + location.search)
@@ -414,11 +408,6 @@ function Layout({ children }) {
             <span style={{ fontSize: 12, color: '#64748b' }}>
               📅 {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}
             </span>
-            <button onClick={() => navigate('/settings')} title="修改密码 / 完善个人信息 / 账号安全" style={{
-              padding: '6px 14px', fontSize: 12, background: '#f1f5f9',
-              borderRadius: 8, color: '#475569', border: '1px solid #e2e8f0',
-              cursor: 'pointer', fontWeight: 500,
-            }}>⚙️ 账户设置</button>
             {/* 通知中心 —— 顶栏右侧铃铛入口（不影响其它业务） */}
             <NotificationCenter />
           </div>
@@ -539,11 +528,8 @@ export default function App() {
                 <Route path="/canvas" element={<PrivateRoute><Layout><Canvas /></Layout></PrivateRoute>} />
                 <Route path="/center" element={<PrivateRoute><Layout><Center /></Layout></PrivateRoute>} />
                 <Route path="/resources" element={<PrivateRoute><Layout><Resources /></Layout></PrivateRoute>} />
-                {/* 兼容旧路径：保留 /tutor，重定向到首页（知识辅导能力已并入智能对话 Tab） */}
-                <Route path="/tutor" element={<PrivateRoute><Layout><Home /></Layout></PrivateRoute>} />
                 <Route path="/profile" element={<PrivateRoute><Layout><Profile /></Layout></PrivateRoute>} />
                 <Route path="/settings" element={<PrivateRoute><Layout><AccountSettings /></Layout></PrivateRoute>} />
-                <Route path="/wrong-book" element={<PrivateRoute><Layout><WrongBook /></Layout></PrivateRoute>} />
               </Routes>
             </Router>
           </LearnProvider>

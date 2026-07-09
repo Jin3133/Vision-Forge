@@ -21,42 +21,39 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
  */
 
 const STORAGE_KEY = 'vf_learn_state_v2'
+/* 阶段结构版本号：变更 DEFAULT_STAGES_BY_GOAL 时同步 +1，旧 localStorage 数据自动失效 */
+const STAGES_VERSION = 2
 
 const DEFAULT_STAGES_BY_GOAL = {
   'sam微调': [
-    { id: 1, title: '理解基础概念',   desc: '图像分割与 SAM 模型原理',           agent: '📖 算法教研',     done: false },
-    { id: 2, title: '阅读关键源码',   desc: 'model.py / image_encoder.py',        agent: '💻 源码阅读',     done: false },
-    { id: 3, title: '搭建模型架构',   desc: '在模型工坊中拖出 Encoder-Attention-Decoder', agent: '🛠️ 模型实践', done: false },
-    { id: 4, title: '完成实验记录',   desc: '保存模型并让评估智能体给出反馈',     agent: '📓 实验记录',     done: false },
-    { id: 5, title: '项目实战复盘',   desc: '微调 SAM 并撰写总结报告',           agent: '🚀 项目实战',     done: false },
+    { id: 1, title: '理解基础概念',          desc: '图像分割与 SAM 模型原理',           agent: '📖 算法教研', done: false },
+    { id: 2, title: '阅读关键源码 + 搭建模型', desc: '在模型工坊中伴读源码并拖出 Encoder-Attention-Decoder', agent: '🛠️ 模型实践', done: false },
+    { id: 3, title: '完成实验记录',          desc: '保存模型并让评估智能体给出反馈',     agent: '📓 实验记录', done: false },
+    { id: 4, title: '项目实战复盘',          desc: '微调 SAM 并撰写总结报告',           agent: '🚀 综合应用', done: false },
   ],
   '农业遥感': [
-    { id: 1, title: '理解基础概念',   desc: '遥感图像与田块分割原理',             agent: '📖 算法教研',     done: false },
-    { id: 2, title: '阅读 SAM 源码',  desc: 'Prompt Encoder 与 Mask Decoder',     agent: '💻 源码阅读',     done: false },
-    { id: 3, title: '搭建分割模型',   desc: 'Image Encoder + Adapter',            agent: '🛠️ 模型实践',     done: false },
-    { id: 4, title: '完成实验记录',   desc: '在田间数据上验证',                  agent: '📓 实验记录',     done: false },
-    { id: 5, title: '项目实战复盘',   desc: '撰写农田长势监测方案',              agent: '🚀 项目实战',     done: false },
+    { id: 1, title: '理解基础概念',          desc: '遥感图像与田块分割原理',             agent: '📖 算法教研', done: false },
+    { id: 2, title: '阅读 SAM 源码 + 搭建',  desc: 'Prompt Encoder + Mask Decoder，在工坊中搭建 Encoder + Adapter', agent: '🛠️ 模型实践', done: false },
+    { id: 3, title: '完成实验记录',          desc: '在田间数据上验证',                  agent: '📓 实验记录', done: false },
+    { id: 4, title: '项目实战复盘',          desc: '撰写农田长势监测方案',              agent: '🚀 综合应用', done: false },
   ],
   '医学分割': [
-    { id: 1, title: '理解基础概念',   desc: '医学影像特点与 UNet / SAM 选型',    agent: '📖 算法教研',     done: false },
-    { id: 2, title: '阅读 SAM 源码',  desc: 'Mask Decoder 与 IoU Head',           agent: '💻 源码阅读',     done: false },
-    { id: 3, title: '搭建分割模型',   desc: '针对 CT / MRI 调整 Encoder',        agent: '🛠️ 模型实践',     done: false },
-    { id: 4, title: '完成实验记录',   desc: '在医学影像上验证',                  agent: '📓 实验记录',     done: false },
-    { id: 5, title: '项目实战复盘',   desc: '撰写细胞分割报告',                  agent: '🚀 项目实战',     done: false },
+    { id: 1, title: '理解基础概念',          desc: '医学影像特点与 UNet / SAM 选型',    agent: '📖 算法教研', done: false },
+    { id: 2, title: '阅读 SAM 源码 + 搭建',  desc: 'Mask Decoder + IoU Head，在工坊中针对 CT / MRI 调整 Encoder', agent: '🛠️ 模型实践', done: false },
+    { id: 3, title: '完成实验记录',          desc: '在医学影像上验证',                  agent: '📓 实验记录', done: false },
+    { id: 4, title: '项目实战复盘',          desc: '撰写细胞分割报告',                  agent: '🚀 综合应用', done: false },
   ],
   '目标检测': [
-    { id: 1, title: '理解基础概念',   desc: 'YOLO / DETR 与 Anchor 机制',        agent: '📖 算法教研',     done: false },
-    { id: 2, title: '阅读检测源码',   desc: 'Backbone + Neck + Head',            agent: '💻 源码阅读',     done: false },
-    { id: 3, title: '搭建检测模型',   desc: 'CSPDarknet + PANet + Decoupled Head', agent: '🛠️ 模型实践',   done: false },
-    { id: 4, title: '完成实验记录',   desc: '在 COCO 子集上验证',                agent: '📓 实验记录',     done: false },
-    { id: 5, title: '项目实战复盘',   desc: '撰写目标检测方案',                  agent: '🚀 项目实战',     done: false },
+    { id: 1, title: '理解基础概念',          desc: 'YOLO / DETR 与 Anchor 机制',        agent: '📖 算法教研', done: false },
+    { id: 2, title: '阅读检测源码 + 搭建',  desc: 'Backbone + Neck + Head，在工坊中搭建 CSPDarknet + PANet + Decoupled Head', agent: '🛠️ 模型实践', done: false },
+    { id: 3, title: '完成实验记录',          desc: '在 COCO 子集上验证',                agent: '📓 实验记录', done: false },
+    { id: 4, title: '项目实战复盘',          desc: '撰写目标检测方案',                  agent: '🚀 综合应用', done: false },
   ],
   '自定义目标': [
-    { id: 1, title: '理解基础概念',   desc: '梳理你的场景所需的算法原理',         agent: '📖 算法教研',     done: false },
-    { id: 2, title: '阅读关键源码',   desc: '挑选 1-2 篇代表论文 / 仓库',        agent: '💻 源码阅读',     done: false },
-    { id: 3, title: '搭建最小模型',   desc: '在模型工坊中拖出原型',              agent: '🛠️ 模型实践',     done: false },
-    { id: 4, title: '完成实验记录',   desc: '保存模型并让 AI 评估',              agent: '📓 实验记录',     done: false },
-    { id: 5, title: '项目实战复盘',   desc: '输出可交付的项目总结',              agent: '🚀 项目实战',     done: false },
+    { id: 1, title: '理解基础概念',          desc: '梳理你的场景所需的算法原理',         agent: '📖 算法教研', done: false },
+    { id: 2, title: '阅读关键源码 + 搭建',  desc: '挑选 1-2 篇代表论文 / 仓库，并在工坊中拖出原型', agent: '🛠️ 模型实践', done: false },
+    { id: 3, title: '完成实验记录',          desc: '保存模型并让 AI 评估',              agent: '📓 实验记录', done: false },
+    { id: 4, title: '项目实战复盘',          desc: '输出可交付的项目总结',              agent: '🚀 综合应用', done: false },
   ],
 }
 
@@ -94,10 +91,14 @@ function loadInitial() {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
     /* 防御：必须同时具备 onboarded=true 且 mainStages 至少 1 条，否则视为未完成 onboarding */
     if (saved && saved.onboarded && Array.isArray(saved.mainStages) && saved.mainStages.length > 0) {
-      return { ...DEFAULT_STATE, ...saved }
+      /* 阶段结构版本不匹配 → 丢弃旧数据，回到首启引导 */
+      if (saved.stagesVersion !== STAGES_VERSION) {
+        return { ...DEFAULT_STATE, stagesVersion: STAGES_VERSION }
+      }
+      return { ...DEFAULT_STATE, ...saved, stagesVersion: STAGES_VERSION }
     }
   } catch (_) {}
-  return DEFAULT_STATE
+  return { ...DEFAULT_STATE, stagesVersion: STAGES_VERSION }
 }
 
 const LearnContext = createContext(null)
@@ -142,7 +143,7 @@ export function LearnProvider({ children }) {
         mainStages: stages,
         currentStageIdx: nextIdx,
         stage: stages[nextIdx].title,
-        knowledgeLevel: nextIdx >= 3 ? '中级' : nextIdx >= 1 ? '初级' : s.knowledgeLevel,
+        knowledgeLevel: nextIdx >= 2 ? '中级' : nextIdx >= 1 ? '初级' : s.knowledgeLevel,
       }
     })
   }, [])

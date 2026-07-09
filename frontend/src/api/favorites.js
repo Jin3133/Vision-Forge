@@ -9,6 +9,11 @@
 //   POST   /api/favorites                            → 新增（body: FavoriteItem）
 //   DELETE /api/favorites/:id                        → 取消收藏
 //
+// ⚠️ 后端端口提示：所有 /api/favorites* 路径
+//    dev → Vite 代理 → http://127.0.0.1:17077（见 vite.config.js）
+//    prod → 反向代理指向 FastAPI 17077 端口
+//    切换真接口：把 __USE_MOCK__ 置 false，并确认后端 main.py 监听 17077
+//
 // 关键设计：保留旧版 vf_favorites 中的资源 id，迁移为统一 store，避免老用户收藏丢失。
 
 const __USE_MOCK__ = true
@@ -162,6 +167,7 @@ export async function fetchFavorites({ category, keyword } = {}) {
     return { code: 0, data: list }
   }
   /* 真接口：
+     // ⬇️ GET /api/favorites → FastAPI 17077（Vite /api 代理）
      const qs = new URLSearchParams()
      if (category) qs.set('category', category)
      if (keyword)  qs.set('keyword',  keyword)
@@ -210,6 +216,7 @@ export async function addFavorite(item) {
     return { code: 0, data: { added: true } }
   }
   /* 真接口：
+     // ⬇️ POST /api/favorites → FastAPI 17077
      const res = await fetch('/api/favorites', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
@@ -230,6 +237,7 @@ export async function removeFavorite(id) {
     return { code: 0, data: { removed: next.length !== list.length } }
   }
   /* 真接口：
+     // ⬇️ DELETE /api/favorites/:id → FastAPI 17077
      const res = await fetch(`/api/favorites/${id}`, { method: 'DELETE' })
      return res.json()
   */

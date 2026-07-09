@@ -16,7 +16,7 @@
 //   │  最近活动（时间线）  │  系统设置                              │
 //   └──────────────────────┴──────────────────────────────────────┘
 
-import React, { useState, useEffect, useCallback, useContext, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useContext, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLearn } from '../LearnContext.jsx'
 import { UserContext } from '../App.jsx'
@@ -75,6 +75,30 @@ export default function Profile() {
   const changeAvatar = (a) => {
     setUser((prev) => ({ ...prev, avatar: a }))
     setCtxUser((prev) => ({ ...prev, avatar: a }))
+  }
+
+  /* 本地上传头像：FileReader 读成 dataURL，写回 user.avatar */
+  const avatarFileRef = useRef(null)
+  const uploadAvatar = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      alert('请选择图片文件')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert('图片大小请控制在 2MB 以内')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result
+      setUser((prev) => ({ ...prev, avatar: dataUrl }))
+      setCtxUser((prev) => ({ ...prev, avatar: dataUrl }))
+    }
+    reader.readAsDataURL(file)
+    /* 清空 input value，允许重复选同一张图 */
+    e.target.value = ''
   }
 
   const handleSaveProfile = (next) => {
@@ -309,7 +333,7 @@ export default function Profile() {
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
             快速切换头像：
           </span>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             {AVATAR_OPTIONS.map((a) => (
               <button
                 key={a}
@@ -325,6 +349,35 @@ export default function Profile() {
                 }}
               >{a}</button>
             ))}
+            {/* 本地上传入口：「+」号 + 隐藏 file input */}
+            <button
+              onClick={() => avatarFileRef.current?.click()}
+              title="从本地上传头像"
+              style={{
+                width: 32, height: 32, borderRadius: 8,
+                background: 'rgba(255,255,255,0.15)',
+                border: '1px dashed rgba(255,255,255,0.55)',
+                cursor: 'pointer', fontSize: 18, fontWeight: 600,
+                color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.25)'
+                e.currentTarget.style.transform = 'scale(1.05)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
+                e.currentTarget.style.transform = 'scale(1)'
+              }}
+            >+</button>
+            <input
+              ref={avatarFileRef}
+              type="file"
+              accept="image/*"
+              onChange={uploadAvatar}
+              style={{ display: 'none' }}
+            />
           </div>
         </div>
       </div>
@@ -385,7 +438,7 @@ export default function Profile() {
       {/* ═══════════════════════════════════════════
           连续学习 + 学习趋势（左右两栏）
           ═══════════════════════════════════════════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16, marginBottom: 20, alignItems: 'start' }}>
         <StreakCard
           streak={getStreak()}
           longestStreak={streakDerived.longest}

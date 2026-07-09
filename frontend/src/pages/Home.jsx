@@ -1,113 +1,8 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, RadialBarChart, RadialBar, AreaChart, Area } from 'recharts'
 import { fetchPipelineResult } from '../api' // ✅ 引入真实的后端请求接口
 import { useLearn } from '../LearnContext.jsx'
-
-/* ───────── 源码阅读内置资源（并入首页 Tab） ───────── */
-const FILE_TREE = [
-  {
-    folder: 'SAM',
-    files: [
-      { name: 'model.py', code: `class SAM(nn.Module):
-    """
-    Segment Anything Model (SAM) 主模型类。
-    包含图像编码器、提示编码器和掩码解码器三个核心组件。
-    """
-    def __init__(self, image_encoder, prompt_encoder, mask_decoder):
-        super().__init__()
-        self.image_encoder = image_encoder
-        self.prompt_encoder = prompt_encoder
-        self.mask_decoder = mask_decoder
-
-    def forward(self, image, prompt):
-        image_features = self.image_encoder(image)
-        prompt_embeddings = self.prompt_encoder(prompt)
-        masks, scores = self.mask_decoder(image_features, prompt_embeddings)
-        return masks, scores` },
-      { name: 'image_encoder.py', code: `class ImageEncoderViT(nn.Module):
-    """SAM图像编码器 — 基于 Vision Transformer"""
-    def __init__(self, img_size=1024, patch_size=16, embed_dim=768, depth=12):
-        super().__init__()
-        self.patch_embed = PatchEmbed(patch_size, 3, embed_dim)
-        self.blocks = nn.ModuleList([
-            Block(embed_dim, num_heads=12) for _ in range(depth)
-        ])
-
-    def forward(self, x):
-        x = self.patch_embed(x)
-        for blk in self.blocks:
-            x = blk(x)
-        return x` },
-      { name: 'prompt_encoder.py', code: `class PromptEncoder(nn.Module):
-    """SAM 提示编码器 — 支持点 / 框 / 掩码"""
-    def __init__(self, embed_dim=256):
-        super().__init__()
-        self.point_embeddings = nn.ModuleList([nn.Embedding(1, embed_dim) for _ in range(4)])
-        self.not_a_point_embed = nn.Embedding(1, embed_dim)
-
-    def forward(self, points=None, boxes=None, masks=None):
-        sparse_embeddings = torch.zeros(1, 0, self.embed_dim)
-        if points is not None:
-            sparse_embeddings = self._embed_points(points)
-        return sparse_embeddings, self._embed_masks(masks)` },
-    ],
-  },
-  {
-    folder: 'DINO',
-    files: [
-      { name: 'dino.py', code: `class DINO(nn.Module):
-    """自监督视觉 Transformer"""
-    def __init__(self, student, teacher, embed_dim=768, num_prototypes=65536):
-        super().__init__()
-        self.student = student
-        self.teacher = teacher
-        for p in self.teacher.parameters():
-            p.requires_grad = False
-        self.prototypes = nn.Linear(embed_dim, num_prototypes, bias=False)
-
-    def forward(self, x1, x2):
-        s1 = F.normalize(self.prototypes(self.student(x1)), dim=-1)
-        s2 = F.normalize(self.prototypes(self.student(x2)), dim=-1)
-        with torch.no_grad():
-            t1 = F.normalize(self.prototypes(self.teacher(x1)), dim=-1)
-            t2 = F.normalize(self.prototypes(self.teacher(x2)), dim=-1)
-        return (self.dino_loss(s1, t2) + self.dino_loss(s2, t1)) / 2` },
-    ],
-  },
-]
-
-const EXPLANATIONS = {
-  'model.py': `SAM 主模型（model.py）将图像编码器、提示编码器、掩码解码器三大组件串联：
-1. preprocess() — 图像归一化 + 尺寸统一（1024×1024）
-2. image_encoder() — ViT 提取 256 维特征图
-3. prompt_encoder() — 用户提示转嵌入向量
-4. mask_decoder() — 融合图像和提示特征，生成分割掩码`,
-  'image_encoder.py': `图像编码器（image_encoder.py）采用 Vision Transformer：
-- PatchEmbed：1024×1024 切分为 64×64 个 patch
-- 12 个 Transformer Block 堆叠
-- Neck：4 层卷积 768→256 维`,
-  'prompt_encoder.py': `提示编码器（prompt_encoder.py）支持：
-- 点提示：编码为前景/背景 4 种 embedding
-- 边界框：左上角和右下角 2 个点
-- 掩码提示：卷积下采样为 dense embedding`,
-  'dino.py': `DINO（dino.py）通过自监督知识蒸馏学习视觉表征：
-- 教师网络参数不更新（EMA）
-- 学生网络反向传播
-- 原型向量 + 居中化防止模式坍塌`,
-}
-
-/* ───────── 开源声明卡片 ───────── */
-const OPEN_SOURCE_ITEMS = [
-  { icon: '⚛️', name: 'React', desc: '用于构建用户界面的 JavaScript 库', license: 'MIT', link: 'https://react.dev' },
-  { icon: '⚡', name: 'Vite', desc: '下一代前端构建工具，极速开发体验', license: 'MIT', link: 'https://vitejs.dev' },
-  { icon: '🌊', name: 'React Flow', desc: '节点式图形编辑与可视化库', license: 'MIT', link: 'https://reactflow.dev' },
-  { icon: '📊', name: 'Recharts', desc: '基于 React 的声明式图表库', license: 'MIT', link: 'https://recharts.org' },
-  { icon: '🔥', name: 'PyTorch', desc: '开源深度学习框架', license: 'BSD', link: 'https://pytorch.org' },
-  { icon: '🎯', name: 'SAM', desc: 'Segment Anything Model 图像分割', license: 'Apache 2.0', link: 'https://segment-anything.com' },
-  { icon: '🧠', name: 'DeepSeek', desc: '大语言模型推理 API 服务', license: '商业API', link: 'https://deepseek.com' },
-  { icon: '⭐', name: '讯飞星火', desc: '认知大模型 API 服务', license: '商业API', link: 'https://xinghuo.xfyun.cn' },
-]
 
 export default function Home() {
   const learn = useLearn()
@@ -136,8 +31,7 @@ export default function Home() {
   const historyRef = useRef(null)
   /* historyRef 现在挂在对话 Tab 顶部的"📜 历史"按钮上 */
 
-  /* 当前 Tab：对话 / 智能答疑 / 源码阅读 / 关于开源 */
-  const [activeHomeTab, setActiveHomeTab] = useState('chat')
+  /* 注：源码阅读已迁移到模型工坊（详见 Canvas.jsx 的 SourceCodeDrawer），首页只剩对话，不再需要 Tab 切换 */
 
   /* 画像评估状态（保留原逻辑） */
   const [portraitStep, setPortraitStep] = useState(0)
@@ -213,7 +107,7 @@ export default function Home() {
     type: '源码阅读',
     progress: 62,
     lastTime: '2 小时前',
-    from: '首页 · 源码阅读 Tab',
+    from: '模型工坊 · 源码伴读',
   }
 
   /* ② 最近学习（卡片） */
@@ -254,42 +148,6 @@ export default function Home() {
     { id: 3, title: '生成我的学习方案', date: '2024-01-13' },
     { id: 4, title: 'PyTorch入门教程', date: '2024-01-12' },
   ]
-
-  /* ────── Tab 内部状态：智能答疑 ────── */
-  const [qaMessages, setQaMessages] = useState([
-    { from: 'ai', text: '你好！我是你的 AI 学习助手 🤖\n\n你可以问我关于深度学习、SAM 模型、PyTorch 等方面的问题。我会提供文字解答、图解说明和代码示例。' },
-  ])
-  const [qaInput, setQaInput] = useState('')
-  const qaEndRef = useRef(null)
-  const sendQA = async (text) => {
-    if (!text.trim()) return
-    const q = text.trim()
-    setQaMessages(prev => [...prev, { from: 'user', text: q }])
-    setQaInput('')
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: q }] }),
-      })
-      const data = await response.json()
-      setQaMessages(prev => [...prev, { from: 'ai', text: data.content || '抱歉，我暂时无法回答这个问题~' }])
-    } catch (e) {
-      setQaMessages(prev => [...prev, { from: 'ai', text: '请求后端服务失败，请检查后端是否启动！' }])
-    }
-  }
-
-  useEffect(() => { qaEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [qaMessages])
-
-  /* ────── Tab 内部状态：源码阅读 ────── */
-  const [selectedFile, setSelectedFile] = useState('model.py')
-  const [showExplain, setShowExplain] = useState(false)
-  const currentFileData = useMemo(() => {
-    for (const folder of FILE_TREE) for (const file of folder.files) if (file.name === selectedFile) return file
-    return null
-  }, [selectedFile])
-  const currentExplanation = EXPLANATIONS[selectedFile] || '暂无说明'
-  const codeLines = useMemo(() => currentFileData ? currentFileData.code.split('\n') : [], [currentFileData])
 
   /* ═══════════════ helpers ═══════════════ */
   function formatTime(d) {
@@ -409,6 +267,9 @@ export default function Home() {
     }, 700)
 
     try {
+      // ⬇️ 调用后端：POST /api/chat → FastAPI 17077 端口（Vite /api 代理）
+      //    ⚠️ 后端端口提示：详见 src/api.js 与 vite.config.js（target: http://127.0.0.1:17077）
+      //    联调前确认后端 main.py 已启动并监听 17077
       const result = await fetchPipelineResult(text)
 
       clearInterval(stageInterval)
@@ -566,24 +427,17 @@ export default function Home() {
           {learn.mainStages.map((st, idx) => {
             const isDone = st.done
             const isCurrent = idx === learn.currentStageIdx && !isDone
-            // 5 阶段对应跳转：理论→资源中心 / 源码→首页源码 / 搭建→模型工坊 / 实验→实验记录 / 复盘→学习报告
+            // 5 阶段对应跳转：理论→资源中心 / 源码（已并入工坊）→模型工坊 / 搭建→模型工坊 / 实验→实验记录 / 复盘→学习画像
+            // 注：阶段 2「阅读关键源码」已迁移到模型工坊（点节点自动联动），点击阶段 2 也直接跳工坊
             const stageLinks = [
               '/resources?tab=recommend',     // 阶段1：理解基础概念 → 推荐资源讲义
-              '/',                            // 阶段2：阅读关键源码 → 首页源码阅读 Tab（用 hash 触发）
-              '/canvas?tab=workshop',         // 阶段3：搭建模型架构 → 模型工坊
-              '/canvas?tab=record',           // 阶段4：完成实验记录 → 实验记录
-              '/center?tab=report',           // 阶段5：项目实战复盘 → 学习报告
+              '/canvas?tab=workshop',         // 阶段2：阅读源码 + 搭建模型 → 模型工坊
+              '/canvas?tab=record',           // 阶段3：完成实验记录 → 实验记录
+              '/center?tab=portrait',         // 阶段4：项目实战复盘 → 学习画像（含学习路径时间线）
             ]
             const link = stageLinks[idx] || '/'
             const handleStageClick = (e) => {
               e.stopPropagation()
-              // 阶段2（源码阅读）走首页 Tab，特殊处理
-              if (idx === 1) {
-                window.location.hash = '#/'
-                // 切换到 source Tab 需要跨组件，简化方案：跳首页后给个 query 提示
-                window.location.hash = '#/?tab=source'
-                return
-              }
               window.location.hash = '#' + link
             }
             return (
@@ -619,7 +473,7 @@ export default function Home() {
               下一站：<strong style={{ color: '#475569' }}>{next.title}</strong>
             </span>
           ) : null}
-          {learn.currentStageIdx < learn.mainStages.length - 1 ? (
+          {doneCount < learn.mainStages.length ? (
             <button
               onClick={() => learn.advanceStage()}
               style={{
@@ -635,6 +489,7 @@ export default function Home() {
             }}>🎉 全部完成</span>
           )}
         </div>
+
       </div>
     )
   }
@@ -680,154 +535,6 @@ export default function Home() {
     )
   }
 
-  /* ═══════════════ 子组件：源码阅读 Tab ═══════════════ */
-  const renderSourceTab = () => (
-    <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 260px)', minHeight: 420 }}>
-      <div style={{ flex: '0 0 25%', background: '#fff', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,.08)', overflowY: 'auto' }}>
-        <h3 style={{ margin: '0 0 12px', fontSize: 14, color: '#1e293b' }}>📁 项目文件</h3>
-        {FILE_TREE.map((folder) => (
-          <div key={folder.folder} style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 6, paddingLeft: 4 }}>📁 {folder.folder}/</div>
-            {folder.files.map((file) => (
-              <button
-                key={file.name}
-                onClick={() => { setSelectedFile(file.name); setShowExplain(false); }}
-                style={{
-                  display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px 6px 24px',
-                  border: 'none', background: selectedFile === file.name ? '#eff6ff' : 'transparent',
-                  borderRadius: 6, fontSize: 12, cursor: 'pointer', color: selectedFile === file.name ? '#3b82f6' : '#64748b',
-                  fontWeight: selectedFile === file.name ? 700 : 400, marginBottom: 2,
-                }}
-              >
-                📄 {file.name}
-                {selectedFile === file.name && <span style={{ float: 'right' }}>←</span>}
-              </button>
-            ))}
-          </div>
-        ))}
-      </div>
-
-      <div style={{ flex: 1, display: 'flex', background: '#fff', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,.08)', overflow: 'hidden', position: 'relative' }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ padding: '10px 16px', background: '#0f172a', color: '#94a3b8', fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>📄 {selectedFile}</span>
-            <span style={{ fontSize: 11 }}>Python</span>
-          </div>
-          <div style={{ flex: 1, overflow: 'auto', background: '#0f172a', padding: '12px 16px' }}>
-            <pre style={{ margin: 0, color: '#e2e8f0', fontSize: 12, lineHeight: 1.7, fontFamily: '"JetBrains Mono", "Fira Code", "Consolas", monospace', whiteSpace: 'pre' }}>
-              {codeLines.join('\n')}
-            </pre>
-          </div>
-          <div style={{ padding: '8px 16px', background: '#1e293b', borderTop: '1px solid #334155', display: 'flex', gap: 12 }}>
-            <button
-              onClick={() => currentFileData && navigator.clipboard.writeText(currentFileData.code)}
-              style={{ background: 'none', border: '1px solid #475569', color: '#94a8b8', padding: '4px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}
-            >📋 复制代码</button>
-            <button
-              onClick={() => setShowExplain(!showExplain)}
-              style={{ background: 'none', border: '1px solid #475569', color: '#94a8b8', padding: '4px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}
-            >💡 {showExplain ? '关闭解释' : '查看解释'}</button>
-          </div>
-        </div>
-
-        <div style={{
-          width: showExplain ? 300 : 0,
-          background: '#1e293b',
-          borderLeft: '1px solid #334155',
-          overflow: 'hidden',
-          transition: 'width 0.3s ease',
-          flexShrink: 0,
-        }}>
-          <div style={{ padding: 16, minWidth: 280 }}>
-            <h4 style={{ margin: '0 0 12px', fontSize: 14, color: '#e2e8f0' }}>💡 代码注释说明</h4>
-            <div style={{ fontSize: 12, color: '#94a8b8', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
-              {currentExplanation}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-
-  /* ═══════════════ 子组件：关于开源 Tab ═══════════════ */
-  const renderAboutTab = () => (
-    <div>
-      <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 16 }}>
-        <h3 style={{ margin: '0 0 8px', fontSize: 16, color: '#1e293b' }}>📋 开源声明</h3>
-        <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.7 }}>
-          本系统使用了以下开源项目和前沿 AI 工具。我们感谢开源社区的所有贡献者，他们的工作让 AI 教育变得更加普惠和高效。
-        </p>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
-        {OPEN_SOURCE_ITEMS.map((item) => (
-          <div key={item.name} style={{ background: '#fff', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,.08)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <span style={{ fontSize: 28 }}>{item.icon}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{item.name}</span>
-                <span style={{
-                  fontSize: 10, padding: '2px 8px', borderRadius: 4,
-                  background: item.license.includes('MIT') ? '#f0fdf4' : item.license.includes('Apache') ? '#eff6ff' : item.license.includes('BSD') ? '#fefce8' : '#f8fafc',
-                  color: item.license.includes('MIT') ? '#22c55e' : item.license.includes('Apache') ? '#3b82f6' : item.license.includes('BSD') ? '#eab308' : '#64748b',
-                }}>
-                  {item.license}
-                </span>
-              </div>
-              <p style={{ margin: '0 0 6px', fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>{item.desc}</p>
-              <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>
-                {item.link} →
-              </a>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-
-  /* ═══════════════ 子组件：智能答疑 Tab ═══════════════ */
-  const renderQATab = () => (
-    <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,.08)', overflow: 'hidden', height: 'calc(100vh - 260px)', minHeight: 420, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>🎓 智能答疑</span>
-          <span style={{ fontSize: 11, color: '#64748b', marginLeft: 10 }}>深度学习 · SAM 模型 · PyTorch</span>
-        </div>
-        <span style={{ fontSize: 11, color: '#22c55e', background: '#f0fdf4', padding: '2px 8px', borderRadius: 6 }}>在线</span>
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
-        {qaMessages.map((msg, idx) => (
-          <div key={idx} style={{ display: 'flex', justifyContent: msg.from === 'user' ? 'flex-end' : 'flex-start' }}>
-            <div style={{ maxWidth: '80%' }}>
-              <div style={{
-                padding: '10px 14px', borderRadius: msg.from === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-                background: msg.from === 'user' ? '#3b82f6' : '#fff',
-                color: msg.from === 'user' ? '#fff' : '#334155',
-                fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap',
-                boxShadow: msg.from === 'user' ? 'none' : '0 1px 2px rgba(0,0,0,.06)',
-              }}>
-                {msg.text}
-              </div>
-            </div>
-          </div>
-        ))}
-        <div ref={qaEndRef} />
-      </div>
-      <div style={{ padding: '10px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 8 }}>
-        <input
-          value={qaInput}
-          onChange={(e) => setQaInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && sendQA(qaInput)}
-          placeholder="输入你的问题..."
-          style={{ flex: 1, padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, outline: 'none' }}
-        />
-        <button
-          onClick={() => sendQA(qaInput)}
-          style={{ padding: '8px 18px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 700 }}
-        >发送</button>
-      </div>
-    </div>
-  )
-
   /* ═══════════════ render ═══════════════ */
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: 'calc(100vh - 96px)' }}>
@@ -869,6 +576,44 @@ export default function Home() {
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {/* 📜 历史（移到 4-Agent 状态条右侧，与黑板/展开同一行） */}
+                <div style={{ position: 'relative' }} ref={historyRef}>
+                  <button
+                    onClick={() => setShowHistory(!showHistory)}
+                    style={{
+                      fontSize: 10, padding: '2px 8px', borderRadius: 6,
+                      background: showHistory ? '#eff6ff' : '#f8fafc',
+                      color: showHistory ? '#3b82f6' : '#475569',
+                      border: '1px solid ' + (showHistory ? '#bfdbfe' : '#e2e8f0'),
+                      cursor: 'pointer', fontWeight: 600,
+                      display: 'inline-flex', alignItems: 'center', gap: 3,
+                    }}
+                  >📜 历史 <span style={{ fontSize: 8 }}>{showHistory ? '▲' : '▼'}</span></button>
+                  {showHistory && (
+                    <div style={{
+                      position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+                      width: 240, background: '#fff', borderRadius: 10, padding: 8,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 30,
+                      border: '1px solid #e2e8f0',
+                    }}>
+                      <div style={{ fontSize: 10, color: '#94a3b8', padding: '4px 6px', marginBottom: 4 }}>点击加载历史对话</div>
+                      {historyList.map(item => (
+                        <div
+                          key={item.id}
+                          onClick={() => { loadHistory(item.title); setShowHistory(false); }}
+                          style={{
+                            padding: 8, borderRadius: 6, background: '#f8fafc',
+                            marginBottom: 4, cursor: 'pointer', fontSize: 11,
+                            color: '#475569', fontWeight: 500,
+                          }}
+                        >
+                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
+                          <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>{item.date}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => setShowBlackboard(!showBlackboard)}
                   style={{
@@ -984,74 +729,9 @@ export default function Home() {
             )}
           </div>
 
-          {/* Tab 切换条 + 历史按钮 */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '6px 16px 0', borderBottom: '1px solid #e8ecf1', background: '#fff', flexShrink: 0 }}>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {[
-                { key: 'chat', label: '💬 智能对话' },
-                { key: 'qa', label: '🎓 智能答疑' },
-                { key: 'source', label: '💻 源码阅读' },
-                { key: 'about', label: '📋 关于开源' },
-              ].map(t => (
-                <button key={t.key} onClick={() => setActiveHomeTab(t.key)} style={{
-                  padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer',
-                  fontSize: 13, fontWeight: activeHomeTab === t.key ? 700 : 500,
-                  color: activeHomeTab === t.key ? '#3b82f6' : '#64748b',
-                  borderBottom: activeHomeTab === t.key ? '2px solid #3b82f6' : '2px solid transparent',
-                  marginBottom: -1, transition: 'all .2s',
-                }}>{t.label}</button>
-              ))}
-            </div>
-            {(activeHomeTab === 'chat' || activeHomeTab === 'qa') && (
-              <div style={{ position: 'relative', marginBottom: 6 }} ref={historyRef}>
-                <button
-                  onClick={() => setShowHistory(!showHistory)}
-                  style={{
-                    padding: '5px 10px', fontSize: 11,
-                    background: showHistory ? '#eff6ff' : '#f8fafc',
-                    color: showHistory ? '#3b82f6' : '#475569',
-                    border: '1px solid ' + (showHistory ? '#bfdbfe' : '#e2e8f0'),
-                    borderRadius: 14, cursor: 'pointer', fontWeight: 500,
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                  }}
-                >
-                  📜 历史
-                  <span style={{ fontSize: 9 }}>{showHistory ? '▲' : '▼'}</span>
-                </button>
-                {showHistory && (
-                  <div style={{
-                    position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                    width: 240, background: '#fff', borderRadius: 10, padding: 8,
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 30,
-                    border: '1px solid #e2e8f0',
-                  }}>
-                    <div style={{ fontSize: 10, color: '#94a3b8', padding: '4px 6px', marginBottom: 4 }}>点击加载历史对话</div>
-                    {historyList.map(item => (
-                      <div
-                        key={item.id}
-                        onClick={() => { loadHistory(item.title); setActiveHomeTab('chat'); setShowHistory(false); }}
-                        style={{
-                          padding: 8, borderRadius: 6, background: '#f8fafc',
-                          marginBottom: 4, cursor: 'pointer', fontSize: 11,
-                          color: '#475569', fontWeight: 500,
-                        }}
-                      >
-                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
-                        <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>{item.date}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Tab 内容 */}
-          {activeHomeTab === 'chat' && (
-            <>
-              {/* 消息列表 */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: 16, minHeight: 0 }}>
-                {messages.map((m, i) => (
+          {/* 消息列表 */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16, minHeight: 0 }}>
+            {messages.map((m, i) => (
                   <div key={i} style={{
                     marginBottom: 16,
                     display: 'flex',
@@ -1240,12 +920,6 @@ export default function Home() {
                   >发送</button>
                 </div>
               </div>
-            </>
-          )}
-
-          {activeHomeTab === 'qa' && renderQATab()}
-          {activeHomeTab === 'source' && renderSourceTab()}
-          {activeHomeTab === 'about' && renderAboutTab()}
         </div>
 
         {/* ════ 右侧 Dashboard（极简紧凑） ════ */}
@@ -1277,15 +951,15 @@ export default function Home() {
             ))}
           </div>
 
-          {/* ⑤ 继续学习 · 一行紧凑 chip */}
+          {/* ⑤ 继续学习 · 一行紧凑 chip（点击跳转到模型工坊，源码伴读已迁移到工坊） */}
           <div style={{
             background: '#fafbff', borderRadius: 10, padding: '8px 10px',
-            border: '1px solid #e2e8f0', cursor: 'pointer',
+            border: '1px solid #e8ecf0', cursor: 'pointer',
             transition: 'all 0.15s',
           }}
-          onClick={() => { setActiveHomeTab('source'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+          onClick={() => { window.location.hash = '#/canvas?tab=workshop' }}
           onMouseEnter={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
-          onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
+          onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e8ecf0'}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <span style={{ fontSize: 11 }}>▶</span>
@@ -1439,7 +1113,7 @@ export default function Home() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {[
-                { ...aiRecommendations.task,   onClick: () => { setActiveHomeTab('chat'); window.scrollTo({ top: 0, behavior: 'smooth' }) } },
+                { ...aiRecommendations.task,   onClick: () => { window.scrollTo({ top: 0, behavior: 'smooth' }) } },
                 { ...aiRecommendations.course, onClick: () => window.location.hash = '#/resources?tab=recommend' },
                 { ...aiRecommendations.resource, onClick: () => window.location.hash = '#/resources?tab=generate' },
               ].map((r, i) => (

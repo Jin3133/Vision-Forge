@@ -11,6 +11,15 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
  *      * rememberMe=false → sessionStorage（关闭浏览器即失效）
  *  - 过期检测：每次路由切换 / 页面活动 / 定时器 轮询，发现过期自动清空并跳转 /login
  *  - 预留 authApi：以后接后端时只需把 Mock 分支换成 fetch，接口形状保持一致
+ *
+ * ⚠️ 后端端口提示（接入真实接口时）：
+ *    - 计划接口路径：
+ *        POST /api/auth/login          → 登录
+ *        POST /api/auth/reset-password → 重置密码
+ *        POST /api/auth/send-code      → 发送验证码
+ *    - dev 走 Vite /api 代理 → http://127.0.0.1:17077（见 vite.config.js）
+ *    - prod 需反向代理指向 FastAPI 17077 端口
+ *    - 联调前确认后端 main.py 已启动并监听 17077
  */
 
 const LS_TOKEN_KEY = 'vf_auth_token'
@@ -106,6 +115,7 @@ function decodeMockToken(token) {
  *
  * ⚠️ 当前为 Mock：任何非空用户名 + 密码长度≥6 即返回成功
  * 真实接入时把函数体换成 fetch('/api/auth/login', ...) 即可
+ * ⚠️ 后端端口提示：/api/auth/login 走 Vite /api 代理 → FastAPI 17077
  */
 async function mockLoginApi({ username, password }) {
   await sleep(800)

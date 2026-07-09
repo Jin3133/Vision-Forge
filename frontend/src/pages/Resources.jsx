@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useLearn } from '../LearnContext.jsx'
 
@@ -1073,19 +1073,20 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
     const elapsed = isCompleted ? stepMs : isActive ? stepElapsed : 0
     return (
       <div style={{
-        background: isActive ? `linear-gradient(135deg, ${step.color}10, transparent)` : 'rgba(15,23,42,0.5)',
-        border: `1px solid ${isActive ? step.color + '55' : 'rgba(148,163,184,0.12)'}`,
+        background: isActive ? `linear-gradient(135deg, ${step.color}12, #ffffff)` : '#ffffff',
+        border: `1px solid ${isActive ? step.color + '55' : '#e2e8f0'}`,
         borderRadius: 10, padding: 12, transition: 'all .3s',
         position: 'relative',
+        boxShadow: isActive ? `0 4px 14px ${step.color}22` : '0 1px 2px rgba(15,23,42,0.04)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* 步骤号/状态 */}
           <div style={{
             width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            background: isCompleted ? '#10b981' : isActive ? `linear-gradient(135deg, ${step.color}, ${step.color}99)` : 'rgba(148,163,184,0.15)',
+            background: isCompleted ? '#10b981' : isActive ? `linear-gradient(135deg, ${step.color}, ${step.color}cc)` : '#f1f5f9',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, color: '#fff', fontWeight: 700,
-            boxShadow: isActive ? `0 0 16px ${step.color}66` : 'none',
+            fontSize: 16, color: isCompleted || isActive ? '#fff' : '#94a3b8', fontWeight: 700,
+            boxShadow: isActive ? `0 4px 12px ${step.color}55` : 'none',
             transition: 'all .3s',
           }}>
             {isCompleted ? '✓' : step.emoji}
@@ -1093,16 +1094,16 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
           {/* 标题 + Agent */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 700 }}>{step.name}</span>
+              <span style={{ color: '#1e293b', fontSize: 13, fontWeight: 700 }}>{step.name}</span>
               <span style={{
                 fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                background: `${step.color}22`, color: step.color,
+                background: `${step.color}1a`, color: step.color,
                 fontWeight: 700, fontFamily: 'monospace',
               }}>AGENT · {step.agent}</span>
               <span style={{
                 fontSize: 9.5, padding: '1px 6px', borderRadius: 4,
-                background: isCompleted ? '#10b98122' : isActive ? '#3b82f622' : '#47556922',
-                color:      isCompleted ? '#10b981'    : isActive ? '#3b82f6'    : '#64748b',
+                background: isCompleted ? '#10b9811a' : isActive ? '#3b82f61a' : '#f1f5f9',
+                color:      isCompleted ? '#059669'    : isActive ? '#2563eb'    : '#94a3b8',
                 fontWeight: 700,
               }}>
                 {isCompleted ? '已完成' : isActive ? '执行中' : '待开始'}
@@ -1110,7 +1111,7 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
             </div>
             {/* Agent 当前在干什么（执行中时显示） */}
             {(isActive || isCompleted) && (
-              <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>
+              <div style={{ marginTop: 6, fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>
                 {isActive && <span style={{ color: step.color }}>▸ </span>}
                 {fillLog(step.logs[Math.min(visibleLogCount, step.logs.length - 1) || 0])}
                 {isActive && <span style={{ color: step.color, animation: 'rgBlink 1s steps(1) infinite' }}> ▍</span>}
@@ -1121,26 +1122,26 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{
               fontSize: 12, fontWeight: 700,
-              color: isCompleted ? '#10b981' : isActive ? step.color : '#64748b',
+              color: isCompleted ? '#059669' : isActive ? step.color : '#94a3b8',
               fontFamily: 'monospace',
             }}>
               {fmtMs(elapsed)}
             </div>
-            <div style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace', marginTop: 2 }}>
+            <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace', marginTop: 2 }}>
               {isCompleted ? `100%` : isActive ? `${Math.round(progress)}%` : '0%'}
             </div>
           </div>
         </div>
         {/* 进度条 */}
         <div style={{
-          marginTop: 8, height: 4, background: 'rgba(148,163,184,0.12)',
+          marginTop: 8, height: 4, background: '#e2e8f0',
           borderRadius: 999, overflow: 'hidden',
         }}>
           <div style={{
             height: '100%',
             width: `${progress}%`,
-            background: isCompleted ? '#10b981' : `linear-gradient(90deg, ${step.color}88, ${step.color})`,
-            boxShadow: isActive ? `0 0 8px ${step.color}88` : 'none',
+            background: isCompleted ? '#10b981' : `linear-gradient(90deg, ${step.color}cc, ${step.color})`,
+            boxShadow: isActive ? `0 0 8px ${step.color}55` : 'none',
             borderRadius: 999, transition: 'width .15s',
           }} />
         </div>
@@ -1153,10 +1154,11 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
   // ───────────── 渲染 ─────────────
   return (
     <div style={{
-      background: 'linear-gradient(135deg, #0b1220 0%, #0f172a 50%, #111827 100%)',
-      borderRadius: 14, padding: 16, color: '#e2e8f0',
-      border: '1px solid rgba(56,189,248,0.18)',
+      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #eff6ff 100%)',
+      borderRadius: 14, padding: 16, color: '#1e293b',
+      border: '1px solid #e2e8f0',
       position: 'relative', overflow: 'hidden',
+      boxShadow: '0 1px 3px rgba(15,23,42,0.04)',
     }}>
       <style>{`
         @keyframes rgBlink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
@@ -1171,11 +1173,11 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
             width: 32, height: 32, borderRadius: 8,
             background: 'linear-gradient(135deg, #a855f7, #3b82f6)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, boxShadow: '0 0 16px rgba(168,85,247,0.45)',
+            fontSize: 16, boxShadow: '0 4px 12px rgba(99,102,241,0.35)',
           }}>✨</div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: 0.3 }}>
-              学习包生成 <span style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>/ LEARNING PACK GEN</span>
+            <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: 0.3, color: '#1e293b' }}>
+              学习包生成 <span style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>/ LEARNING PACK GEN</span>
             </div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
               基于你的画像定制 · 4 智能体协同 · 全过程可视化
@@ -1186,28 +1188,29 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
           {/* 总耗时 */}
           <div style={{
             padding: '6px 12px', borderRadius: 8,
-            background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(56,189,248,0.25)',
+            background: '#ffffff', border: '1px solid #e2e8f0',
             display: 'flex', alignItems: 'center', gap: 6,
             fontFamily: 'monospace', fontSize: 11,
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
           }}>
             <span style={{
               width: 6, height: 6, borderRadius: '50%',
-              background: phase === 'running' ? '#22d3ee' : phase === 'done' ? '#10b981' : '#475569',
-              boxShadow: phase !== 'idle' ? `0 0 8px ${phase === 'running' ? '#22d3ee' : '#10b981'}` : 'none',
+              background: phase === 'running' ? '#0ea5e9' : phase === 'done' ? '#10b981' : '#cbd5e1',
+              boxShadow: phase !== 'idle' ? `0 0 6px ${phase === 'running' ? '#0ea5e9' : '#10b981'}` : 'none',
               animation: phase === 'running' ? 'rgPulse 1.2s ease-in-out infinite' : 'none',
             }} />
             <span style={{ color: '#64748b' }}>ELAPSED</span>
-            <span style={{ color: phase === 'running' ? '#22d3ee' : phase === 'done' ? '#10b981' : '#94a3b8', fontWeight: 700 }}>
+            <span style={{ color: phase === 'running' ? '#0284c7' : phase === 'done' ? '#059669' : '#94a3b8', fontWeight: 700 }}>
               {fmtMs(elapsedTotal)}
             </span>
-            <span style={{ color: '#475569' }}>/ {fmtMs(totalDuration)}</span>
+            <span style={{ color: '#cbd5e1' }}>/ {fmtMs(totalDuration)}</span>
           </div>
           {/* 状态徽标 */}
           <div style={{
             padding: '4px 10px', borderRadius: 999,
-            background: phase === 'running' ? 'rgba(59,130,246,0.15)' : phase === 'done' ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)',
-            border: `1px solid ${phase === 'running' ? '#3b82f6' : phase === 'done' ? '#10b981' : '#6366f1'}55`,
-            color:      phase === 'running' ? '#3b82f6'      : phase === 'done' ? '#10b981'      : '#a5b4fc',
+            background: phase === 'running' ? '#eff6ff' : phase === 'done' ? '#ecfdf5' : '#eef2ff',
+            border: `1px solid ${phase === 'running' ? '#bfdbfe' : phase === 'done' ? '#a7f3d0' : '#c7d2fe'}`,
+            color:      phase === 'running' ? '#2563eb'   : phase === 'done' ? '#059669'   : '#4f46e5',
             fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
           }}>
             {phase === 'idle' ? '🟦 等待启动' : phase === 'running' ? '⚙️ 生成中' : '✅ 已完成'}
@@ -1218,12 +1221,13 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
       {/* 主题上下文条 */}
       <div style={{
         padding: '8px 12px', borderRadius: 8, marginBottom: 14,
-        background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(148,163,184,0.12)',
+        background: '#ffffff', border: '1px solid #e2e8f0',
         display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11,
+        boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
       }}>
-        <span><span style={{ color: '#64748b' }}>🎯 目标</span> <span style={{ color: '#22d3ee', fontWeight: 700 }}>{topic}</span></span>
-        <span><span style={{ color: '#64748b' }}>📍 阶段</span> <span style={{ color: '#a78bfa', fontWeight: 700 }}>{learn.stage || '主线中'}</span></span>
-        <span><span style={{ color: '#64748b' }}>⚠️ 易错点</span> <span style={{ color: '#f87171', fontWeight: 700 }}>{weak}</span></span>
+        <span><span style={{ color: '#64748b' }}>🎯 目标</span> <span style={{ color: '#0284c7', fontWeight: 700 }}>{topic}</span></span>
+        <span><span style={{ color: '#64748b' }}>📍 阶段</span> <span style={{ color: '#7c3aed', fontWeight: 700 }}>{learn.stage || '主线中'}</span></span>
+        <span><span style={{ color: '#64748b' }}>⚠️ 易错点</span> <span style={{ color: '#dc2626', fontWeight: 700 }}>{weak}</span></span>
       </div>
 
       {/* ─── 生成中：左步骤 / 右 Agent 思考流 ─── */}
@@ -1231,8 +1235,8 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
         <div style={{ display: 'grid', gridTemplateColumns: '50% 50%', gap: 14 }}>
           {/* 左：4 步流水线 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ fontSize: 11, color: '#22d3ee', fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>
-              ⚡ AGENT PIPELINE <span style={{ color: '#475569', fontWeight: 500 }}>/ 4 步流水线</span>
+            <div style={{ fontSize: 11, color: '#0284c7', fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>
+              ⚡ AGENT PIPELINE <span style={{ color: '#94a3b8', fontWeight: 500 }}>/ 4 步流水线</span>
             </div>
             {RG_STEPS.map((step, i) => (
               <StepRow
@@ -1247,19 +1251,20 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
 
           {/* 右：思考流日志 */}
           <div style={{
-            background: '#0b1220', borderRadius: 10,
-            border: '1px solid rgba(56,189,248,0.18)',
+            background: '#ffffff', borderRadius: 10,
+            border: '1px solid #e2e8f0',
             overflow: 'hidden', display: 'flex', flexDirection: 'column',
             minHeight: 360,
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
           }}>
             <div style={{
               padding: '8px 12px',
-              background: 'linear-gradient(90deg, rgba(56,189,248,0.1), transparent)',
-              borderBottom: '1px solid rgba(148,163,184,0.12)',
+              background: 'linear-gradient(90deg, #eff6ff, #ffffff)',
+              borderBottom: '1px solid #e2e8f0',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 11, color: '#22d3ee', fontWeight: 700, letterSpacing: 1 }}>💭 AGENT THINKING</span>
+                <span style={{ fontSize: 11, color: '#0284c7', fontWeight: 700, letterSpacing: 1 }}>💭 AGENT THINKING</span>
                 <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>/ 思考链</span>
               </div>
               {phase === 'running' && stepIdx >= 0 && (
@@ -1268,7 +1273,7 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
                 </span>
               )}
             </div>
-            <div style={{ flex: 1, padding: 12, overflowY: 'auto', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.8 }}>
+            <div style={{ flex: 1, padding: 12, overflowY: 'auto', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.8, background: '#f8fafc' }}>
               {RG_STEPS.map((step, i) => {
                 if (i > stepIdx) return null
                 const visible = i < stepIdx ? step.logs.length : visibleLogCount
@@ -1279,7 +1284,7 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
                     </div>
                     {step.logs.slice(0, visible).map((l, li) => (
                       <div key={li} style={{
-                        color: i < stepIdx ? '#64748b' : '#cbd5e1',
+                        color: i < stepIdx ? '#94a3b8' : '#475569',
                         paddingLeft: 16, opacity: i < stepIdx ? 0.6 : 1,
                       }}>
                         <span style={{ color: step.color }}>›</span> {fillLog(l)}
@@ -1289,12 +1294,12 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
                 )
               })}
               {phase === 'running' && stepIdx >= 0 && (
-                <div style={{ color: '#22d3ee', paddingLeft: 16, marginTop: 4 }}>
+                <div style={{ color: '#0ea5e9', paddingLeft: 16, marginTop: 4 }}>
                   <span style={{ animation: 'rgBlink 1s steps(1) infinite' }}>▍</span>
                 </div>
               )}
               {phase === 'idle' && (
-                <div style={{ color: '#64748b', textAlign: 'center', padding: '60px 0' }}>
+                <div style={{ color: '#94a3b8', textAlign: 'center', padding: '60px 0' }}>
                   点击下方「开始生成」按钮启动 4 智能体流水线 →
                 </div>
               )}
@@ -1310,29 +1315,30 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
           <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} title={pack.title} />
           <PdfPreviewModal open={pdfOpen} onClose={() => setPdfOpen(false)} title={pack.title} sections={pack.modules} />
 
-          {/* 完成总结 */}
+{/* 完成总结 */}
           <div style={{
             marginBottom: 14, padding: 12,
-            background: 'linear-gradient(135deg, rgba(16,185,129,0.10), rgba(15,23,42,0.5))',
-            border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10,
+            background: 'linear-gradient(135deg, #ecfdf5, #f0fdf4)',
+            border: '1px solid #a7f3d0', borderRadius: 10,
             display: 'flex', alignItems: 'center', gap: 12,
+            boxShadow: '0 1px 2px rgba(16,185,129,0.06)',
           }}>
             <span style={{ fontSize: 28 }}>🎁</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#10b981' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#059669' }}>
                 {pack.title} <span style={{ color: '#64748b', fontSize: 11, fontWeight: 500 }}>· 生成完成</span>
               </div>
-              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{pack.summary}</div>
+              <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{pack.summary}</div>
             </div>
-            <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#10b981', textAlign: 'right' }}>
+            <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#059669', textAlign: 'right' }}>
               <div>总耗时 <b>{fmtMs(elapsedTotal)}</b></div>
-              <div style={{ color: '#64748b', marginTop: 2 }}>4 Agent · {pack.modules.length} 模块</div>
+              <div style={{ color: '#94a3b8', marginTop: 2 }}>4 Agent · {pack.modules.length} 模块</div>
             </div>
           </div>
 
           {/* 6 模块卡片网格 */}
-          <div style={{ marginBottom: 12, fontSize: 11, color: '#22d3ee', fontWeight: 700, letterSpacing: 1 }}>
-            📦 最终生成 · 6 大模块 <span style={{ color: '#475569', fontWeight: 500 }}>/ FINAL OUTPUT</span>
+          <div style={{ marginBottom: 12, fontSize: 11, color: '#0284c7', fontWeight: 700, letterSpacing: 1 }}>
+            📦 最终生成 · 6 大模块 <span style={{ color: '#94a3b8', fontWeight: 500 }}>/ FINAL OUTPUT</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 14 }}>
             {RG_OUTPUT_MODULES.map((m, i) => {
@@ -1341,20 +1347,20 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
               return (
                 <button key={m.key} onClick={() => { setActiveModule(i); setPreviewMode('preview') }} style={{
                   padding: 12, borderRadius: 10,
-                  border: `1px solid ${active ? m.color : 'rgba(148,163,184,0.15)'}`,
-                  background: active ? `linear-gradient(135deg, ${m.color}22, transparent)` : 'rgba(15,23,42,0.5)',
+                  border: `1px solid ${active ? m.color : '#e2e8f0'}`,
+                  background: active ? `linear-gradient(135deg, ${m.color}1a, #ffffff)` : '#ffffff',
                   cursor: 'pointer', textAlign: 'left',
                   display: 'flex', flexDirection: 'column', gap: 4,
                   transition: 'all .2s',
-                  boxShadow: active ? `0 0 16px ${m.color}55` : 'none',
+                  boxShadow: active ? `0 4px 14px ${m.color}33` : '0 1px 2px rgba(15,23,42,0.04)',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 22 }}>{m.icon}</span>
-                    <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>{String(i + 1).padStart(2, '0')}</span>
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{String(i + 1).padStart(2, '0')}</span>
                   </div>
-                  <div style={{ color: active ? m.color : '#e2e8f0', fontSize: 13, fontWeight: 700 }}>{m.name}</div>
+                  <div style={{ color: active ? m.color : '#1e293b', fontSize: 13, fontWeight: 700 }}>{m.name}</div>
                   <div style={{ color: '#64748b', fontSize: 10, lineHeight: 1.4 }}>{m.desc}</div>
-                  <div style={{ marginTop: 4, fontSize: 10, color: matched ? '#10b981' : '#475569', fontFamily: 'monospace' }}>
+                  <div style={{ marginTop: 4, fontSize: 10, color: matched ? '#059669' : '#94a3b8', fontFamily: 'monospace' }}>
                     {matched ? `✓ ${matched.content.length} 字` : '未生成'}
                   </div>
                 </button>
@@ -1364,15 +1370,16 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
 
           {/* 详情预览 */}
           <div style={{
-            background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(148,163,184,0.15)',
+            background: '#ffffff', border: '1px solid #e2e8f0',
             borderRadius: 10, padding: 12, minHeight: 280,
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ color: RG_OUTPUT_MODULES[activeModule].color, fontSize: 13, fontWeight: 700 }}>
                   {RG_OUTPUT_MODULES[activeModule].icon} {RG_OUTPUT_MODULES[activeModule].name}
                 </span>
-                <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>
+                <span style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>
                   / {RG_OUTPUT_MODULES[activeModule].key.toUpperCase()}
                 </span>
               </div>
@@ -1380,9 +1387,9 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
                 {[{ k: 'preview', l: '👁 预览' }, { k: 'source', l: '</> 源码' }].map(t => (
                   <button key={t.k} onClick={() => setPreviewMode(t.k)} style={{
                     padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                    background: previewMode === t.k ? 'rgba(56,189,248,0.15)' : 'transparent',
-                    color: previewMode === t.k ? '#22d3ee' : '#64748b',
-                    border: `1px solid ${previewMode === t.k ? '#22d3ee55' : 'transparent'}`,
+                    background: previewMode === t.k ? '#eff6ff' : 'transparent',
+                    color: previewMode === t.k ? '#0284c7' : '#64748b',
+                    border: `1px solid ${previewMode === t.k ? '#bae6fd' : 'transparent'}`,
                     cursor: 'pointer',
                   }}>{t.l}</button>
                 ))}
@@ -1390,7 +1397,7 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
             </div>
             {(() => {
               const matched = pack.modules[activeModule]
-              if (!matched) return <div style={{ color: '#64748b', textAlign: 'center', padding: 60 }}>暂无内容</div>
+              if (!matched) return <div style={{ color: '#94a3b8', textAlign: 'center', padding: 60 }}>暂无内容</div>
               if (previewMode === 'preview') return (
                 <div style={{ maxHeight: 360, overflowY: 'auto' }}>
                   <MarkdownCard content={matched.content} title={matched.name} />
@@ -1401,14 +1408,15 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
               return (
                 <pre style={{
                   margin: 0, padding: '12px 0',
-                  background: '#0b1220', color: '#e2e8f0',
+                  background: '#f8fafc', color: '#1e293b',
                   borderRadius: 8, fontFamily: 'monospace',
                   fontSize: 12.5, lineHeight: 1.7, overflow: 'auto',
                   maxHeight: 360,
+                  border: '1px solid #e2e8f0',
                 }}>
                   {lines.map((line, i) => (
                     <div key={i} style={{ display: 'flex', paddingRight: 12 }}>
-                      <span style={{ color: '#475569', display: 'inline-block', width: 40, textAlign: 'right', paddingRight: 12, marginRight: 12, borderRight: '1px solid #1e293b', userSelect: 'none', flexShrink: 0 }}>{i + 1}</span>
+                      <span style={{ color: '#94a3b8', display: 'inline-block', width: 40, textAlign: 'right', paddingRight: 12, marginRight: 12, borderRight: '1px solid #e2e8f0', userSelect: 'none', flexShrink: 0 }}>{i + 1}</span>
                       <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', flex: 1 }}>{line || ' '}</span>
                     </div>
                   ))}
@@ -1421,35 +1429,38 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
           <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
             {[
               { icon: '📋', label: '复制全部', onClick: async () => {
-                const all = pack.modules.map(m => m.content).join('\n\n---\n\n')
-                try { await navigator.clipboard.writeText(all) } catch (_) {}
-                pushToast({ type: 'success', title: '已复制全部内容', detail: `${pack.modules.length} 个模块 · ${all.length} 字符`, icon: '📋', duration: 1800 })
-              }},
+                  const all = pack.modules.map(m => m.content).join('\n\n---\n\n')
+                  try { await navigator.clipboard.writeText(all) } catch (_) {}
+                  pushToast({ type: 'success', title: '已复制全部内容', detail: `${pack.modules.length} 个模块 · ${all.length} 字符`, icon: '📋', duration: 1800 })
+                }},
               { icon: '📥', label: '下载 MD', onClick: () => {
-                const all = pack.modules.map(m => m.content).join('\n\n---\n\n')
-                const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-                const blob = new Blob([all], { type: 'text/markdown;charset=utf-8' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url; a.download = `${pack.title}-${stamp}.md`; a.click()
-                setTimeout(() => URL.revokeObjectURL(url), 1000)
-                pushToast({ type: 'success', title: 'Markdown 已下载', detail: `${pack.title}.md`, icon: '📥', duration: 1800 })
-              }},
+                  const all = pack.modules.map(m => m.content).join('\n\n---\n\n')
+                  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+                  const blob = new Blob([all], { type: 'text/markdown;charset=utf-8' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url; a.download = `${pack.title}-${stamp}.md`; a.click()
+                  setTimeout(() => URL.revokeObjectURL(url), 1000)
+                  pushToast({ type: 'success', title: 'Markdown 已下载', detail: `${pack.title}.md`, icon: '📥', duration: 1800 })
+                }},
               { icon: '📄', label: '下载 PDF', primary: true, onClick: () => setPdfOpen(true) },
               { icon: '🔗', label: '分享', onClick: () => setShareOpen(true) },
               { icon: '🔁', label: '重新生成', onClick: () => { pushToast({ type: 'info', title: '正在重新生成...', icon: '🔁', duration: 1500 }); startPipeline() } },
             ].map(b => (
               <button key={b.label} onClick={b.onClick} style={{
                 padding: '10px 6px', borderRadius: 8,
-                border: b.primary ? 'none' : '1px solid rgba(148,163,184,0.2)',
+                border: b.primary ? 'none' : '1px solid #e2e8f0',
                 background: b.primary
                   ? 'linear-gradient(135deg, #3b82f6, #6366f1)'
-                  : 'rgba(15,23,42,0.6)',
-                color: b.primary ? '#fff' : '#cbd5e1',
+                  : '#ffffff',
+                color: b.primary ? '#fff' : '#475569',
                 fontSize: 11.5, fontWeight: 600,
                 cursor: 'pointer',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                 transition: 'all .15s',
+                boxShadow: b.primary
+                  ? '0 4px 12px rgba(99,102,241,0.35)'
+                  : '0 1px 2px rgba(15,23,42,0.04)',
               }}>
                 <span style={{ fontSize: 16 }}>{b.icon}</span>
                 <span>{b.label}</span>
@@ -1466,16 +1477,31 @@ function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, Module
             onClick={startPipeline}
             disabled={phase === 'running'}
             style={{
-              padding: '14px 36px', borderRadius: 12, border: 'none',
+              padding: '14px 36px', borderRadius: 12,
+              border: '1px solid #e2e8f0',
               background: phase === 'running'
-                ? 'rgba(99,102,241,0.4)'
-                : 'linear-gradient(90deg, #a855f7, #3b82f6, #06b6d4)',
-              backgroundSize: '200% 100%',
-              color: '#fff', fontSize: 14, fontWeight: 800,
+                ? '#f1f5f9'
+                : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+              color: phase === 'running' ? '#94a3b8' : '#1e293b',
+              fontSize: 14, fontWeight: 700,
               cursor: phase === 'running' ? 'not-allowed' : 'pointer',
-              boxShadow: phase === 'running' ? 'none' : '0 8px 24px rgba(99,102,241,0.35)',
+              boxShadow: phase === 'running'
+                ? 'none'
+                : '0 4px 12px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,1)',
               letterSpacing: 0.5,
-              position: 'relative', overflow: 'hidden',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => {
+              if (phase !== 'running') {
+                e.currentTarget.style.transform = 'translateY(-1px)'
+                e.currentTarget.style.boxShadow = '0 8px 20px rgba(59,130,246,0.18), 0 0 0 3px rgba(59,130,246,0.10), inset 0 1px 0 rgba(255,255,255,1)'
+              }
+            }}
+            onMouseLeave={e => {
+              if (phase !== 'running') {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,1)'
+              }
             }}
           >
             {phase === 'running' ? '⏳ 4 智能体协同生成中...' : '🚀 一键生成学习包（基于你的画像）'}

@@ -12,6 +12,11 @@
 //   POST   /api/notifications/read-all           → 全部已读
 //   DELETE /api/notifications/:id                → 删除单条
 //
+// ⚠️ 后端端口提示：以上所有 /api/notifications* 路径
+//    dev → Vite 代理转发到 http://127.0.0.1:17077（见 vite.config.js）
+//    prod → 需反向代理指向 FastAPI 17077 端口
+//    切换到真接口时：把 __USE_MOCK__ 置为 false，并确认后端 main.py 监听 17077
+//
 // 返回数据约定：
 //   {
 //     code: 0,
@@ -55,16 +60,16 @@ function buildMockList() {
       description: '《数据结构》第五章 · 二叉树遍历 还有 3 道练习题未完成，建议在 22:00 前完成。',
       createdAt: m(8),
       read: false,
-      meta: { link: '/center?tab=path' },
+      meta: { link: '/center?tab=portrait' },
     },
     {
       id: 'n_study_002',
       category: 'study',
       title: '学习路径已更新',
-      description: '根据你最近的学习表现，AI 已为你重新规划了下周的学习路径，快去看看吧～',
+      description: '根据你最近的学习表现，AI 已为你重新规划了下周的学习路径，快去学习画像页查看吧～',
       createdAt: m(60 * 6),
       read: true,
-      meta: { link: '/center?tab=path' },
+      meta: { link: '/center?tab=portrait' },
     },
     // AI 生成完成
     {
@@ -174,6 +179,7 @@ export async function fetchNotifications(category) {
     return mockResponse(sorted)
   }
   /* 真接口：
+     // ⬇️ GET /api/notifications → FastAPI 17077（Vite /api 代理）
      const qs = category ? `?category=${encodeURIComponent(category)}` : ''
      const res = await fetch(`/api/notifications${qs}`)
      if (!res.ok) return mockReject(`HTTP ${res.status}`)
@@ -194,6 +200,7 @@ export async function markNotificationRead(id) {
     return mockResponse({ id, read: true })
   }
   /* 真接口：
+     // ⬇️ POST /api/notifications/:id/read → FastAPI 17077
      const res = await fetch(`/api/notifications/${id}/read`, { method: 'POST' })
      if (!res.ok) return mockReject(`HTTP ${res.status}`)
      return res.json()
@@ -214,6 +221,7 @@ export async function markAllNotificationsRead(category) {
     return mockResponse({ ok: true })
   }
   /* 真接口：
+     // ⬇️ POST /api/notifications/read-all → FastAPI 17077
      const res = await fetch('/api/notifications/read-all', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
@@ -237,6 +245,7 @@ export async function deleteNotification(id) {
     return mockResponse({ id, removed: before !== __MOCK_STATE__.length })
   }
   /* 真接口：
+     // ⬇️ DELETE /api/notifications/:id → FastAPI 17077
      const res = await fetch(`/api/notifications/${id}`, { method: 'DELETE' })
      if (!res.ok) return mockReject(`HTTP ${res.status}`)
      return res.json()
