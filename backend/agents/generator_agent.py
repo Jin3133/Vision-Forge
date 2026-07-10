@@ -26,12 +26,15 @@ class GeneratorAgent(AgentBase):
         sandbox_config = self.read_blackboard(state, "sandbox_config")
         evaluation = self.read_blackboard(state, "evaluation_results").get("report", "暂无评估报告")
 
+        # 将 Pydantic 对象安全转为字典再序列化
+        config_dict = sandbox_config.model_dump() if hasattr(sandbox_config, "model_dump") else sandbox_config
+
         # 2. 组装给大模型的排版指令
         prompt = f"""
 请基于以下数据生成 HTML 讲义：
 
 【沙盒配置】：
-{json.dumps(sandbox_config, ensure_ascii=False, indent=2)}
+{json.dumps(config_dict, ensure_ascii=False, indent=2)}
 
 【专家评估意见】：
 {evaluation}
@@ -41,36 +44,42 @@ class GeneratorAgent(AgentBase):
         # 3. 调用星火大脑 (temperature 调低，保证代码结构的稳定性)
         html_report = self.call_llm(user_input=prompt, temperature=0.2)
 
-        self.update_history(state, "最终多模态讲义已生成")
-
         # 4. 把最终的讲义挂在黑板上，流程结束
+        # ✅ 修复：final_report_html 统一装进 evaluation_results（与 main.py 响应映射对齐）
         return {
-            "final_report_html": html_report,
-            "current_step": "completed"
+            "evaluation_results": {
+                "final_report_html": html_report
+            },
+            "current_step": "completed",
+            "history": [f"[{self.name}] 最终多模态讲义已生成"]
         }
 
 
 # ================= 单元测试 =================
 if __name__ == "__main__":
-    # 模拟前三棒跑完后的完整黑板
-    mock_state: TaskState = {
-        "session_id": "test_session_final",
-        "user_intent": "我要做玉米病斑检测",
-        "learner_profile": {"domain": "农业", "cognitive_style": "图表直观应用"},
-        "sandbox_config": {
-            "task_type": "目标检测",
-            "suggested_backbone": "YOLOv8",
-            "suggested_plugins": ["SE_Block", "CutMix"]
+    from core.state import SandboxConfig, NodeModel
+
+    # ✅ 修复：必须实例化为 TaskState 对象，不能直接传字典
+    mock_state = TaskState(
+        session_id="test_session_final",
+        user_intent="我要做玉米病斑检测",
+        learner_profile={"domain": "农业", "cognitive_style": "图表直观应用"},
+        sandbox_config=SandboxConfig(
+            task_type="目标检测",
+            suggested_backbone="ResNet50",
+            nodes=[
+                NodeModel(id="n1", type="BACKBONE", name="ResNet50"),
+                NodeModel(id="n2", type="HEAD", name="YOLO_Detect_Head"),
+            ]
+        ),
+        evaluation_results={
+            "report": "建议将 reduction 参数调整为 16 以符合原论文规范。"
         },
-        "evaluation_results": {
-            "report": "建议将 SE_Block 的 reduction 参数调整为 16 以符合原论文规范。"
-        },
-        "history": ["..."],
-        "current_step": "generator_stage"
-    }
+        current_step="generator_stage"
+    )
 
     print("--- 资源生成智能体 测试开始 ---")
     generator = GeneratorAgent()
     delta = generator.run(mock_state)
     print("\n--- 最终生成的 HTML 讲义源码 ---")
-    print(delta.get("final_report_html", "生成失败"))
+    print(delta.get("evaluation_results", {}).get("final_report_html", "生成失败"))

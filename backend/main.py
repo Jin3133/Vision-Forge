@@ -3,13 +3,16 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Any # ✅ 新增：用于定义字典类型的输入
+from typing import Dict, Any, List, Optional
 
 # 强行把当前 backend 目录加入 Python 搜索路径
 current_dir = Path(__file__).resolve().parent
 sys.path.append(str(current_dir))
 
 from main_workflow import run_vision_forge_pipeline
+from core.node_catalog import NODE_CATALOG, NAME_TO_TYPE, is_valid_node
+from core.logger import logger
+from agents.base_agent import AgentBase
 
 # 初始化 FastAPI 应用
 app = FastAPI(title="Vision-Forge API", description="视觉大模型多智能体教研平台")
@@ -29,27 +32,51 @@ class ChatRequest(BaseModel):
     user_intent: str
     session_id: str = "default_session"
 
-# ✅ 新增：画板评估的请求体模型
+
 class EvaluateRequest(BaseModel):
     session_id: str
     user_intent: str
     sandbox_config: Dict[str, Any]
 
 
+# ==================== 评估专用 LLM（懒加载，仅生成反馈文案） ====================
+class _EvalFeedbackAgent(AgentBase):
+    """内部轻量 Agent，为画板评估接口生成自然语言反馈。"""
+    def __init__(self):
+        super().__init__(
+            name="EvalFeedback",
+            role_prompt="你是一个友好且专业的视觉模型架构评审助手。"
+                        "根据结构化评分数据，生成一段简洁中文评审意见（1-2 段话）。"
+                        "突出亮点和最关键的改进方向，语气鼓励但不回避问题。"
+        )
+
+    def run(self, state):
+        pass  # 不走流水线
+
+
+_eval_agent: Optional[_EvalFeedbackAgent] = None
+
+
+def _get_eval_agent() -> _EvalFeedbackAgent:
+    global _eval_agent
+    if _eval_agent is None:
+        _eval_agent = _EvalFeedbackAgent()
+    return _eval_agent
+
+
 # ==================== 接口 1：智能对话与流水线 ====================
 @app.post("/api/chat")
 async def chat_with_agents(request: ChatRequest):
-    print(f"\n🌐 接收到前端网络请求: {request.user_intent}")
+    logger.info(f"\n🌐 接收到前端网络请求: {request.user_intent}")
     try:
         final_state = run_vision_forge_pipeline(request.session_id, request.user_intent)
 
-        # 🚨 新增：拦截异常节点，给前端返回友好的提示，防止前端白屏或乱码
         if final_state.get("current_step") == "error_stage":
             return {
                 "code": 200,
                 "message": "pipeline_error",
                 "data": {
-                    "tutor_response": "⚠️ **系统提示**：抱歉，大模型接口连接超时或额度耗尽。我在流转过程中遇到了网络阻碍，请检查后端网络或星火大模型配置！",
+                    "tutor_response": "⚠️ **系统提示**：抱歉，大模型接口连接超时或额度耗尽。请检查后端网络或星火大模型配置！",
                     "evaluation_report": "",
                     "final_report_html": ""
                 }
@@ -72,93 +99,137 @@ async def chat_with_agents(request: ChatRequest):
         raise HTTPException(status_code=500, detail=f"流水线执行崩溃: {str(e)}")
 
 
-# ==================== 接口 2：画板动态智能评估 ====================
+# ==================== 接口 2：画板动态智能评估（重构版） ====================
 @app.post("/api/v1/agent/evaluate")
 async def evaluate_sandbox(request: EvaluateRequest):
-    print(f"\n🎨 接收到画板评估请求 | Session: {request.session_id}")
-    
+    """基于 node_catalog 白名单的结构化评估 + LLM 生成自然语言反馈。
+
+    评估逻辑分两层：
+    1. 规则层（确定性）：白名单校验、拓扑完整性检查、启发式评分
+    2. LLM 层（生成性）：将规则层结果交给大模型生成专业反馈文案
+    """
+    logger.info(f"\n🎨 接收到画板评估请求 | Session: {request.session_id}")
+
     nodes = request.sandbox_config.get("nodes", [])
     edges = request.sandbox_config.get("edges", [])
-    node_names = [n.get("name", "未知节点") for n in nodes]
-    
-    strengths = []
-    warnings = []
-    suggestions = []
-    is_valid = True
 
     if len(nodes) == 0:
         return {"status": "error", "message": "画布为空，请先添加节点"}
 
-    # 1. 提取架构特征 (提取关键字)
-    has_input = any("输入" in n for n in node_names)
-    has_output = any("输出" in n or "解码" in n or "全连接" in n for n in node_names)
-    has_backbone = any("编码" in n or "卷积" in n or "提取" in n or "基座" in n for n in node_names)
-    has_attention = any("注意" in n or "融合" in n for n in node_names)
-    has_prompt = any("提示" in n for n in node_names)
+    # ==================== 规则层评估 ====================
+    strengths = []
+    warnings = []
+    suggestions = []
+    score_val = 10  # 基础分
 
-    # 2. 致命错误拦截 (没有输出层，直接判死刑)
-    if not has_output:
-        warnings.append("⚠️ 致命错误：架构未闭环！缺少最终的【输出层】或【掩码解码器】，模型无法计算 Loss 和输出预测结果。")
+    # --- 1. 白名单校验（核心改进：用 node_catalog 代替关键词匹配） ---
+    valid_nodes = []
+    invalid_nodes = []
+    type_counts: Dict[str, int] = {}
+
+    for node in nodes:
+        n_type = str(node.get("type", "")).upper()
+        n_name = node.get("name", "")
+        if is_valid_node(n_type, n_name):
+            valid_nodes.append(node)
+            type_counts[n_type] = type_counts.get(n_type, 0) + 1
+        else:
+            invalid_nodes.append(f"{n_type}:{n_name}")
+
+    if invalid_nodes:
+        warnings.append(f"⚠️ 检测到 {len(invalid_nodes)} 个非法算子（不在白名单内）: {', '.join(invalid_nodes[:5])}")
+        score_val -= 5 * min(len(invalid_nodes), 3)
+
+    if valid_nodes:
+        strengths.append(f"✅ {len(valid_nodes)} 个算子通过白名单校验。")
+
+    # --- 2. 架构完整性检查（基于 type 维度） ---
+    has_backbone = type_counts.get("BACKBONE", 0) > 0
+    has_head = type_counts.get("HEAD", 0) > 0
+    has_neck = type_counts.get("NECK", 0) > 0
+    has_adapter = type_counts.get("ADAPTER", 0) > 0
+
+    if has_backbone:
+        score_val += 25
+        strengths.append("✅ 包含特征提取骨干（BACKBONE），具备基础的视觉理解能力。")
+    else:
+        warnings.append("❌ 缺少 BACKBONE 节点！模型无法提取图像特征，属于无效架构。")
+        score_val -= 15
+
+    if has_head:
+        score_val += 25
+        strengths.append("✅ 包含任务输出头（HEAD），架构闭环完整。")
+    else:
+        warnings.append("⚠️ 缺少 HEAD 节点，模型无法产生预测结果。")
         return {
             "status": "success",
             "data": {
                 "is_valid": False,
                 "estimated_metrics": {"metric_name": "预估精度", "baseline_value": "N/A", "optimized_value": "0%"},
-                "feedback": {"strengths": strengths, "warnings": warnings, "learning_suggestions": ["💡 请在模型末端添加一个输出节点。"]}
+                "feedback": {
+                    "strengths": strengths,
+                    "warnings": warnings,
+                    "learning_suggestions": ["💡 请添加 HEAD 节点（如 YOLO_Detect_Head、Mask_Decoder）使架构闭环。"]
+                }
             }
         }
 
-    # 3. 启发式评分计算 (初始基础分 15 分)
-    score_val = 15
+    if has_neck:
+        score_val += 15
+        strengths.append("✅ 使用了特征融合模块（NECK），有助于多尺度信息整合。")
+    else:
+        suggestions.append("💡 建议添加 NECK 模块（如 Feature_Pyramid、BiFPN）以增强多尺度特征融合。")
 
-    # 检查输入
-    if has_input:
+    if has_adapter:
         score_val += 10
-        strengths.append("✅ 具备清晰的输入层，数据流入口明确。")
-    else:
-        warnings.append("⚠️ 缺少明确的输入层，数据流可能混乱。")
+        strengths.append("✅ 引入了参数高效微调适配器（ADAPTER），支持轻量化训练。")
 
-    # 检查骨干特征提取能力
-    if has_backbone:
-        score_val += 35
-        strengths.append("✅ 包含了视觉特征提取骨干（Backbone），具备基础的图像理解能力。")
-    else:
-        warnings.append("❌ 缺少核心特征提取模块（如卷积层、图像编码器），模型无法有效提取深层语义，属于无效架构。")
-        score_val -= 10
+    # --- 3. 拓扑连通性检查 ---
+    node_ids = {n.get("id") for n in nodes}
+    connected_ids = set()
+    for edge in edges:
+        connected_ids.add(edge.get("source"))
+        connected_ids.add(edge.get("target"))
 
-    # 检查注意力/高级特征融合
-    if has_attention:
-        score_val += 15
-        strengths.append("✅ 使用了注意力/高级融合机制，有助于捕获全局上下文信息。")
+    isolated = node_ids - connected_ids
+    if isolated and len(nodes) > 1:
+        warnings.append(f"⚠️ 拓扑断裂：存在 {len(isolated)} 个孤立节点未连接到数据流。")
+        score_val -= 3 * min(len(isolated), 3)
 
-    # 检查提示机制 (SAM的核心)
-    if has_prompt:
-        score_val += 15
-        strengths.append("✅ 引入了提示编码器，赋予了模型零样本/交互式分割的高级特性。")
-    else:
-        suggestions.append("💡 进阶建议：如果想达到 SAM（Segment Anything）级别的泛化能力，建议加入【提示编码器】。")
+    if edges and len(edges) >= len(nodes) - 1:
+        strengths.append("✅ 节点间连接充分，数据流路径完整。")
+        score_val += 5
 
-    # 4. 惩罚机制 (降维打击)
-    # 惩罚 1：模型过浅（例如你刚才只有4个节点的情况）
-    if len(nodes) <= 4:
-        warnings.append("⚠️ 模型过于浅层：参数量和感受野严重不足，在真实复杂数据集上会面临严重的欠拟合。")
-        # 强制压低分数上限，浅层网络最高只能得 45%
-        score_val = min(score_val, 45) 
+    # --- 4. 深度惩罚 ---
+    if len(valid_nodes) <= 2:
+        warnings.append("⚠️ 模型过于浅层，在复杂任务上会严重欠拟合。")
+        score_val = min(score_val, 35)
 
-    # 惩罚 2：有孤立节点
-    if len(edges) < len(nodes) - 1:
-        warnings.append("⚠️ 拓扑断裂：画布上存在未连接的孤立节点，会有部分死代码。")
-        score_val -= 5
-
-    # 5. 分数收敛与边界处理
+    # --- 5. 分数边界 ---
     score_val = max(0, min(99, score_val))
-    
-    # 根据分数给出最终定性
-    if score_val < 50:
-        is_valid = False
-        suggestions.append("💡 当前模型无法用于工业生产，请添加更多的特征提取层或参考左侧的【预置模型库】。")
-    else:
-        is_valid = True
+    is_valid = score_val >= 40
+
+    if not is_valid:
+        suggestions.append("💡 当前架构评分较低，建议参考白名单添加更多功能模块。")
+
+    # ==================== LLM 层：生成自然语言反馈 ====================
+    llm_summary = ""
+    try:
+        agent = _get_eval_agent()
+        eval_context = (
+            f"用户意图: {request.user_intent}\n"
+            f"有效节点: {[n.get('name') for n in valid_nodes]}\n"
+            f"类型分布: {type_counts}\n"
+            f"评分: {score_val}/99\n"
+            f"亮点: {strengths}\n"
+            f"问题: {warnings}\n"
+        )
+        llm_summary = agent.call_llm(
+            user_input=f"请为以下画板评估结果生成一段简洁的评审意见:\n{eval_context}",
+            temperature=0.4
+        )
+    except Exception as e:
+        logger.warning(f"[Evaluate] LLM 反馈生成失败（不影响主流程）: {e}")
 
     return {
         "status": "success",
@@ -172,11 +243,19 @@ async def evaluate_sandbox(request: EvaluateRequest):
             "feedback": {
                 "strengths": strengths,
                 "warnings": warnings,
-                "learning_suggestions": suggestions
+                "learning_suggestions": suggestions,
+                "llm_summary": llm_summary
             },
-            "matched_experiment_file": ""
+            "validation_details": {
+                "total_nodes": len(nodes),
+                "valid_nodes": len(valid_nodes),
+                "invalid_nodes": invalid_nodes,
+                "type_distribution": type_counts,
+                "isolated_count": len(isolated) if len(nodes) > 1 else 0
+            }
         }
     }
+
 
 # ==================== 接口 3：健康检查 ====================
 @app.get("/")
