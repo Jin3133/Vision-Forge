@@ -1,5 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useLearn } from '../LearnContext.jsx'
+
+import { useToasts, ToastStack } from '../components/resources/Toast'
+import { ResourceCardSkeleton, ResourceGridSkeleton, ModuleContentSkeleton } from '../components/resources/Skeleton'
+import { EmptyState } from '../components/resources/EmptyState'
+import { MarkdownPreview } from '../components/resources/MarkdownPreview'
+import { ShareModal } from '../components/resources/ShareModal'
+import { PdfPreviewModal } from '../components/resources/PdfPreviewModal'
+import { fetchFavorites, toggleFavorite, isFavorited } from '../api/favorites.js'
 
 // ==================== 预设资源数据 ====================
 const defaultResources = [
@@ -364,34 +373,247 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
   return templates[resourceType] || templates['讲义']
 }
 
+// ==================== 学习包生成器 ====================
+// 围绕用户目标 + 易错点，输出"一整套课程"：讲义 + 思维导图 + 练习任务 + 实验案例 + 源码阅读 + 推荐论文
+const generateLearningPack = (goal, customGoal, weakTopics) => {
+  const topic = goal === '自定义目标' ? (customGoal || '自定义学习') : (goal || '视觉模型')
+  const weak = (weakTopics && weakTopics.length) ? weakTopics.join('、') : '暂无'
+  return {
+    title: `${topic} · 专属学习包`,
+    summary: `围绕「${topic}」定制的端到端学习路径，含讲义、思维导图、练习、实验、源码、论文 6 大模块。`,
+    modules: [
+      {
+        icon: '📚', name: '讲义模块', desc: `${topic} 核心概念与原理速通（约 30 min）`,
+        content: `# ${topic} · 学习讲义
+
+## 一、学习目标
+- 掌握 **${topic}** 的核心概念与数学原理
+- 能够独立完成一个最小可运行示例
+- 形成对该方向的「知识地图」位置感
+
+## 二、知识点大纲
+1. **基础概念**：定义与发展历程
+2. **核心算法**：${topic} 的关键步骤拆解
+3. **实践路径**：从 demo 到生产环境的进阶
+
+## 三、关键公式与代码
+\`\`\`python
+import torch
+import torch.nn as nn
+
+class ${topic.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '')}Mini(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.encoder = nn.Sequential(nn.Conv2d(3, 16, 3, padding=1), nn.ReLU())
+        self.decoder = nn.Sequential(nn.Conv2d(16, 3, 3, padding=1), nn.Sigmoid())
+
+    def forward(self, x):
+        return self.decoder(self.encoder(x))
+\`\`\`
+
+## 四、针对你的薄弱点
+你最近的易错点：**${weak}**
+建议重点阅读本章「${weak}」对应小节，再去「源码阅读」模块对照实现。
+`,
+      },
+      {
+        icon: '🗺️', name: '思维导图', desc: '5 大主题 × 12 节点的知识骨架',
+        content: `# ${topic} · 知识思维导图
+
+| 模块 | 子主题 | 重要程度 |
+|------|--------|----------|
+| 基础概念 | 定义与发展 | ★★★ |
+| 核心原理 | ${topic} 算法机制 | ★★★★★ |
+| 实践工具 | PyTorch / TensorFlow | ★★★★ |
+| 应用场景 | 1+N 跨学科落地 | ★★★★ |
+| 进阶方向 | 微调 / 蒸馏 / 部署 | ★★★ |
+
+\`\`\`
+${topic}
+├─ 基础概念 ─┬─ 定义
+│             └─ 发展历程
+├─ 核心原理 ─┬─ 算法机制
+│             └─ 数学模型
+├─ 实践工具 ─┬─ PyTorch
+│             └─ TensorFlow
+└─ 进阶方向 ─┬─ 微调
+              └─ 部署
+\`\`\`
+`,
+      },
+      {
+        icon: '📝', name: '练习任务', desc: '4 道由 AI 导师出的诊断题（含易错点）',
+        content: `# ${topic} · 练习任务
+
+## 选择题（针对易错点：${weak}）
+1. 关于 **${topic}** 的描述，下列正确的是？
+   - A. 仅适用于图像分类
+   - B. 核心思想是注意力机制  ← 重点
+   - C. 不需要标注数据
+   - D. 与 Transformer 无关
+
+2. 在该方向中，最容易出错的一步是？
+   - A. 数据增强
+   - B. 学习率设置
+   - C. 损失函数选择
+   - D. 推理后处理
+
+## 实操任务
+- [ ] 复现官方 README 中的最小 demo
+- [ ] 在自己的数据集上跑通
+- [ ] 提交到「模型工坊」让评估智能体打分
+`,
+      },
+      {
+        icon: '💻', name: '实验案例', desc: '完整端到端项目（含数据集 / 训练 / 评估）',
+        content: `# ${topic} · 实验案例
+
+## 项目结构
+\`\`\`
+project/
+├─ data/          # 数据集
+├─ models/        # 模型定义
+├─ train.py       # 训练脚本
+├─ eval.py        # 评估脚本
+└─ README.md
+\`\`\`
+
+## 训练核心
+\`\`\`python
+model = ${topic.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '')}Mini()
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+for epoch in range(10):
+    for x, y in dataloader:
+        loss = criterion(model(x), y)
+        loss.backward()
+        optimizer.step()
+\`\`\`
+
+## 评估指标
+| 指标 | 目标 | 你的结果 |
+|------|------|----------|
+| 准确率 | > 85% | 待填写 |
+| 推理速度 | < 50ms | 待填写 |
+| 模型大小 | < 200MB | 待填写 |
+`,
+      },
+      {
+        icon: '💻', name: '源码阅读路线', desc: '3-5 个关键文件，按依赖顺序阅读',
+        content: `# ${topic} · 源码阅读路线
+
+## 推荐阅读顺序
+1. **model.py** — 顶层入口，看懂 forward 数据流
+2. **encoder.py** — 特征提取核心
+3. **decoder.py** — 输出重建
+4. **utils.py** — 数据预处理与损失函数
+
+## 关键问题（带着问题去读）
+- 模型如何处理变长输入？
+- 注意力机制的 Q/K/V 维度怎么对齐？
+- 训练和推理的 forward 有何不同？
+`,
+      },
+      {
+        icon: '📰', name: '推荐论文', desc: '经典 + 最新，4 篇代表论文',
+        content: `# ${topic} · 推荐论文
+
+## 经典论文
+1. **《Attention Is All You Need》** — Transformer 奠基
+2. **《Segment Anything》** — SAM 原论文
+
+## 最新进展
+3. **《${topic} 综述 2024》** — 把握前沿
+4. **《多模态 ${topic}》** — 跨模态方向
+
+## 阅读建议
+- 第一遍：只看 abstract + 4 张图
+- 第二遍：对照代码看公式
+- 第三遍：自己复现最小版本
+`,
+      },
+    ],
+  }
+}
+
+// ==================== 今日推荐（按错点推送） ====================
+const buildTodayRecommend = (weakTopics) => {
+  const map = {
+    'Attention 参数理解': [
+      { title: 'Transformer 可视化讲解', tag: '视频', color: '#3b82f6' },
+      { title: 'ViT 源码解析', tag: '源码', color: '#10b981' },
+      { title: 'Attention 实验案例', tag: '案例', color: '#f59e0b' },
+    ],
+    'Encoder': [
+      { title: '图像编码器全景', tag: '讲义', color: '#3b82f6' },
+      { title: 'ViT 论文精读', tag: '论文', color: '#8b5cf6' },
+    ],
+    'Decoder': [
+      { title: 'Mask Decoder 工作流', tag: '讲义', color: '#3b82f6' },
+      { title: '从零搭建 Decoder', tag: '案例', color: '#f59e0b' },
+    ],
+  }
+  const items = []
+  weakTopics.forEach(t => {
+    if (map[t]) items.push(...map[t])
+  })
+  // 默认兜底
+  if (!items.length) {
+    items.push(
+      { title: 'CV 入门路线图', tag: '讲义', color: '#3b82f6' },
+      { title: 'PyTorch 基础 30 题', tag: '练习', color: '#10b981' },
+    )
+  }
+  return items
+}
+
 // ==================== 主组件 ====================
 export default function Resources() {
   const location = useLocation()
   const navigate = useNavigate()
+  const learn = useLearn()
   const urlParams = new URLSearchParams(location.search)
-  const urlTab = urlParams.get('tab') || 'courses'
-  const activeTab = urlTab === 'courses' ? 'library' : urlTab === 'generate' ? 'generate' : urlTab === 'favorites' ? 'favorites' : 'library'
+  const urlTab = urlParams.get('tab') || 'recommend'
+  /* 兼容旧 courses/library → recommend */
+  const activeTab = urlTab === 'courses' || urlTab === 'library' ? 'recommend' : urlTab
   const setActiveTab = (tab) => {
-    const tabMap = { 'library': 'courses', 'generate': 'generate', 'favorites': 'favorites' }
+    const tabMap = { 'recommend': 'recommend', 'generate': 'generate', 'favorites': 'favorites' }
     navigate(`/resources?tab=${tabMap[tab] || tab}`)
   }
   const [cateTab, setCateTab] = useState('all')
   const [search, setSearch] = useState('')
-  const [generating, setGenerating] = useState(false)
-  const [genStep, setGenStep] = useState(0)
-  const [generatedContent, setGeneratedContent] = useState(null)
-  const [userPrompt, setUserPrompt] = useState('')
-  const [resourceType, setResourceType] = useState('讲义')
-  const [showPreview, setShowPreview] = useState(false)
-  const [favorites, setFavorites] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('vf_favorites') || '[]') }
-    catch { return [] }
-  })
+  const [favorites, setFavorites] = useState([])
 
-  // 持久化收藏
+  /* 从统一收藏 store 同步"资源"分类下的 id 集合（用于卡片显示星标状态） */
   useEffect(() => {
-    localStorage.setItem('vf_favorites', JSON.stringify(favorites))
-  }, [favorites])
+    let alive = true
+    const sync = async () => {
+      const res = await fetchFavorites({ category: 'resource' })
+      if (!alive) return
+      if (res?.code === 0) {
+        setFavorites((res.data || []).map((f) => f.id))
+      }
+    }
+    sync()
+    /* 跨 Tab 同步：监听 localStorage 变化（个人中心改动会触发） */
+    const onStorage = (e) => {
+      if (e.key === 'vf_favorites_v2') sync()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => { alive = false; window.removeEventListener('storage', onStorage) }
+  }, [activeTab])
+
+  // 资源中心 Toast（独立于 stageToast）
+  const { toasts, push: pushToast, remove: removeToast } = useToasts()
+
+  // 加载骨架开关：首次进入 + 切换 Tab 时短暂显示
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    setLoading(true)
+    const t = setTimeout(() => setLoading(false), 450)
+    return () => clearTimeout(t)
+  }, [activeTab])
+
+  // 持久化收藏 —— 已迁移到统一 store (vf_favorites_v2)，此处无需再写
 
   // 资源数据（保持收藏状态同步）
   const resources = useMemo(() => {
@@ -407,68 +629,30 @@ export default function Resources() {
     (item.title.includes(search) || item.desc.includes(search))
   )
 
-  // 收藏的资源
-  const favoriteResources = resources.filter(item => favorites.includes(item.id))
-
-  // 切换收藏
-  const toggleFavorite = (id) => {
-    setFavorites(prev => prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id])
-  }
-
-  // 生成资源
-  const generateResource = () => {
-    if (!userPrompt.trim()) {
-      alert('请输入你想要生成的学习内容')
-      return
-    }
-    setGenerating(true)
-    setGenStep(0)
-    setGeneratedContent(null)
-    setShowPreview(false)
-
-    const steps = [
-      { emoji: '🏗️', name: '架构引导', desc: '分析需求，构建知识框架...' },
-      { emoji: '📖', name: '算法教研', desc: '整理核心算法与原理...' },
-      { emoji: '📝', name: '资源生成', desc: '编写学习材料内容...' },
-      { emoji: '🔍', name: '质量校验', desc: '校验内容准确性与完整性...' },
-    ]
-
-    steps.forEach((step, idx) => {
-      setTimeout(() => {
-        setGenStep(idx + 1)
-        if (idx === steps.length - 1) {
-          setTimeout(() => {
-            setGeneratedContent({
-              type: resourceType,
-              title: `${userPrompt} - 专属${resourceType}`,
-              content: generateMockContent(resourceType, userPrompt),
-            })
-            setGenerating(false)
-          }, 600)
-        }
-      }, idx * 800)
+  // 切换收藏 —— 写入统一 store
+  const toggleFavorite = async (id) => {
+    const target = defaultResources.find(r => r.id === id)
+    if (!target) return
+    const existed = favorites.includes(id)
+    setFavorites(prev => existed ? prev.filter(fid => fid !== id) : [...prev, id])
+    try {
+      await toggleFavorite({
+        id: String(id),
+        category: 'resource',
+        title: target.title,
+        desc: target.desc,
+        cover: target.emoji,
+        tags: [target.type, target.cate],
+        author: target.author,
+      })
+    } catch (e) { console.error(e) }
+    pushToast({
+      type: existed ? 'info' : 'success',
+      title: existed ? '已取消收藏' : '已加入收藏',
+      detail: target?.title + ' · 可在「个人中心 → 我的收藏」查看',
+      icon: existed ? '☆' : '★',
+      duration: 1800,
     })
-  }
-
-  // 复制内容
-  const copyContent = () => {
-    if (generatedContent?.content) {
-      navigator.clipboard?.writeText(generatedContent.content)
-      alert('📋 内容已复制到剪贴板')
-    }
-  }
-
-  // 下载内容
-  const downloadContent = () => {
-    if (generatedContent?.content) {
-      const blob = new Blob([generatedContent.content], { type: 'text/markdown' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${generatedContent.title}.md`
-      a.click()
-      URL.revokeObjectURL(url)
-    }
   }
 
   // ==================== 资源卡片组件 ====================
@@ -537,274 +721,147 @@ export default function Resources() {
 
   // ==================== Tab导航 ====================
   const TabNav = () => (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid #e8ecf1', paddingBottom: 12 }}>
-      {[
-        { key: 'library', name: '资源库', icon: '📚' },
-        { key: 'generate', name: '资源生成', icon: '🎨' },
-        { key: 'favorites', name: '我的收藏', icon: '⭐' },
-      ].map(tab => (
-        <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
-          padding: '8px 22px', borderRadius: 20, fontSize: 13, fontWeight: 500,
-          background: activeTab === tab.key ? '#3b82f6' : '#f1f5f9',
-          color: activeTab === tab.key ? '#fff' : '#64748b',
-          border: 'none', cursor: 'pointer', transition: 'all 0.2s',
-          boxShadow: activeTab === tab.key ? '0 2px 8px rgba(59,130,246,0.3)' : 'none',
-        }}>{tab.icon} {tab.name}</button>
-      ))}
-    </div>
-  )
-
-  // ==================== Tab 1: 资源库 ====================
-  const LibraryTab = () => (
-    <div style={{ maxWidth: '100%' }}>
-      {/* 搜索与筛选 */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-        {Object.entries(cateMap).map(([key, label]) => (
-          <button key={key} onClick={() => setCateTab(key)} style={{
-            padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 500,
-            background: cateTab === key ? '#3b82f6' : '#f1f5f9',
-            color: cateTab === key ? '#fff' : '#64748b',
+    <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid #e8ecf1', paddingBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+      <h2 style={{ fontSize: 18, color: '#1e293b', margin: '0 12px 0 0' }}>📖 资源中心</h2>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {[
+          { key: 'recommend', name: '推荐资源', icon: '⭐' },
+          { key: 'generate', name: '资源生成', icon: '✨' },
+        ].map(tab => (
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
+            padding: '7px 18px', borderRadius: 18, fontSize: 12, fontWeight: 500,
+            background: activeTab === tab.key ? '#3b82f6' : '#f1f5f9',
+            color: activeTab === tab.key ? '#fff' : '#64748b',
             border: 'none', cursor: 'pointer', transition: 'all 0.2s',
-          }}>{label}</button>
+            boxShadow: activeTab === tab.key ? '0 2px 8px rgba(59,130,246,0.3)' : 'none',
+          }}>{tab.icon} {tab.name}</button>
         ))}
-        <input
-          placeholder="🔍 搜索资源标题、描述..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            flex: 1, minWidth: 200, padding: '7px 12px', borderRadius: 10,
-            border: '1px solid #e2e8f0', fontSize: 13, outline: 'none',
-          }}
-        />
       </div>
-
-      {/* 资源卡片网格 */}
-      {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', background: '#fff', borderRadius: 12 }}>
-          <span style={{ fontSize: 40 }}>🔍</span>
-          <div style={{ marginTop: 8, fontSize: 13 }}>没有找到匹配的资源</div>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
-          {filtered.map(item => <ResourceCard key={item.id} item={item} />)}
-        </div>
-      )}
     </div>
   )
 
-  // ==================== Tab 2: 资源生成（双栏 + 可展开预览） ====================
-  const GenerateTab = () => {
-    const genSteps = [
-      { emoji: '🏗️', name: '架构引导', desc: '分析需求，构建知识框架...' },
-      { emoji: '📖', name: '算法教研', desc: '整理核心算法与原理...' },
-      { emoji: '📝', name: '资源生成', desc: '编写学习材料内容...' },
-      { emoji: '🔍', name: '质量校验', desc: '校验内容准确性与完整性...' },
-    ]
-
+  // ==================== Tab 1: 推荐资源（原资源库） ====================
+  const RecommendTab = () => {
+    const todayItems = useMemo(() => buildTodayRecommend(learn.weakTopics), [learn.weakTopics])
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* 上半部分：左右双栏 */}
-        <div style={{ display: 'grid', gridTemplateColumns: '45% 55%', gap: 14 }}>
-          {/* 左45%：类型选择 + 输入框 + 生成按钮 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* 类型选择 */}
-            <div style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>📋 选择资源类型</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {resourceTypes.map(type => (
-                  <button key={type} onClick={() => setResourceType(type)} style={{
-                    padding: '6px 10px', borderRadius: 10, fontSize: 12, fontWeight: 500,
-                    background: resourceType === type ? '#3b82f6' : '#f1f5f9',
-                    color: resourceType === type ? '#fff' : '#64748b',
-                    border: 'none', cursor: 'pointer', transition: 'all 0.2s',
-                    boxShadow: resourceType === type ? '0 2px 6px rgba(59,130,246,0.25)' : 'none',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                  }}>{typeEmoji[type]} {type}</button>
-                ))}
-              </div>
+      <div style={{ maxWidth: '100%' }}>
+        {/* 顶部说明：基于学习画像智能推荐 */}
+        <div style={{
+          background: 'linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%)',
+          border: '1px solid #c7d2fe',
+          borderRadius: 12, padding: '12px 16px', marginBottom: 14,
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 22 }}>🎯</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>基于你的学习画像智能推荐</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+              目标：{learn.goal === '自定义目标' ? (learn.customGoal || '自定义') : (learn.goal || '尚未选择')} · 阶段：{learn.stage}
             </div>
+          </div>
+        </div>
 
-            {/* 输入区域 */}
-            <div style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>✏️ 输入学习内容</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <input
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
-                  placeholder="输入你想要学习的内容，如：SAM模型、注意力机制、图像分割..."
-                  value={userPrompt}
-                  onChange={e => setUserPrompt(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && generateResource()}
-                />
-                <button onClick={generateResource} disabled={generating} style={{
-                  padding: '9px 20px', borderRadius: 10, border: 'none', width: '100%',
-                  background: generating ? '#94a3b8' : '#3b82f6', color: '#fff',
-                  fontSize: 13, fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s',
-                }}>{generating ? '⏳ 生成中...' : '✨ 生成资源'}</button>
-              </div>
-            </div>
-
-            {/* 生成结果信息 */}
-            {generatedContent && !generating && (
-              <div style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                <div style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600, marginBottom: 4 }}>{typeEmoji[generatedContent.type]} {generatedContent.type}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>{generatedContent.title}</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={copyContent} style={{
-                    flex: 1, padding: '7px 14px', borderRadius: 8, border: '1px solid #e2e8f0',
-                    background: '#f8fafc', color: '#475569', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  }}>📋 复制</button>
-                  <button onClick={downloadContent} style={{
-                    flex: 1, padding: '7px 14px', borderRadius: 8, border: 'none',
-                    background: '#10b981', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  }}>📥 下载</button>
+        {/* ── 今日推荐（按错点精准推送） ── */}
+        {learn.weakTopics?.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+            border: '1px solid #fbbf24',
+            borderRadius: 12, padding: '12px 16px', marginBottom: 14,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 20 }}>💡</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>今日推荐 · 精准推送</div>
+                  <div style={{ fontSize: 11, color: '#a16207', marginTop: 2 }}>
+                    因为你在 <strong>{learn.weakTopics.join('、')}</strong> 上易错，AI 导师专门挑了这几份资源给你
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-
-          {/* 右55%：4步骤进度追踪（紧凑纵向列表） */}
-          <div style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>🔄 多智能体协同生成进度</div>
-              <span style={{ fontSize: 10, color: '#6366f1', background: '#eef2ff', padding: '2px 7px', borderRadius: 10, fontWeight: 600 }}>
-                共享黑板驱动
-              </span>
+              <span style={{
+                fontSize: 10, padding: '3px 8px', borderRadius: 6,
+                background: '#fbbf24', color: '#fff', fontWeight: 700,
+              }}>个性化</span>
             </div>
-            <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 12, lineHeight: 1.5 }}>
-              🤖 架构引导 → 📖 算法教研 → 📝 资源生成 → 🔍 质量校验（4智能体通过 Task_State.json 协同）
-            </div>
-
-            {!generating && genStep === 0 ? (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', gap: 8 }}>
-                <span style={{ fontSize: 36 }}>🎯</span>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>准备就绪</div>
-                <div style={{ fontSize: 12, textAlign: 'center' }}>在左侧选择类型并输入内容<br />点击「生成资源」开始</div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {genSteps.map((step, idx) => {
-                  const isCompleted = genStep > idx
-                  const isActive = genStep === idx && generating
-                  const isPending = genStep <= idx && !isActive
-
-                  return (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', opacity: isPending && genStep === 0 ? 0.5 : 1 }}>
-                      {/* 步骤图标 */}
-                      <div style={{
-                        width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
-                        background: isCompleted ? '#3b82f6' : isActive ? '#dbeafe' : '#f1f5f9',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 14, transition: 'all 0.4s',
-                        border: `2px solid ${isCompleted ? '#3b82f6' : isActive ? '#3b82f6' : '#e2e8f0'}`,
-                      }}>
-                        {isCompleted ? '✓' : <span style={{ fontSize: 12 }}>{step.emoji}</span>}
-                      </div>
-                      {/* 步骤文字 */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontSize: 12, fontWeight: 600,
-                          color: isCompleted ? '#3b82f6' : isActive ? '#3b82f6' : '#64748b',
-                          transition: 'color 0.4s',
-                          display: 'flex', alignItems: 'center', gap: 6,
-                        }}>
-                          {step.name}
-                          {isActive && (
-                            <span style={{
-                              display: 'inline-block', width: 12, height: 12,
-                              border: '2px solid #3b82f6', borderTopColor: 'transparent',
-                              borderRadius: '50%', animation: 'spin 0.8s linear infinite',
-                            }} />
-                          )}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, lineHeight: 1.4 }}>
-                          {isCompleted ? '已完成' : isActive ? step.desc : '等待中...'}
-                        </div>
-                      </div>
-                      {/* 右侧状态指示 */}
-                      <div style={{
-                        fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10,
-                        background: isCompleted ? '#dbeafe' : isActive ? '#fef3c7' : '#f1f5f9',
-                        color: isCompleted ? '#3b82f6' : isActive ? '#f59e0b' : '#94a3b8',
-                        flexShrink: 0,
-                      }}>
-                        {isCompleted ? '✓' : isActive ? '进行中' : '待开始'}
-                      </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+              {todayItems.map((it, idx) => (
+                <div key={idx} style={{
+                  background: '#fff', borderRadius: 10, padding: '12px 14px',
+                  border: `1.5px solid ${it.color}30`,
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 8,
+                    background: it.color + '20',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 16, color: it.color, fontWeight: 700, flexShrink: 0,
+                  }}>📘</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {it.title}
                     </div>
-                  )
-                })}
-              </div>
-            )}
+                    <span style={{
+                      fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                      background: it.color + '20', color: it.color, fontWeight: 600,
+                    }}>{it.tag}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
+        )}
+
+        {/* 搜索与筛选 */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+          {Object.entries(cateMap).map(([key, label]) => (
+            <button key={key} onClick={() => setCateTab(key)} style={{
+              padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 500,
+              background: cateTab === key ? '#3b82f6' : '#f1f5f9',
+              color: cateTab === key ? '#fff' : '#64748b',
+              border: 'none', cursor: 'pointer', transition: 'all 0.2s',
+            }}>{label}</button>
+          ))}
+          <input
+            placeholder="🔍 搜索资源标题、描述..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              flex: 1, minWidth: 200, padding: '7px 12px', borderRadius: 10,
+              border: '1px solid #e2e8f0', fontSize: 13, outline: 'none',
+            }}
+          />
         </div>
 
-        {/* 下半部分：可展开/收起的 Markdown 预览 */}
-        {generatedContent && !generating && (
-          <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-            {/* 展开/收起头部 */}
-            <button
-              onClick={() => setShowPreview(v => !v)}
-              style={{
-                width: '100%', padding: '12px 16px', border: 'none', background: 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#475569',
-              }}
-            >
-              <span>📄 {generatedContent.title}</span>
-              <span style={{
-                transform: showPreview ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.25s ease', fontSize: 12,
-              }}>▼</span>
-            </button>
-
-            {/* 预览内容 */}
-            {showPreview && (
-              <div style={{ padding: '0 16px 16px', animation: 'fadeIn 0.3s ease' }}>
-                <MarkdownCard content={generatedContent.content} title={generatedContent.title} />
-              </div>
-            )}
+        {/* 资源卡片网格 */}
+        {loading ? (
+          <ResourceGridSkeleton count={6} />
+        ) : filtered.length === 0 ? (
+          <EmptyState variant="no-search" />
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
+            {filtered.map(item => <ResourceCard key={item.id} item={item} />)}
           </div>
         )}
       </div>
     )
   }
 
-  // ==================== Tab 3: 我的收藏 ====================
-  const FavoritesTab = () => (
-    <div style={{ maxWidth: '100%' }}>
-      {favoriteResources.length === 0 ? (
-        <div style={{
-          background: '#fff', borderRadius: 12, padding: '60px 40px', textAlign: 'center', color: '#94a3b8',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-        }}>
-          <div style={{
-            width: 72, height: 72, borderRadius: '50%', background: '#f1f5f9',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
-            fontSize: 32,
-          }}>⭐</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#475569', marginBottom: 6 }}>暂无收藏资源</div>
-          <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>在「资源库」中点击星星图标收藏喜欢的资源</div>
-          <button
-            onClick={() => setActiveTab('library')}
-            style={{
-              padding: '8px 20px', borderRadius: 10, border: '1px solid #e2e8f0',
-              background: '#f8fafc', color: '#475569', fontSize: 13, fontWeight: 600,
-              cursor: 'pointer', transition: 'all 0.2s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#3b82f6' }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#475569'; e.currentTarget.style.borderColor = '#e2e8f0' }}
-          >📚 去浏览资源库 →</button>
-        </div>
-      ) : (
-        <>
-          <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>共收藏 {favoriteResources.length} 个资源</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
-            {favoriteResources.map(item => <ResourceCard key={item.id} item={item} />)}
-          </div>
-        </>
-      )}
-    </div>
+  // ==================== Tab 2: 学习包生成（Deep Research 风格 · 全过程可视化） ====================
+  const GenerateTab = () => (
+    <ResourceGenDeep
+      learn={learn}
+      generatePack={generateLearningPack}
+      MarkdownCard={MarkdownCard}
+      EmptyState={EmptyState}
+      ModuleContentSkeleton={ModuleContentSkeleton}
+      ShareModal={ShareModal}
+      PdfPreviewModal={PdfPreviewModal}
+      pushToast={pushToast}
+    />
   )
+
+  // 收藏 Tab 已迁移至「个人中心 → 我的收藏」(/profile?tab=favorites)
+// 旧的 FavoritesTab 组件不再渲染；点击「我的收藏」请导航到 /profile?tab=favorites
 
   return (
     <div style={{ maxWidth: '100%', margin: '0 auto' }}>
@@ -812,10 +869,645 @@ export default function Resources() {
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
-      <TabNav />
-      {activeTab === 'library' && <LibraryTab />}
+      {activeTab === 'recommend' && <RecommendTab />}
       {activeTab === 'generate' && <GenerateTab />}
-      {activeTab === 'favorites' && <FavoritesTab />}
+
+      {/* 全局 Toast 栈 */}
+      <ToastStack toasts={toasts} onClose={removeToast} />
+    </div>
+  )
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ResourceGenDeep —— 学习包生成 · Deep Research 风格重做
+   ────────────────────────────────────────────────────────────────
+   4 步流水线 × 4 Agent：
+     1. 架构分析  → Architect 智能体
+     2. 算法教研  → Tutor 智能体
+     3. 资源生成  → Generator 智能体（生成 6 模块）
+     4. 质量校验  → Evaluator 智能体
+
+   每步展示：当前 Agent · 执行进度（百分比+进度条）· 耗时（毫秒级）·
+   完成状态（✓/执行中/待开始）· 过程日志（类似 Deep Research 思考链）
+
+   阶段切换：
+     生成中 → 实时显示流水线进度 + Agent 思考流
+     生成后 → 6 模块网格卡片 + 单模块详情预览 + 5 操作按钮
+   全 Mock，无需后端。
+   ════════════════════════════════════════════════════════════════ */
+
+// 4 步 Agent 流程定义（Mock · 全程耗时分配）
+const RG_STEPS = [
+  {
+    key: 'arch',
+    emoji: '🏗️',
+    name: '架构分析',
+    agent: 'Architect',
+    color: '#38bdf8',
+    duration: 1800,             // 该步总耗时 ms
+    logs: [
+      '正在解析学习目标…',
+      '识别主题: {topic}',
+      '从易错点 {weak} 推断需要加强的子模块',
+      '已生成知识图谱骨架 (5 大主题 × 12 节点)',
+      '→ 输出: 学习路径 JSON 至共享黑板',
+    ],
+  },
+  {
+    key: 'research',
+    emoji: '📖',
+    name: '算法教研',
+    agent: 'Tutor',
+    color: '#a78bfa',
+    duration: 2400,
+    logs: [
+      '检索该方向的经典论文 (Top-5)…',
+      '匹配你的认知风格: 视觉优先',
+      '对照已有错题本，标记需要重点讲的 3 个易错点',
+      '→ 输出: 教研要点 + 推荐论文清单',
+    ],
+  },
+  {
+    key: 'gen',
+    emoji: '📝',
+    name: '资源生成',
+    agent: 'Generator',
+    color: '#22d3ee',
+    duration: 3200,
+    logs: [
+      '开始组装 6 大模块…',
+      '  ✓ 讲义 — Markdown 已生成 (1247 字)',
+      '  ✓ 思维导图 — Mermaid + 表格',
+      '  ✓ 练习任务 — 含 4 道诊断题',
+      '  ✓ 实验案例 — 最小可运行 PyTorch demo',
+      '  ✓ 源码路线 — 关键文件路径 + 注释',
+      '  ✓ 推荐论文 — Top-3 摘要',
+      '→ 输出: 完整学习包',
+    ],
+  },
+  {
+    key: 'qa',
+    emoji: '🔍',
+    name: '质量校验',
+    agent: 'Evaluator',
+    color: '#34d399',
+    duration: 1400,
+    logs: [
+      '校验 6 模块完整性…',
+      '对照你的画像评分: 个性化匹配度 0.92',
+      '→ 输出: 校验报告',
+    ],
+  },
+]
+
+// 6 个产出模块
+const RG_OUTPUT_MODULES = [
+  { key: 'lecture',     icon: '📚', name: '讲义',     desc: '核心概念与原理速通', color: '#3b82f6' },
+  { key: 'mindmap',     icon: '🗺️', name: '思维导图', desc: '知识骨架全景',         color: '#a855f7' },
+  { key: 'practice',    icon: '📝', name: '练习',     desc: '诊断题 + 实操任务',     color: '#22c55e' },
+  { key: 'paper',       icon: '📄', name: '论文',     desc: 'Top 经典论文清单',     color: '#f59e0b' },
+  { key: 'source',      icon: '🧭', name: '源码路线', desc: '关键文件 + 阅读顺序',   color: '#06b6d4' },
+  { key: 'experiment',  icon: '🧪', name: '实验案例', desc: '最小可运行 Demo',       color: '#ef4444' },
+]
+
+function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, ModuleContentSkeleton, ShareModal, PdfPreviewModal, pushToast }) {
+  const [phase, setPhase] = useState('idle')   // idle | running | done
+  const [stepIdx, setStepIdx] = useState(-1)   // 当前步骤下标，-1 表示未开始
+  const [stepProgress, setStepProgress] = useState(0)   // 当前步骤 0-100
+  const [elapsedTotal, setElapsedTotal] = useState(0)   // 总耗时 ms
+  const [stepElapsed, setStepElapsed] = useState(0)     // 当前步耗时 ms
+  const [visibleLogCount, setVisibleLogCount] = useState(0)
+  const [activeModule, setActiveModule] = useState(0)
+  const [pack, setPack] = useState(null)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [pdfOpen, setPdfOpen] = useState(false)
+  const [previewMode, setPreviewMode] = useState('preview')
+
+  // 用 ref 计时，避免重复启动
+  const rafRef = useRef(null)
+  const startRef = useRef(null)
+  const stepStartRef = useRef(null)
+  const stepAccumRef = useRef(0)
+  const logsTimerRef = useRef(null)
+
+  // 开始/重置：启动流水线
+  const startPipeline = () => {
+    setPhase('running')
+    setStepIdx(0)
+    setStepProgress(0)
+    setElapsedTotal(0)
+    setStepElapsed(0)
+    setVisibleLogCount(0)
+    setPack(null)
+    setActiveModule(0)
+    stepAccumRef.current = 0
+    startRef.current = performance.now()
+    stepStartRef.current = performance.now()
+
+    // 计划逐步切换（按总耗时比例压缩到 ~8.8s 总耗时）
+    const scale = 8800 / RG_STEPS.reduce((s, x) => s + x.duration, 0)
+    let acc = 0
+    RG_STEPS.forEach((step, i) => {
+      const stepMs = step.duration * scale
+      // 切到下一步
+      setTimeout(() => {
+        if (i > 0) {
+          setStepIdx(i)
+          setStepProgress(0)
+          setVisibleLogCount(0)
+          stepAccumRef.current = 0
+          stepStartRef.current = performance.now()
+        }
+        // 当前步的 log 依次冒出
+        const logInterval = stepMs / (step.logs.length + 1)
+        step.logs.forEach((_, li) => {
+          setTimeout(() => setVisibleLogCount(li + 1), logInterval * (li + 1))
+        })
+      }, acc)
+      acc += stepMs
+    })
+
+    // 全部完成后产出 pack
+    const totalMs = RG_STEPS.reduce((s, x) => s + x.duration, 0) * scale + 400
+    setTimeout(() => {
+      setStepIdx(RG_STEPS.length - 1)
+      setStepProgress(100)
+      setVisibleLogCount(RG_STEPS[RG_STEPS.length - 1].logs.length)
+      const built = generatePack(learn.goal, learn.customGoal, learn.weakTopics)
+      setPack(built)
+      setTimeout(() => setPhase('done'), 500)
+    }, totalMs)
+  }
+
+  // 主计时：requestAnimationFrame 驱动 elapsedTotal / stepElapsed
+  useEffect(() => {
+    if (phase !== 'running') return
+    const tick = () => {
+      const now = performance.now()
+      setElapsedTotal(now - startRef.current)
+      setStepElapsed(now - stepStartRef.current + stepAccumRef.current)
+      // 当前步内进度
+      const stepMs = (RG_STEPS[Math.max(0, stepIdx)]?.duration || 1) * (8800 / RG_STEPS.reduce((s, x) => s + x.duration, 0))
+      setStepProgress(Math.min(100, ((now - stepStartRef.current + stepAccumRef.current) / stepMs) * 100))
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  }, [phase, stepIdx])
+
+  // 主题/易错点字符串，供 log 模板替换
+  const topic = learn.goal === '自定义目标' ? (learn.customGoal || '自定义学习') : (learn.goal || '视觉模型')
+  const weak = (learn.weakTopics && learn.weakTopics.length) ? learn.weakTopics.join('、') : '暂无'
+
+  // === 工具 ===
+  const fmtMs = (ms) => {
+    if (ms < 1000) return `${Math.round(ms)} ms`
+    return `${(ms / 1000).toFixed(2)} s`
+  }
+  const fillLog = (s) => s.replace('{topic}', topic).replace('{weak}', weak)
+
+  // === 子组件 ===
+  const StepRow = ({ step, idx, isCompleted, isActive }) => {
+    const stepMs = step.duration * (8800 / RG_STEPS.reduce((s, x) => s + x.duration, 0))
+    const progress = isCompleted ? 100 : isActive ? stepProgress : 0
+    const elapsed = isCompleted ? stepMs : isActive ? stepElapsed : 0
+    return (
+      <div style={{
+        background: isActive ? `linear-gradient(135deg, ${step.color}12, #ffffff)` : '#ffffff',
+        border: `1px solid ${isActive ? step.color + '55' : '#e2e8f0'}`,
+        borderRadius: 10, padding: 12, transition: 'all .3s',
+        position: 'relative',
+        boxShadow: isActive ? `0 4px 14px ${step.color}22` : '0 1px 2px rgba(15,23,42,0.04)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* 步骤号/状态 */}
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            background: isCompleted ? '#10b981' : isActive ? `linear-gradient(135deg, ${step.color}, ${step.color}cc)` : '#f1f5f9',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, color: isCompleted || isActive ? '#fff' : '#94a3b8', fontWeight: 700,
+            boxShadow: isActive ? `0 4px 12px ${step.color}55` : 'none',
+            transition: 'all .3s',
+          }}>
+            {isCompleted ? '✓' : step.emoji}
+          </div>
+          {/* 标题 + Agent */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ color: '#1e293b', fontSize: 13, fontWeight: 700 }}>{step.name}</span>
+              <span style={{
+                fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                background: `${step.color}1a`, color: step.color,
+                fontWeight: 700, fontFamily: 'monospace',
+              }}>AGENT · {step.agent}</span>
+              <span style={{
+                fontSize: 9.5, padding: '1px 6px', borderRadius: 4,
+                background: isCompleted ? '#10b9811a' : isActive ? '#3b82f61a' : '#f1f5f9',
+                color:      isCompleted ? '#059669'    : isActive ? '#2563eb'    : '#94a3b8',
+                fontWeight: 700,
+              }}>
+                {isCompleted ? '已完成' : isActive ? '执行中' : '待开始'}
+              </span>
+            </div>
+            {/* Agent 当前在干什么（执行中时显示） */}
+            {(isActive || isCompleted) && (
+              <div style={{ marginTop: 6, fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>
+                {isActive && <span style={{ color: step.color }}>▸ </span>}
+                {fillLog(step.logs[Math.min(visibleLogCount, step.logs.length - 1) || 0])}
+                {isActive && <span style={{ color: step.color, animation: 'rgBlink 1s steps(1) infinite' }}> ▍</span>}
+              </div>
+            )}
+          </div>
+          {/* 耗时 + 进度 */}
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700,
+              color: isCompleted ? '#059669' : isActive ? step.color : '#94a3b8',
+              fontFamily: 'monospace',
+            }}>
+              {fmtMs(elapsed)}
+            </div>
+            <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace', marginTop: 2 }}>
+              {isCompleted ? `100%` : isActive ? `${Math.round(progress)}%` : '0%'}
+            </div>
+          </div>
+        </div>
+        {/* 进度条 */}
+        <div style={{
+          marginTop: 8, height: 4, background: '#e2e8f0',
+          borderRadius: 999, overflow: 'hidden',
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${progress}%`,
+            background: isCompleted ? '#10b981' : `linear-gradient(90deg, ${step.color}cc, ${step.color})`,
+            boxShadow: isActive ? `0 0 8px ${step.color}55` : 'none',
+            borderRadius: 999, transition: 'width .15s',
+          }} />
+        </div>
+      </div>
+    )
+  }
+
+  const totalDuration = RG_STEPS.reduce((s, x) => s + x.duration, 0) * (8800 / RG_STEPS.reduce((s, x) => s + x.duration, 0))
+
+  // ───────────── 渲染 ─────────────
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #eff6ff 100%)',
+      borderRadius: 14, padding: 16, color: '#1e293b',
+      border: '1px solid #e2e8f0',
+      position: 'relative', overflow: 'hidden',
+      boxShadow: '0 1px 3px rgba(15,23,42,0.04)',
+    }}>
+      <style>{`
+        @keyframes rgBlink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+        @keyframes rgPulse { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
+        @keyframes rgScan  { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+      `}</style>
+
+      {/* 顶部：标题 + 总耗时 + 状态徽标 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: 'linear-gradient(135deg, #a855f7, #3b82f6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, boxShadow: '0 4px 12px rgba(99,102,241,0.35)',
+          }}>✨</div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: 0.3, color: '#1e293b' }}>
+              学习包生成 <span style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>/ LEARNING PACK GEN</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+              基于你的画像定制 · 4 智能体协同 · 全过程可视化
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* 总耗时 */}
+          <div style={{
+            padding: '6px 12px', borderRadius: 8,
+            background: '#ffffff', border: '1px solid #e2e8f0',
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontFamily: 'monospace', fontSize: 11,
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: phase === 'running' ? '#0ea5e9' : phase === 'done' ? '#10b981' : '#cbd5e1',
+              boxShadow: phase !== 'idle' ? `0 0 6px ${phase === 'running' ? '#0ea5e9' : '#10b981'}` : 'none',
+              animation: phase === 'running' ? 'rgPulse 1.2s ease-in-out infinite' : 'none',
+            }} />
+            <span style={{ color: '#64748b' }}>ELAPSED</span>
+            <span style={{ color: phase === 'running' ? '#0284c7' : phase === 'done' ? '#059669' : '#94a3b8', fontWeight: 700 }}>
+              {fmtMs(elapsedTotal)}
+            </span>
+            <span style={{ color: '#cbd5e1' }}>/ {fmtMs(totalDuration)}</span>
+          </div>
+          {/* 状态徽标 */}
+          <div style={{
+            padding: '4px 10px', borderRadius: 999,
+            background: phase === 'running' ? '#eff6ff' : phase === 'done' ? '#ecfdf5' : '#eef2ff',
+            border: `1px solid ${phase === 'running' ? '#bfdbfe' : phase === 'done' ? '#a7f3d0' : '#c7d2fe'}`,
+            color:      phase === 'running' ? '#2563eb'   : phase === 'done' ? '#059669'   : '#4f46e5',
+            fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+          }}>
+            {phase === 'idle' ? '🟦 等待启动' : phase === 'running' ? '⚙️ 生成中' : '✅ 已完成'}
+          </div>
+        </div>
+      </div>
+
+      {/* 主题上下文条 */}
+      <div style={{
+        padding: '8px 12px', borderRadius: 8, marginBottom: 14,
+        background: '#ffffff', border: '1px solid #e2e8f0',
+        display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11,
+        boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+      }}>
+        <span><span style={{ color: '#64748b' }}>🎯 目标</span> <span style={{ color: '#0284c7', fontWeight: 700 }}>{topic}</span></span>
+        <span><span style={{ color: '#64748b' }}>📍 阶段</span> <span style={{ color: '#7c3aed', fontWeight: 700 }}>{learn.stage || '主线中'}</span></span>
+        <span><span style={{ color: '#64748b' }}>⚠️ 易错点</span> <span style={{ color: '#dc2626', fontWeight: 700 }}>{weak}</span></span>
+      </div>
+
+      {/* ─── 生成中：左步骤 / 右 Agent 思考流 ─── */}
+      {phase !== 'done' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '50% 50%', gap: 14 }}>
+          {/* 左：4 步流水线 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 11, color: '#0284c7', fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>
+              ⚡ AGENT PIPELINE <span style={{ color: '#94a3b8', fontWeight: 500 }}>/ 4 步流水线</span>
+            </div>
+            {RG_STEPS.map((step, i) => (
+              <StepRow
+                key={step.key}
+                step={step}
+                idx={i}
+                isCompleted={stepIdx > i}
+                isActive={stepIdx === i && phase === 'running'}
+              />
+            ))}
+          </div>
+
+          {/* 右：思考流日志 */}
+          <div style={{
+            background: '#ffffff', borderRadius: 10,
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden', display: 'flex', flexDirection: 'column',
+            minHeight: 360,
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+          }}>
+            <div style={{
+              padding: '8px 12px',
+              background: 'linear-gradient(90deg, #eff6ff, #ffffff)',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, color: '#0284c7', fontWeight: 700, letterSpacing: 1 }}>💭 AGENT THINKING</span>
+                <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>/ 思考链</span>
+              </div>
+              {phase === 'running' && stepIdx >= 0 && (
+                <span style={{ fontSize: 10, color: RG_STEPS[stepIdx].color, fontFamily: 'monospace', fontWeight: 700 }}>
+                  {RG_STEPS[stepIdx].agent}
+                </span>
+              )}
+            </div>
+            <div style={{ flex: 1, padding: 12, overflowY: 'auto', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.8, background: '#f8fafc' }}>
+              {RG_STEPS.map((step, i) => {
+                if (i > stepIdx) return null
+                const visible = i < stepIdx ? step.logs.length : visibleLogCount
+                return (
+                  <div key={step.key} style={{ marginBottom: 12 }}>
+                    <div style={{ color: step.color, fontWeight: 700, marginBottom: 4 }}>
+                      [{String(i + 1).padStart(2, '0')}] {step.emoji} {step.name} · {step.agent}
+                    </div>
+                    {step.logs.slice(0, visible).map((l, li) => (
+                      <div key={li} style={{
+                        color: i < stepIdx ? '#94a3b8' : '#475569',
+                        paddingLeft: 16, opacity: i < stepIdx ? 0.6 : 1,
+                      }}>
+                        <span style={{ color: step.color }}>›</span> {fillLog(l)}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+              {phase === 'running' && stepIdx >= 0 && (
+                <div style={{ color: '#0ea5e9', paddingLeft: 16, marginTop: 4 }}>
+                  <span style={{ animation: 'rgBlink 1s steps(1) infinite' }}>▍</span>
+                </div>
+              )}
+              {phase === 'idle' && (
+                <div style={{ color: '#94a3b8', textAlign: 'center', padding: '60px 0' }}>
+                  点击下方「开始生成」按钮启动 4 智能体流水线 →
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 生成后：6 模块网格 + 详情 ─── */}
+      {phase === 'done' && pack && (
+        <div>
+          {/* 弹窗 */}
+          <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} title={pack.title} />
+          <PdfPreviewModal open={pdfOpen} onClose={() => setPdfOpen(false)} title={pack.title} sections={pack.modules} />
+
+{/* 完成总结 */}
+          <div style={{
+            marginBottom: 14, padding: 12,
+            background: 'linear-gradient(135deg, #ecfdf5, #f0fdf4)',
+            border: '1px solid #a7f3d0', borderRadius: 10,
+            display: 'flex', alignItems: 'center', gap: 12,
+            boxShadow: '0 1px 2px rgba(16,185,129,0.06)',
+          }}>
+            <span style={{ fontSize: 28 }}>🎁</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#059669' }}>
+                {pack.title} <span style={{ color: '#64748b', fontSize: 11, fontWeight: 500 }}>· 生成完成</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{pack.summary}</div>
+            </div>
+            <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#059669', textAlign: 'right' }}>
+              <div>总耗时 <b>{fmtMs(elapsedTotal)}</b></div>
+              <div style={{ color: '#94a3b8', marginTop: 2 }}>4 Agent · {pack.modules.length} 模块</div>
+            </div>
+          </div>
+
+          {/* 6 模块卡片网格 */}
+          <div style={{ marginBottom: 12, fontSize: 11, color: '#0284c7', fontWeight: 700, letterSpacing: 1 }}>
+            📦 最终生成 · 6 大模块 <span style={{ color: '#94a3b8', fontWeight: 500 }}>/ FINAL OUTPUT</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 14 }}>
+            {RG_OUTPUT_MODULES.map((m, i) => {
+              const matched = pack.modules.find(p => p.name.includes(m.name) || (m.key === 'lecture' && p.icon === '📚') || (m.key === 'mindmap' && p.icon === '🗺️') || (m.key === 'practice' && p.icon === '📝') || (m.key === 'experiment' && p.icon === '🧪') || (m.key === 'source' && p.icon === '🧭') || (m.key === 'paper' && p.icon === '📄'))
+              const active = activeModule === i
+              return (
+                <button key={m.key} onClick={() => { setActiveModule(i); setPreviewMode('preview') }} style={{
+                  padding: 12, borderRadius: 10,
+                  border: `1px solid ${active ? m.color : '#e2e8f0'}`,
+                  background: active ? `linear-gradient(135deg, ${m.color}1a, #ffffff)` : '#ffffff',
+                  cursor: 'pointer', textAlign: 'left',
+                  display: 'flex', flexDirection: 'column', gap: 4,
+                  transition: 'all .2s',
+                  boxShadow: active ? `0 4px 14px ${m.color}33` : '0 1px 2px rgba(15,23,42,0.04)',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 22 }}>{m.icon}</span>
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{String(i + 1).padStart(2, '0')}</span>
+                  </div>
+                  <div style={{ color: active ? m.color : '#1e293b', fontSize: 13, fontWeight: 700 }}>{m.name}</div>
+                  <div style={{ color: '#64748b', fontSize: 10, lineHeight: 1.4 }}>{m.desc}</div>
+                  <div style={{ marginTop: 4, fontSize: 10, color: matched ? '#059669' : '#94a3b8', fontFamily: 'monospace' }}>
+                    {matched ? `✓ ${matched.content.length} 字` : '未生成'}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* 详情预览 */}
+          <div style={{
+            background: '#ffffff', border: '1px solid #e2e8f0',
+            borderRadius: 10, padding: 12, minHeight: 280,
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: RG_OUTPUT_MODULES[activeModule].color, fontSize: 13, fontWeight: 700 }}>
+                  {RG_OUTPUT_MODULES[activeModule].icon} {RG_OUTPUT_MODULES[activeModule].name}
+                </span>
+                <span style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>
+                  / {RG_OUTPUT_MODULES[activeModule].key.toUpperCase()}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {[{ k: 'preview', l: '👁 预览' }, { k: 'source', l: '</> 源码' }].map(t => (
+                  <button key={t.k} onClick={() => setPreviewMode(t.k)} style={{
+                    padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                    background: previewMode === t.k ? '#eff6ff' : 'transparent',
+                    color: previewMode === t.k ? '#0284c7' : '#64748b',
+                    border: `1px solid ${previewMode === t.k ? '#bae6fd' : 'transparent'}`,
+                    cursor: 'pointer',
+                  }}>{t.l}</button>
+                ))}
+              </div>
+            </div>
+            {(() => {
+              const matched = pack.modules[activeModule]
+              if (!matched) return <div style={{ color: '#94a3b8', textAlign: 'center', padding: 60 }}>暂无内容</div>
+              if (previewMode === 'preview') return (
+                <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                  <MarkdownCard content={matched.content} title={matched.name} />
+                </div>
+              )
+              // 源码视图
+              const lines = (matched.content || '').split('\n')
+              return (
+                <pre style={{
+                  margin: 0, padding: '12px 0',
+                  background: '#f8fafc', color: '#1e293b',
+                  borderRadius: 8, fontFamily: 'monospace',
+                  fontSize: 12.5, lineHeight: 1.7, overflow: 'auto',
+                  maxHeight: 360,
+                  border: '1px solid #e2e8f0',
+                }}>
+                  {lines.map((line, i) => (
+                    <div key={i} style={{ display: 'flex', paddingRight: 12 }}>
+                      <span style={{ color: '#94a3b8', display: 'inline-block', width: 40, textAlign: 'right', paddingRight: 12, marginRight: 12, borderRight: '1px solid #e2e8f0', userSelect: 'none', flexShrink: 0 }}>{i + 1}</span>
+                      <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', flex: 1 }}>{line || ' '}</span>
+                    </div>
+                  ))}
+                </pre>
+              )
+            })()}
+          </div>
+
+          {/* 5 操作按钮 */}
+          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+            {[
+              { icon: '📋', label: '复制全部', onClick: async () => {
+                  const all = pack.modules.map(m => m.content).join('\n\n---\n\n')
+                  try { await navigator.clipboard.writeText(all) } catch (_) {}
+                  pushToast({ type: 'success', title: '已复制全部内容', detail: `${pack.modules.length} 个模块 · ${all.length} 字符`, icon: '📋', duration: 1800 })
+                }},
+              { icon: '📥', label: '下载 MD', onClick: () => {
+                  const all = pack.modules.map(m => m.content).join('\n\n---\n\n')
+                  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+                  const blob = new Blob([all], { type: 'text/markdown;charset=utf-8' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url; a.download = `${pack.title}-${stamp}.md`; a.click()
+                  setTimeout(() => URL.revokeObjectURL(url), 1000)
+                  pushToast({ type: 'success', title: 'Markdown 已下载', detail: `${pack.title}.md`, icon: '📥', duration: 1800 })
+                }},
+              { icon: '📄', label: '下载 PDF', primary: true, onClick: () => setPdfOpen(true) },
+              { icon: '🔗', label: '分享', onClick: () => setShareOpen(true) },
+              { icon: '🔁', label: '重新生成', onClick: () => { pushToast({ type: 'info', title: '正在重新生成...', icon: '🔁', duration: 1500 }); startPipeline() } },
+            ].map(b => (
+              <button key={b.label} onClick={b.onClick} style={{
+                padding: '10px 6px', borderRadius: 8,
+                border: b.primary ? 'none' : '1px solid #e2e8f0',
+                background: b.primary
+                  ? 'linear-gradient(135deg, #3b82f6, #6366f1)'
+                  : '#ffffff',
+                color: b.primary ? '#fff' : '#475569',
+                fontSize: 11.5, fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                transition: 'all .15s',
+                boxShadow: b.primary
+                  ? '0 4px 12px rgba(99,102,241,0.35)'
+                  : '0 1px 2px rgba(15,23,42,0.04)',
+              }}>
+                <span style={{ fontSize: 16 }}>{b.icon}</span>
+                <span>{b.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 底部：CTA 按钮 */}
+      {phase !== 'done' && (
+        <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center' }}>
+          <button
+            onClick={startPipeline}
+            disabled={phase === 'running'}
+            style={{
+              padding: '14px 36px', borderRadius: 12,
+              border: '1px solid #e2e8f0',
+              background: phase === 'running'
+                ? '#f1f5f9'
+                : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+              color: phase === 'running' ? '#94a3b8' : '#1e293b',
+              fontSize: 14, fontWeight: 700,
+              cursor: phase === 'running' ? 'not-allowed' : 'pointer',
+              boxShadow: phase === 'running'
+                ? 'none'
+                : '0 4px 12px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,1)',
+              letterSpacing: 0.5,
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => {
+              if (phase !== 'running') {
+                e.currentTarget.style.transform = 'translateY(-1px)'
+                e.currentTarget.style.boxShadow = '0 8px 20px rgba(59,130,246,0.18), 0 0 0 3px rgba(59,130,246,0.10), inset 0 1px 0 rgba(255,255,255,1)'
+              }
+            }}
+            onMouseLeave={e => {
+              if (phase !== 'running') {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,1)'
+              }
+            }}
+          >
+            {phase === 'running' ? '⏳ 4 智能体协同生成中...' : '🚀 一键生成学习包（基于你的画像）'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
