@@ -1,0 +1,25 @@
+{
+  "description": "Vision-Forge 消融实验基准数据库索引",
+  "version": "1.0",
+  "experiments": {
+    "目标检测": [
+      "resnet50_fpn_yolo_coco.json",
+      "efficientnetv2_bifpn_yolo_coco.json",
+      "swin_pan_yolo_coco.json"
+    ],
+    "语义分割": [
+      "sam_vitb_mask_decoder_ade20k.json",
+      "resnet50_aspp_semantic_voc.json",
+      "mobilesam_mask_decoder_voc.json"
+    ],
+    "图像分类": [
+      "vit_base_classification_imagenet.json",
+      "dino_v2_classification_imagenet.json",
+      "resnet50_classification_imagenet.json"
+    ],
+    "实例分割": [
+      "sam_vith_mask_decoder_coco.json",
+      "resnet50_fpn_instance_coco.json"
+    ]
+  }
+}

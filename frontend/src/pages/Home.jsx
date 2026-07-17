@@ -1,21 +1,41 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, RadialBarChart, RadialBar, AreaChart, Area } from 'recharts'
-import { fetchPipelineResult } from '../api' // ✅ 引入真实的后端请求接口
+import { fetchPipelineStream } from '../api' // ✅ SSE 流式后端请求接口
 import { useLearn } from '../LearnContext.jsx'
 
 export default function Home() {
   const learn = useLearn()
 
   /* ═══════════════ state ═══════════════ */
-  const [messages, setMessages] = useState([
-    {
+  const [messages, setMessagesRaw] = useState(() => {
+    // 从 localStorage 恢复消息历史（按 session 隔离，切页面不丢失）
+    const sid = localStorage.getItem('vf_session_id')
+    if (sid) {
+      const saved = localStorage.getItem(`vf_messages_${sid}`)
+      if (saved) {
+        try { return JSON.parse(saved) } catch (_) {}
+      }
+    }
+    return [{
       role: 'assistant',
       text: `你好！我是你的 AI 导师。\n\n我看到你的学习目标是：**${learn.goal === '自定义目标' ? learn.customGoal || '自定义目标' : learn.goal}**\n当前主线任务阶段：${learn.currentStageIdx + 1} / ${learn.mainStages.length} — **${learn.stage}**\n\n我会调度 4 个智能体（架构引导 · 算法教研 · 资源生成 · 学情评估）围绕这条主线为你服务。请问你接下来想做什么？`,
       agent: 'system',
       time: formatTime(new Date()),
-    }
-  ])
+    }]
+  })
+
+  // 封装 setMessages，每次更新自动同步到 localStorage
+  const setMessages = (valOrFn) => {
+    setMessagesRaw(prev => {
+      const next = typeof valOrFn === 'function' ? valOrFn(prev) : valOrFn
+      const sid = localStorage.getItem('vf_session_id')
+      if (sid) {
+        try { localStorage.setItem(`vf_messages_${sid}`, JSON.stringify(next)) } catch (_) {}
+      }
+      return next
+    })
+  }
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [streamText, setStreamText] = useState('')
@@ -27,6 +47,14 @@ export default function Home() {
   const [stageBarUserOpen, setStageBarUserOpen] = useState(false)
   const showStageBar = agentStage > 0 || stageBarUserOpen
   const [showQuickStart, setShowQuickStart] = useState(false)
+  // 每个浏览器生成唯一会话 ID，不同用户/刷新后仍保持独立
+  const [sessionId] = useState(() => {
+    const saved = localStorage.getItem('vf_session_id')
+    if (saved) return saved
+    const id = 'session_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8)
+    localStorage.setItem('vf_session_id', id)
+    return id
+  })
   const messagesEndRef = useRef(null)
   const historyRef = useRef(null)
   /* historyRef 现在挂在对话 Tab 顶部的"📜 历史"按钮上 */
@@ -258,62 +286,88 @@ export default function Home() {
     setMessages(prev => [...prev, { role: 'user', text, time: formatTime(new Date()) }])
     setInput('')
     setIsTyping(true)
-    setAgentStage(1)
+    setAgentStage(1)    // 立即显示第一个阶段
+    setStreamText('')    // 清空流式缓存
 
-    let stageIdx = 1
-    const stageInterval = setInterval(() => {
-      stageIdx++
-      if (stageIdx <= 4) setAgentStage(stageIdx)
-    }, 700)
+    // Agent 名称 → 阶段编号映射（用于进度条）
+    const agentStageMap = { system: 0, architect: 1, tutor: 2, evaluator: 3, generator: 4 }
+    // 累积收到的全部内容（最终一次性写入消息列表）
+    let accumulatedContent = ''
 
-    try {
-      // ⬇️ 调用后端：POST /api/chat → FastAPI 17077 端口（Vite /api 代理）
-      //    ⚠️ 后端端口提示：详见 src/api.js 与 vite.config.js（target: http://127.0.0.1:17077）
-      //    联调前确认后端 main.py 已启动并监听 17077
-      const result = await fetchPipelineResult(text)
-
-      clearInterval(stageInterval)
-      setAgentStage(0)
-      setCurrentAgent(null)
-
-      if (result.code === 200 && result.data) {
-        const data = result.data
-        const tutorReply = data.tutor_response || "四大智能体处理完毕，暂无文字输出。"
-        const evalReport = data.evaluation_report || ""
-
-        let finalContent = tutorReply
-        if (evalReport) {
-            finalContent += `\n\n📊 **【评估报告】**:\n${evalReport}`
+    // ⬇️ 使用 SSE 流式接口 —— 每个 Agent 的真实执行进度与内容实时推送到前端
+    fetchPipelineStream(text, sessionId, {
+      onStage: (event) => {
+        if (event.status === 'running') {
+          const stageIdx = agentStageMap[event.agent] || 0
+          setAgentStage(stageIdx)
+          setCurrentAgent(event.agent)
         }
+      },
 
+      onNavigate: (event) => {
+        // 收到 Canvas 引导事件：标记以便 onDone 中显示导航按钮
+        window.__vf_lastNavigate = event
+      },
+
+      onContent: (event) => {
+        // 根据内容类型选择前缀：chat 模式无前缀，pipeline 模式保留标签
+        const prefix = event.type === 'chat'
+          ? ''  // 对话模式：直接追加，无标题前缀
+          : event.type === 'tutor'
+            ? '\n\n---\n\n'
+            : event.type === 'evaluation'
+              ? '\n\n📊 **【评估报告】**:\n'
+              : event.type === 'report'
+                ? '\n\n📄 **【学习讲义】**:\n'
+                : ''
+        accumulatedContent += prefix + event.text
+        setStreamText(accumulatedContent)
+      },
+
+      onDone: (event) => {
+        const data = event.data || {}
+        const finalContent = accumulatedContent || data.evaluation_results?.tutor_response || '四大智能体处理完毕。'
+        const navEvent = window.__vf_lastNavigate
+        window.__vf_lastNavigate = null
+
+        setAgentStage(0)
+        setCurrentAgent(null)
         setStreamText('')
-        typeMessage(finalContent, (chunk) => {
-          if (chunk === null) {
-            setMessages(prev => [...prev, {
-              role: 'assistant', text: finalContent, agent: 'system',
-              time: formatTime(new Date()),
-            }])
-            setStreamText('')
-            setIsTyping(false)
-          } else {
-            setStreamText(chunk)
-          }
-        })
-      } else {
-        throw new Error(result.message || "后端返回状态异常")
-      }
-    } catch (error) {
-      clearInterval(stageInterval)
-      setAgentStage(0)
-      setCurrentAgent(null)
-      setIsTyping(false)
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        text: `❌ 后端连接失败: ${error.message}\n请检查网络环境或跨域(CORS)配置。`,
-        agent: 'system',
-        time: formatTime(new Date())
-      }])
-    }
+        setIsTyping(false)
+
+        // 检查是否需要引导去 Canvas
+        if (navEvent && navEvent.target === 'canvas') {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            text: finalContent,
+            agent: 'system',
+            time: formatTime(new Date()),
+            _canvasGuide: true,  // 标记此行需要显示 Canvas 按钮
+            _sessionId: data.session_id || sessionId,
+          }])
+        } else {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            text: finalContent,
+            agent: 'system',
+            time: formatTime(new Date()),
+          }])
+        }
+      },
+
+      onError: (event) => {
+        setAgentStage(0)
+        setCurrentAgent(null)
+        setStreamText('')
+        setIsTyping(false)
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          text: `❌ **${event.agent || '系统'} 执行失败**: ${event.message}\n\n请检查后端网络或星火大模型配置。`,
+          agent: 'system',
+          time: formatTime(new Date()),
+        }])
+      },
+    })
   }
 
   /* 生成画像评估报告 */
@@ -752,6 +806,32 @@ export default function Home() {
                         fontSize: 13, lineHeight: 1.6,
                       }}>
                         {renderMessageText(m.text)}
+                        {/* Canvas 引导按钮：苏格拉底对话完成后出现 */}
+                        {m._canvasGuide && (
+                          <div style={{ marginTop: 12, textAlign: 'center' }}>
+                            <button
+                              onClick={() => {
+                                const sid = m._sessionId || sessionId
+                                navigate(`/canvas?tab=workshop&session=${encodeURIComponent(sid)}`)
+                              }}
+                              style={{
+                                padding: '10px 28px',
+                                background: 'linear-gradient(135deg, #10b981, #059669)',
+                                color: '#fff', border: 'none', borderRadius: 10,
+                                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                                boxShadow: '0 4px 14px rgba(16,185,129,0.35)',
+                                transition: 'all 0.2s',
+                              }}
+                              onMouseEnter={e => e.target.style.transform = 'scale(1.03)'}
+                              onMouseLeave={e => e.target.style.transform = 'scale(1)'}
+                            >
+                              🏗️ 前往模型工坊，动手搭建
+                            </button>
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
+                              拖拽算子节点，亲手搭建你的模型架构 →
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

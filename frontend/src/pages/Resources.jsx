@@ -9,6 +9,7 @@ import { MarkdownPreview } from '../components/resources/MarkdownPreview'
 import { ShareModal } from '../components/resources/ShareModal'
 import { PdfPreviewModal } from '../components/resources/PdfPreviewModal'
 import { fetchFavorites, toggleFavorite, isFavorited } from '../api/favorites.js'
+import { fetchLearningMaterials, generateLearningMaterial } from '../api.js'
 
 // ==================== 预设资源数据 ====================
 const defaultResources = [
@@ -582,6 +583,7 @@ export default function Resources() {
   const [cateTab, setCateTab] = useState('all')
   const [search, setSearch] = useState('')
   const [favorites, setFavorites] = useState([])
+  const [realMaterials, setRealMaterials] = useState([])  // 从后端加载的真实讲义
 
   /* 从统一收藏 store 同步"资源"分类下的 id 集合（用于卡片显示星标状态） */
   useEffect(() => {
@@ -602,6 +604,23 @@ export default function Resources() {
     return () => { alive = false; window.removeEventListener('storage', onStorage) }
   }, [activeTab])
 
+  // 从后端加载真实讲义列表
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const res = await fetchLearningMaterials()
+        if (alive && res?.status === 'success') {
+          setRealMaterials(res.data?.items || [])
+        }
+      } catch (e) {
+        console.warn('[Resources] 加载讲义失败:', e)
+      }
+    }
+    load()
+    return () => { alive = false }
+  }, [activeTab])
+
   // 资源中心 Toast（独立于 stageToast）
   const { toasts, push: pushToast, remove: removeToast } = useToasts()
 
@@ -615,13 +634,30 @@ export default function Resources() {
 
   // 持久化收藏 —— 已迁移到统一 store (vf_favorites_v2)，此处无需再写
 
-  // 资源数据（保持收藏状态同步）
+  // 资源数据（mock 数据 + 后端真实讲义合并）
   const resources = useMemo(() => {
-    return defaultResources.map(r => ({
+    const mock = defaultResources.map(r => ({
       ...r,
       collect: favorites.includes(r.id),
     }))
-  }, [favorites])
+    // 将后端真实讲义转为与 mock 兼容的卡片格式
+    const real = realMaterials.map(m => ({
+      id: `real-${m.id}`,
+      title: m.title,
+      cate: 'cv',
+      progress: 0,
+      collect: false,
+      desc: m.task_type || 'AI 生成',
+      author: '资源生成智能体',
+      time: '',
+      type: m.material_type,
+      emoji: '📚',
+      gradient: 'linear-gradient(135deg,#10b981,#34d399)',
+      _isReal: true,
+      _realId: m.id,
+    }))
+    return [...real, ...mock]
+  }, [favorites, realMaterials])
 
   // 筛选
   const filtered = resources.filter(item =>
@@ -846,19 +882,86 @@ export default function Resources() {
     )
   }
 
-  // ==================== Tab 2: 学习包生成（Deep Research 风格 · 全过程可视化） ====================
-  const GenerateTab = () => (
-    <ResourceGenDeep
-      learn={learn}
-      generatePack={generateLearningPack}
-      MarkdownCard={MarkdownCard}
-      EmptyState={EmptyState}
-      ModuleContentSkeleton={ModuleContentSkeleton}
-      ShareModal={ShareModal}
-      PdfPreviewModal={PdfPreviewModal}
-      pushToast={pushToast}
-    />
-  )
+  // ==================== Tab 2: 学习包生成（真实 API + 全过程可视化） ====================
+  const GenerateTab = () => {
+    const [genSessionId, setGenSessionId] = useState('')
+    const [genLoading, setGenLoading] = useState(false)
+    const [genResult, setGenResult] = useState(null)
+
+    const handleGenerate = async () => {
+      if (!genSessionId.trim()) {
+        pushToast({ type: 'error', title: '请输入会话ID', detail: '可从首页对话完成后获取', icon: '⚠️', duration: 2000 })
+        return
+      }
+      setGenLoading(true)
+      setGenResult(null)
+      try {
+        const res = await generateLearningMaterial(genSessionId.trim())
+        if (res?.status === 'success') {
+          setGenResult(res.data)
+          pushToast({ type: 'success', title: '讲义已生成', detail: res.data.title, icon: '✅', duration: 2500 })
+        }
+      } catch (e) {
+        pushToast({ type: 'error', title: '生成失败', detail: e.message, icon: '❌', duration: 3000 })
+      } finally {
+        setGenLoading(false)
+      }
+    }
+
+    return (
+      <div style={{ maxWidth: '100%' }}>
+        {/* 真实 API 生成入口 */}
+        <div style={{
+          background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+          border: '1px solid #6ee7b7', borderRadius: 12, padding: 16, marginBottom: 20,
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#065f46', marginBottom: 8 }}>🔧 从会话生成学习讲义</div>
+          <div style={{ fontSize: 12, color: '#047857', marginBottom: 12 }}>
+            在首页完成四智能体对话后，输入会话 ID，一键生成 HTML 学术讲义并存入资源库。
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <input
+              placeholder="输入 Session ID（如 default_session）"
+              value={genSessionId}
+              onChange={e => setGenSessionId(e.target.value)}
+              style={{
+                flex: 1, padding: '8px 14px', borderRadius: 8,
+                border: '1px solid #6ee7b7', fontSize: 13, outline: 'none',
+              }}
+            />
+            <button
+              onClick={handleGenerate}
+              disabled={genLoading}
+              style={{
+                padding: '8px 20px', borderRadius: 8, border: 'none', cursor: genLoading ? 'not-allowed' : 'pointer',
+                background: genLoading ? '#86efac' : '#10b981', color: '#fff', fontWeight: 700, fontSize: 13,
+                whiteSpace: 'nowrap', transition: 'all 0.2s',
+              }}
+            >{genLoading ? '⏳ 生成中...' : '⚡ 生成讲义'}</button>
+          </div>
+          {genResult && (
+            <div style={{ marginTop: 12, padding: '10px 14px', background: '#fff', borderRadius: 8, border: '1px solid #6ee7b7' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#065f46' }}>✅ {genResult.title}</span>
+              <span style={{ fontSize: 11, color: '#64748b', marginLeft: 10 }}>ID: {genResult.id}</span>
+              <span style={{ fontSize: 11, color: '#64748b', marginLeft: 10 }}>{genResult.task_type || ''}</span>
+            </div>
+          )}
+        </div>
+
+        {/* 原有的模拟生成（保留兼容） */}
+        <ResourceGenDeep
+          learn={learn}
+          generatePack={generateLearningPack}
+          MarkdownCard={MarkdownCard}
+          EmptyState={EmptyState}
+          ModuleContentSkeleton={ModuleContentSkeleton}
+          ShareModal={ShareModal}
+          PdfPreviewModal={PdfPreviewModal}
+          pushToast={pushToast}
+        />
+      </div>
+    )
+  }
 
   // 收藏 Tab 已迁移至「个人中心 → 我的收藏」(/profile?tab=favorites)
 // 旧的 FavoritesTab 组件不再渲染；点击「我的收藏」请导航到 /profile?tab=favorites

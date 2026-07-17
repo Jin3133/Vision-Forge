@@ -66,7 +66,14 @@ class TutorAgent(AgentBase):
 2. 根据学生的认知风格（Cognitive Style）调整解释深度：
    - 如果是"图表直观应用"风格，请多用生活化比喻，重点讲输入输出特征图的变化。
    - 如果是"代码底层探索"风格，请硬核一点，重点讲张量拼接(concat)、注意力权重的具体维度计算。
-3. 输出必须是清晰的 Markdown 格式。"""
+3. 输出必须是清晰的 Markdown 格式。
+
+【输出格式强制约束】
+- 严禁使用 '***' 或 '---' 作为段落分隔线
+- 使用 '##' 或 '###' 标题划分章节，使用空行分隔段落
+- 代码块使用标准 ```python 围栏
+- 重点用 **加粗** 标注，禁止使用 *** 三重星号
+- 使用编号列表（1. 2. 3.）组织要点"""
         super().__init__(name="Tutor", role_prompt=role_prompt)
 
     def _resolve_source_files(self, state: TaskState) -> List[str]:
@@ -74,34 +81,42 @@ class TutorAgent(AgentBase):
 
         策略：
         1. 遍历 sandbox_config.nodes，对每个算子 name 查 NODE_TO_SOURCE 映射
-        2. 去重并按出现顺序返回（最多取前 3 个，避免一次塞太多源码）
-        3. 若全部未命中，回退到 suggested_backbone 或默认兜底文件
+        2. 检查映射到的文件是否真实存在于 assets/code_mirror/ 下
+        3. 去重并按出现顺序返回（最多取前 3 个，避免一次塞太多源码）
+        4. 若全部未命中或不存在，返回空列表（由 run() 降级为纯 LLM 知识讲解）
         """
         sandbox_config = self.read_blackboard(state, "sandbox_config")
         resolved: List[str] = []
         seen = set()
 
-        # 从 nodes 列表中解析
+        current_dir = Path(__file__).resolve().parent
+        code_dir = current_dir.parent / "assets" / "code_mirror"
+
+        # 从 nodes 列表中解析，只保留真实存在的文件
         nodes = getattr(sandbox_config, "nodes", []) or []
         for node in nodes:
             node_name = getattr(node, "name", "") if hasattr(node, "name") else node.get("name", "")
             if node_name in NODE_TO_SOURCE:
                 fname = NODE_TO_SOURCE[node_name]
                 if fname not in seen:
-                    resolved.append(fname)
-                    seen.add(fname)
+                    # 检查文件是否真实存在
+                    file_path = code_dir / fname
+                    if file_path.exists():
+                        resolved.append(fname)
+                        seen.add(fname)
+                    else:
+                        logger.info(f"[{self.name}] 源码文件缺失，跳过: {fname}")
 
         # 如果 nodes 中没命中，尝试 suggested_backbone
         if not resolved:
             backbone = getattr(sandbox_config, "suggested_backbone", "")
             if backbone and backbone in NODE_TO_SOURCE:
-                resolved.append(NODE_TO_SOURCE[backbone])
+                fname = NODE_TO_SOURCE[backbone]
+                file_path = code_dir / fname
+                if file_path.exists():
+                    resolved.append(fname)
 
-        # 最终兜底
-        if not resolved:
-            resolved.append(_FALLBACK_SOURCE)
-
-        # 限制最多 3 个文件，控制上下文长度
+        # 不再是强制兜底 SE_Block——缺失时由 run() 降级处理
         return resolved[:3]
 
     def _read_source_code(self, filename: str) -> str:
@@ -109,14 +124,10 @@ class TutorAgent(AgentBase):
         try:
             current_dir = Path(__file__).resolve().parent
             file_path = current_dir.parent / "assets" / "code_mirror" / filename
-
             with open(file_path, "r", encoding="utf-8") as f:
                 return f.read()
         except FileNotFoundError:
-            logger.warning(f"[{self.name}] 源码文件不存在: {filename}，尝试兜底")
-            # 尝试兜底读取默认文件
-            if filename != _FALLBACK_SOURCE:
-                return self._read_source_code(_FALLBACK_SOURCE)
+            logger.warning(f"[{self.name}] 源码文件不存在: {filename}")
             return ""
 
     def run(self, state: TaskState) -> Dict[str, Any]:
@@ -126,31 +137,36 @@ class TutorAgent(AgentBase):
         profile = self.read_blackboard(state, "learner_profile") or {}
         cognitive_style = profile.get("cognitive_style", "标准模式")
 
-        # 2. 动态解析需要讲解的源码文件
-        target_files = self._resolve_source_files(state)
-        logger.info(f"[{self.name}] 动态定位到源码文件: {target_files}")
+        # 2. 收集需要讲解的算子名称（即使源码缺失也能用 LLM 知识讲）
+        sandbox_config = self.read_blackboard(state, "sandbox_config")
+        nodes = getattr(sandbox_config, "nodes", []) or []
+        node_names = [
+            getattr(n, "name", "") if hasattr(n, "name") else n.get("name", "")
+            for n in nodes
+        ]
+        node_names = [n for n in node_names if n]  # 过滤空名
 
-        # 3. 读取所有源码并拼接
+        # 3. 动态解析真实存在的源码文件
+        target_files = self._resolve_source_files(state)
+        logger.info(f"[{self.name}] 真实源码文件: {target_files} | 请求算子: {node_names}")
+
+        # 4. 读取源码并拼接
         code_sections = []
         for fname in target_files:
             code = self._read_source_code(fname)
             if code:
                 code_sections.append(f"# ===== 文件: {fname} =====\n{code}")
 
-        if not code_sections:
-            return {
-                "current_step": "error_stage",
-                "history": [f"[{self.name}] 所有源码文件均读取失败，已中断流程"]
-            }
-
-        combined_source = "\n\n".join(code_sections)
-
-        # 4. 组装"强力 Prompt" (将源码和学习画像一起喂给大模型)
-        file_list_str = "、".join(target_files)
-        prompt = f"""
+        # 5. 根据源码是否存在，选择不同的讲解策略
+        if code_sections:
+            # === 策略 A: 有真实源码 → 结合源码深度讲解 ===
+            combined_source = "\n\n".join(code_sections)
+            file_list_str = "、".join(target_files)
+            prompt = f"""
 当前学生的认知风格偏好为：【{cognitive_style}】。
+学生想了解以下算子：{', '.join(node_names) if node_names else '视觉模型架构'}。
 
-以下是我们要讲解的核心算子真实源码（涉及文件：{file_list_str}）：
+以下是核心算子的真实源码（涉及文件：{file_list_str}）：
 ```python
 {combined_source}
 ```
@@ -158,18 +174,41 @@ class TutorAgent(AgentBase):
 请用启发式的口吻，结合源码中的中文注释，为该学生详细拆解这些代码的核心执行流程。
 如果涉及多个文件，请分模块讲解并说明它们之间的协作关系。
 """
+            history_msg = f"[{self.name}] 结合真实源码讲解: {file_list_str}"
+        else:
+            # === 策略 B: 源码缺失 → 用 LLM 训练知识直接讲解（不再兜底 SE_Block） ===
+            operator_desc = ', '.join(node_names) if node_names else "视觉模型架构"
+            backbone = getattr(sandbox_config, "suggested_backbone", "")
+            task_type = getattr(sandbox_config, "task_type", "图像分割")
 
-        # 5. 调用星火大脑 (适度提高 temperature 让讲解更生动)
+            prompt = f"""
+当前学生的认知风格偏好为：【{cognitive_style}】。
+学生想了解的算子：{operator_desc}（用于 {task_type} 任务{f'，推荐主干网络: {backbone}' if backbone else ''}）。
+
+⚠️ 注意：这些算子的源码文件暂未纳入本地资产库，请基于你的训练知识进行详细讲解。
+
+【讲解要求】
+1. 对每个算子，阐述其核心原理、设计动机和适用场景
+2. 说明算子之间的协作关系和数据流动方式
+3. 结合 {task_type} 领域的最佳实践，给出搭配建议
+4. 根据学生的认知风格（{cognitive_style}）调整讲解深度和语言风格
+   - "图表直观应用" → 多用生活化比喻、强调输入输出变化
+   - "代码底层探索" → 偏重维度计算、矩阵操作、底层实现细节
+"""
+            history_msg = f"[{self.name}] 基于 LLM 知识讲解: {operator_desc}（源码缺失，降级为知识讲解）"
+            logger.warning(f"[{self.name}] 所有算子源码均缺失，降级为 LLM 知识讲解模式")
+
+        # 6. 调用大模型
         response_text = self.call_llm(user_input=prompt, temperature=0.5)
 
-        # 6. 返回增量数据，写回全局黑板
+        # 7. 返回增量数据
         return {
             "evaluation_results": {
                 "tutor_response": response_text
             },
             "current_step": "evaluator_stage",
             "history": [
-                f"[{self.name}] 动态定位并讲解源码: {file_list_str}",
+                history_msg,
                 f"[{self.name}] 源码教研讲解生成完毕（认知风格: {cognitive_style}）"
             ]
         }

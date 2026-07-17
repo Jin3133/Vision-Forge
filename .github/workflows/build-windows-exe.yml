@@ -1,0 +1,51 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main, docs]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 构建前端
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+      - name: 复制前端到后端
+        run: |
+          mkdir -p backend/static
+          xcopy /E /Y frontend\dist\* backend\static\
+
+      - name: 安装后端依赖
+        run: |
+          pip install fastapi uvicorn pydantic pydantic-settings sqlalchemy openai python-jose passlib bcrypt chromadb
+
+      - name: PyInstaller 打包
+        run: |
+          pip install pyinstaller
+          cd backend
+          pyinstaller --onefile --name VisionForge --add-data "static;static" --add-data "assets/code_mirror;assets/code_mirror" --add-data "assets/experiment_results;assets/experiment_results" --hidden-import uvicorn.logging --hidden-import uvicorn.loops.auto --hidden-import uvicorn.protocols.http.auto --hidden-import fastapi --hidden-import pydantic --hidden-import sqlalchemy --clean --noconfirm run.py
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: VisionForge-Windows
+          path: backend/dist/VisionForge.exe

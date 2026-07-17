@@ -1,0 +1,53 @@
+{
+  "id": "resnet50_fpn_yolo_coco",
+  "task_type": "目标检测",
+  "domain": "通用",
+  "backbone": {
+    "type": "BACKBONE",
+    "name": "ResNet50"
+  },
+  "neck": {
+    "type": "NECK",
+    "name": "Feature_Pyramid"
+  },
+  "head": {
+    "type": "HEAD",
+    "name": "YOLO_Detect_Head"
+  },
+  "dataset": "COCO 2017 val",
+  "metrics": {
+    "mAP50": 0.783,
+    "mAP50_95": 0.521,
+    "FPS": 45,
+    "params_million": 42.3
+  },
+  "ablations": [
+    {
+      "variant": "baseline (本配置)",
+      "mAP50": 0.783,
+      "delta": 0.0
+    },
+    {
+      "variant": "移除FPN",
+      "mAP50": 0.712,
+      "delta": -0.071
+    },
+    {
+      "variant": "替换为BiFPN",
+      "mAP50": 0.801,
+      "delta": 0.018
+    },
+    {
+      "variant": "替换为EfficientNetV2",
+      "mAP50": 0.794,
+      "delta": 0.011
+    },
+    {
+      "variant": "freeze backbone",
+      "mAP50": 0.756,
+      "delta": -0.027
+    }
+  ],
+  "source": "YOLOv8 Ultralytics (2023)",
+  "notes": "ResNet50+FPN是最经典的多尺度检测组合"
+}

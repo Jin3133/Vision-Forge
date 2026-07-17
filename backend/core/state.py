@@ -43,6 +43,14 @@ class TaskState(BaseModel):
     learner_profile: Dict[str, Any] = Field(default_factory=dict)
     sandbox_config: SandboxConfig = Field(default_factory=SandboxConfig)
 
+    # 苏格拉底式多轮对话状态
+    socratic_turn: int = 0                        # 当前反问轮次（0=未开始）
+    socratic_state: str = "idle"                  # idle|probing|synthesizing|done
+    socratic_history: List[Dict[str, Any]] = Field(default_factory=list)
+    # socratic_history 每项格式: {"turn": 1, "question": "...", "answer": "...", "insight": "..."}
+    socratic_track: Dict[str, Any] = Field(default_factory=dict)
+    # socratic_track 格式: {"level": "初级", "pace": "medium", "focus_topics": [...]}
+
     # 智能体流转中间件
     missing_knowledge: List[str] = Field(default_factory=list)
     evaluation_results: Dict[str, Any] = Field(default_factory=dict)
@@ -192,8 +200,8 @@ class StateManager:
                 if key not in state_data:
                     continue
 
-                # 针对历史记录和缺失知识点的追加
-                if key in ["history", "missing_knowledge"]:
+                # 针对历史记录、缺失知识点、苏格拉底对话历史的追加
+                if key in ["history", "missing_knowledge", "socratic_history"]:
                     if isinstance(value, list):
                         state_data[key].extend(value)
                     elif isinstance(value, str):

@@ -16,110 +16,110 @@ import { SourceCodeDrawer } from '../components/canvas/SourceCodeDrawer'
 import { TEMPLATES } from '../components/canvas/templates'
 import '../components/canvas/canvas-extras.css'
 
-// ==================== 节点类型定义 ====================
-const nodeColors = {
-  // 基础模块
-  input: { bg: '#f0f9ff', border: '#0ea5e9', icon: '📥', label: '输入层' },
-  encoder: { bg: '#eff6ff', border: '#3b82f6', icon: '🏗️', label: '图像编码器' },
-  prompt_encoder: { bg: '#eff6ff', border: '#2563eb', icon: '📝', label: '提示编码器' },
-  // 特征提取
-  conv: { bg: '#f0fdf4', border: '#10b981', icon: '🔲', label: '卷积层' },
-  attention: { bg: '#f0fdf4', border: '#059669', icon: '👁️', label: '注意力层' },
-  extract: { bg: '#f0fdf4', border: '#10b981', icon: '🔍', label: '特征提取' },
-  pooling: { bg: '#f0fdf4', border: '#14b8a6', icon: '🔽', label: '池化层' },
-  // 融合层
-  aggregate: { bg: '#fffbeb', border: '#f59e0b', icon: '🔗', label: '特征融合' },
-  norm: { bg: '#fffbeb', border: '#d97706', icon: '📐', label: '归一化层' },
-  activation: { bg: '#fffbeb', border: '#f59e0b', icon: '⚡', label: '激活函数' },
-  dropout: { bg: '#fff7ed', border: '#f97316', icon: '🎲', label: 'Dropout' },
-  // 输出模块
-  decoder: { bg: '#faf5ff', border: '#8b5cf6', icon: '🎯', label: '掩码解码器' },
-  fc: { bg: '#faf5ff', border: '#7c3aed', icon: '🔗', label: '全连接层' },
-  output: { bg: '#faf5ff', border: '#8b5cf6', icon: '📤', label: '输出层' },
-  base: { bg: '#eff6ff', border: '#3b82f6', icon: '🧠', label: '基座模型' },
+// ==================== 节点类型定义（对齐后端 node_catalog 白名单） ====================
+
+/* 五类算子的视觉样式 */
+const CATEGORY_STYLE = {
+  BACKBONE:   { bg: '#eff6ff', border: '#3b82f6', icon: '🏗️', label: '主干网络' },
+  ADAPTER:    { bg: '#f0fdf4', border: '#10b981', icon: '🔌', label: '微调适配' },
+  NECK:       { bg: '#fffbeb', border: '#f59e0b', icon: '🔗', label: '特征融合' },
+  HEAD:       { bg: '#faf5ff', border: '#8b5cf6', icon: '🎯', label: '任务输出' },
+  PROCESSING: { bg: '#f8fafc', border: '#64748b', icon: '⚙️', label: '预处理' },
 }
 
-/* 节点类型 → 学习画像知识点（用于联动评估） */
+/* 从后端 node_catalog 同步的算子清单（唯一事实来源） */
+const CATALOG_NODES = {
+  BACKBONE: [
+    'SAM_ViT_H', 'SAM_ViT_B', 'MobileSAM', 'FastSAM', 'DINO_v2',
+    'Swin_Transformer', 'ViT_Base', 'ResNet50', 'EfficientNetV2',
+  ],
+  ADAPTER: ['LoRA_Sampler', 'Conv_Adapter', 'IA3', 'AdapterFormer', 'BitFit'],
+  NECK: ['Feature_Pyramid', 'BiFPN', 'ASPP', 'PPM', 'PAN'],
+  HEAD: [
+    'Classification_Head', 'Instance_Segmentor', 'Semantic_Segmentor',
+    'YOLO_Detect_Head', 'BBox_Predictor', 'Anomaly_Detector',
+    'Keypoint_Detector', 'Mask_Decoder',
+  ],
+  PROCESSING: ['Resize', 'Normalize', 'Random_Flip', 'NMS'],
+}
+
+/* 向后兼容别名：让旧代码中 nodeColors[type] 仍然可用 */
+const nodeColors = CATEGORY_STYLE
+
+/* 算子 → 学习画像知识点映射 */
 const NODE_TO_KNOWLEDGE = {
-  base: ['SAM', '基座模型'],
-  encoder: ['Encoder', 'ViT'],
-  prompt_encoder: ['Prompt Encoder'],
-  conv: ['CNN', '卷积'],
-  attention: ['Attention', 'Transformer'],
-  pooling: ['CNN'],
-  extract: ['特征提取'],
-  aggregate: ['特征融合'],
-  norm: ['归一化'],
-  activation: ['激活函数'],
-  dropout: ['正则化'],
-  decoder: ['Decoder', '掩码解码'],
-  fc: ['全连接层'],
-  input: ['数据预处理'],
-  output: ['输出层'],
+  SAM_ViT_H: ['SAM', 'ViT'], SAM_ViT_B: ['SAM', 'ViT'], MobileSAM: ['SAM', '轻量化'],
+  FastSAM: ['SAM', '实时分割'], DINO_v2: ['DINO', '自监督'], Swin_Transformer: ['Swin', 'Transformer'],
+  ViT_Base: ['ViT', 'Transformer'], ResNet50: ['ResNet', 'CNN'], EfficientNetV2: ['EfficientNet', '轻量化'],
+  LoRA_Sampler: ['LoRA', '参数高效'], Conv_Adapter: ['Adapter', '微调'], IA3: ['微调', '轻量化'],
+  AdapterFormer: ['Adapter', 'Transformer'], BitFit: ['微调', 'Bias'],
+  Feature_Pyramid: ['FPN', '多尺度'], BiFPN: ['BiFPN', '特征融合'], ASPP: ['ASPP', '空洞卷积'],
+  PPM: ['PPM', '池化'], PAN: ['PAN', '路径聚合'],
+  Classification_Head: ['分类'], Instance_Segmentor: ['实例分割'], Semantic_Segmentor: ['语义分割'],
+  YOLO_Detect_Head: ['YOLO', '检测'], BBox_Predictor: ['检测', '边界框'],
+  Anomaly_Detector: ['异常检测'], Keypoint_Detector: ['关键点'], Mask_Decoder: ['分割', '掩码'],
+  Resize: ['预处理'], Normalize: ['预处理'], Random_Flip: ['数据增强'], NMS: ['后处理'],
 }
 
 /* 根据画布推导已掌握 / 待加强知识点 */
 function deriveFeedbackFromCanvas(nodes, edges) {
   const used = new Set()
   nodes.forEach(n => {
-    const keys = NODE_TO_KNOWLEDGE[n.type] || []
+    const name = n.data?.label || n.data?.name || ''
+    const keys = NODE_TO_KNOWLEDGE[name] || []
     keys.forEach(k => used.add(k))
   })
   const mastered = []
   const weak = []
+  const backboneCount = nodes.filter(n => n.type === 'BACKBONE').length
+  const headCount = nodes.filter(n => n.type === 'HEAD').length
   used.forEach(k => {
-    if (edges.length >= 2 && nodes.length >= 3) {
-      // 完整管线 → 视为掌握
+    if (edges.length >= nodes.length - 1 && backboneCount >= 1 && headCount >= 1) {
       mastered.push(k)
-    } else if (edges.length === 0 && nodes.length > 0) {
-      // 没连线 → 弱
+    } else if (backboneCount === 0 || headCount === 0) {
       weak.push(k)
     } else {
       mastered.push(k)
     }
   })
-  // Attention 单独挑剔：单层不够，至少 2 层 attention 才算掌握
-  const attnCount = nodes.filter(n => n.type === 'attention').length
-  if (attnCount >= 2) mastered.push('Attention 参数理解')
-  if (attnCount === 1) weak.push('Attention 参数理解')
   return {
     mastered: [...new Set(mastered)],
     weak: [...new Set(weak)],
-    summary: nodes.length >= 4 && edges.length >= 3
-      ? `已搭建 ${nodes.length} 节点 / ${edges.length} 连线的完整管线，模型工坊给出的反馈已写入学习画像。`
-      : `画布还不完整（${nodes.length} 节点 / ${edges.length} 连线），AI 导师标记了待加强的知识点。`,
+    summary: backboneCount >= 1 && headCount >= 1 && edges.length >= nodes.length - 1
+      ? `已搭建 ${nodes.length} 节点 / ${edges.length} 连线的完整管线（含 BACKBONE + HEAD），模型工坊给出的反馈已写入学习画像。`
+      : backboneCount === 0
+        ? `❌ 缺少 BACKBONE 主干网络，模型无法提取特征。`
+        : headCount === 0
+          ? `❌ 缺少 HEAD 输出头，模型无法产生预测。`
+          : `画布还不完整（${nodes.length} 节点 / ${edges.length} 连线），建议补充连线形成完整数据流。`,
   }
 }
 
-// 节点分组（用于折叠面板）—— 4 大组：基础模块 / 特征提取 / 融合层 / 输出模块
-// "输出层"节点置顶到"输出模块"组内并紫色高亮
-const nodeGroups = [
-  { name: '基础模块', key: 'foundation', nodes: ['input', 'encoder', 'prompt_encoder'] },
-  { name: '特征提取', key: 'extract', nodes: ['conv', 'attention', 'extract', 'pooling'] },
-  { name: '融合层', key: 'fusion', nodes: ['aggregate', 'norm', 'activation', 'dropout'] },
-  { name: '输出模块', key: 'output_module', nodes: ['output', 'decoder', 'fc', 'base'], highlight: true },
-] 
-
-const BaseNode = ({ data, type, selected }) => {
-  const { bg, border, icon } = nodeColors[type] || nodeColors.base
-  const isOutput = type === 'output'
+/* ReactFlow 节点组件 —— 按类别渲染不同颜色 */
+const CatalogNode = ({ data, type, selected }) => {
+  const style = CATEGORY_STYLE[type] || CATEGORY_STYLE.BACKBONE
+  const { bg, border, icon } = style
+  const hasOutput = type !== 'HEAD'  // HEAD 节点作为末端，不提供 source handle
   const shadow = selected ? `0 0 0 3px ${border}40, 0 4px 12px rgba(0,0,0,0.15)` : '0 2px 8px rgba(0,0,0,0.1)'
   return (
     <div style={{
       background: bg, border: `2px solid ${border}`, borderRadius: 12, padding: '10px 14px',
-      minWidth: 140, display: 'flex', alignItems: 'center', gap: 10,
+      minWidth: 150, display: 'flex', flexDirection: 'column', gap: 4,
       boxShadow: shadow, transition: 'all 0.2s', cursor: 'grab',
     }}>
-      <span style={{ fontSize: 20 }}>{icon}</span>
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{data.label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 18 }}>{icon}</span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{data.label}</div>
+          <div style={{ fontSize: 9, color: border, fontWeight: 500 }}>{type}</div>
+        </div>
+      </div>
       <Handle type="target" position={Position.Left} style={{
-        background: '#fff', border: `2.5px solid ${border}`,
-        width: 10, height: 10, borderRadius: '50%',
+        background: '#fff', border: `2.5px solid ${border}`, width: 10, height: 10, borderRadius: '50%',
       }} />
-      {!isOutput && (
+      {hasOutput && (
         <Handle type="source" position={Position.Right} style={{
-          background: '#fff', border: `2.5px solid ${border}`,
-          width: 10, height: 10, borderRadius: '50%',
+          background: '#fff', border: `2.5px solid ${border}`, width: 10, height: 10, borderRadius: '50%',
         }} />
       )}
     </div>
@@ -127,36 +127,26 @@ const BaseNode = ({ data, type, selected }) => {
 }
 
 const nodeTypes = {
-  base: (p) => <BaseNode {...p} type="base" />,
-  extract: (p) => <BaseNode {...p} type="extract" />,
-  aggregate: (p) => <BaseNode {...p} type="aggregate" />,
-  output: (p) => <BaseNode {...p} type="output" />,
-  input: (p) => <BaseNode {...p} type="input" />,
-  encoder: (p) => <BaseNode {...p} type="encoder" />,
-  prompt_encoder: (p) => <BaseNode {...p} type="prompt_encoder" />,
-  conv: (p) => <BaseNode {...p} type="conv" />,
-  attention: (p) => <BaseNode {...p} type="attention" />,
-  pooling: (p) => <BaseNode {...p} type="pooling" />,
-  norm: (p) => <BaseNode {...p} type="norm" />,
-  activation: (p) => <BaseNode {...p} type="activation" />,
-  dropout: (p) => <BaseNode {...p} type="dropout" />,
-  decoder: (p) => <BaseNode {...p} type="decoder" />,
-  fc: (p) => <BaseNode {...p} type="fc" />,
+  BACKBONE:   (p) => <CatalogNode {...p} type="BACKBONE" />,
+  ADAPTER:    (p) => <CatalogNode {...p} type="ADAPTER" />,
+  NECK:       (p) => <CatalogNode {...p} type="NECK" />,
+  HEAD:       (p) => <CatalogNode {...p} type="HEAD" />,
+  PROCESSING: (p) => <CatalogNode {...p} type="PROCESSING" />,
 }
 
 // ==================== 预置数据 ====================
 const presetModels = [
-  { id: 1, name: 'SAM 基础模型', type: 'base', accuracy: 89.2, size: '352MB', description: 'Segment Anything 基础模型' },
-  { id: 2, name: 'SAM + 特征提取', type: 'extract', accuracy: 91.5, size: '428MB', description: '添加多尺度特征提取' },
-  { id: 3, name: 'SAM + 注意力融合', type: 'aggregate', accuracy: 93.8, size: '486MB', description: '使用注意力机制融合' },
-  { id: 4, name: 'SAM 完整版', type: 'output', accuracy: 94.2, size: '512MB', description: '完整分割模型' },
+  { id: 1, name: 'SAM 基础模型', type: 'BACKBONE', accuracy: 89.2, size: '352MB', description: 'SAM_ViT_B + Mask_Decoder' },
+  { id: 2, name: 'SAM + FPN 多尺度', type: 'NECK', accuracy: 91.5, size: '428MB', description: 'SAM_ViT_B + Feature_Pyramid + Mask_Decoder' },
+  { id: 3, name: 'SAM + LoRA 微调', type: 'ADAPTER', accuracy: 93.8, size: '486MB', description: 'SAM_ViT_B + LoRA_Sampler + Mask_Decoder' },
+  { id: 4, name: 'YOLO 检测管线', type: 'HEAD', accuracy: 94.2, size: '512MB', description: 'ResNet50 + PAN + YOLO_Detect_Head' },
 ]
 
 const compareData = [
-  { name: 'SAM基础', 精度: 89.2, 速度: 85, 内存: 352 },
-  { name: 'SAM+特征', 精度: 91.5, 速度: 78, 内存: 428 },
-  { name: 'SAM+注意力', 精度: 93.8, 速度: 72, 内存: 486 },
-  { name: 'SAM完整', 精度: 94.2, 速度: 68, 内存: 512 },
+  { name: 'SAM 基础', 精度: 89.2, 速度: 85, 内存: 352 },
+  { name: 'SAM+FPN', 精度: 91.5, 速度: 78, 内存: 428 },
+  { name: 'SAM+LoRA', 精度: 93.8, 速度: 72, 内存: 486 },
+  { name: 'YOLO管线', 精度: 94.2, 速度: 68, 内存: 512 },
 ]
 
 // ==================== 空状态组件 ====================
@@ -287,6 +277,29 @@ function CanvasInner() {
     if (saved) setSavedModels(JSON.parse(saved))
   }, [])
 
+  // Canvas 自动同步到后端黑板（debounce 2s，每次节点/边变动后推送）
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const sid = urlParams.get('session') || localStorage.getItem('vf_session_id')
+    if (!sid) return
+    const timer = setTimeout(async () => {
+      try {
+        await fetch('/api/canvas/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sid,
+            sandbox_config: {
+              nodes: nodes.map(n => ({ id: n.id, type: n.type, name: n.data?.label || '', data: {} })),
+              edges: edges.map(e => ({ source: e.source, target: e.target })),
+            },
+          }),
+        })
+      } catch (_) { /* 静默失败，Canvas 不依赖网络 */ }
+    }, 2000)  // 2 秒防抖
+    return () => clearTimeout(timer)
+  }, [nodes, edges])
+
   const onConnect = useCallback((params) => {
     // ── 非法连线校验 ──
     const sourceNode = nodes.find((n) => n.id === params.source)
@@ -333,22 +346,25 @@ function CanvasInner() {
 
   const onDrop = useCallback((event) => {
     event.preventDefault()
-    const type = event.dataTransfer.getData('application/reactflow')
-    if (!type || !nodeColors[type]) return
+    const payload = event.dataTransfer.getData('application/reactflow')
+    if (!payload) return
+    // payload 格式: "CATEGORY:NODE_NAME"（如 "BACKBONE:SAM_ViT_H"）
+    const [category, nodeName] = payload.split(':')
+    if (!category || !CATEGORY_STYLE[category]) return
     const position = screenToFlowPosition({
       x: event.clientX,
       y: event.clientY,
     })
-    addNodeAt(type, nodeColors[type].label, position)
+    addNodeAt(category, nodeName, position)
   }, [screenToFlowPosition, addNodeAt])
 
   const loadExample = () => {
     pushHistory()
     setNodes([
-      { id: '1', type: 'base', data: { label: 'SAM 基座' }, position: { x: 60, y: 140 } },
-      { id: '2', type: 'extract', data: { label: '特征提取' }, position: { x: 300, y: 80 } },
-      { id: '3', type: 'aggregate', data: { label: '特征融合' }, position: { x: 540, y: 140 } },
-      { id: '4', type: 'output', data: { label: '分割结果' }, position: { x: 780, y: 140 } },
+      { id: '1', type: 'BACKBONE', data: { label: 'SAM_ViT_B' }, position: { x: 60, y: 140 } },
+      { id: '2', type: 'NECK', data: { label: 'Feature_Pyramid' }, position: { x: 300, y: 80 } },
+      { id: '3', type: 'ADAPTER', data: { label: 'LoRA_Sampler' }, position: { x: 540, y: 140 } },
+      { id: '4', type: 'HEAD', data: { label: 'Mask_Decoder' }, position: { x: 780, y: 140 } },
     ])
     setEdges([
       { id: 'e1-2', source: '1', target: '2', animated: true, style: { stroke: '#3b82f6', strokeWidth: 2 } },
@@ -356,7 +372,7 @@ function CanvasInner() {
       { id: 'e3-4', source: '3', target: '4', animated: true, style: { stroke: '#3b82f6', strokeWidth: 2 } },
     ])
     setEvalResult(null)
-    pushToast({ type: 'success', title: '已加载示例', detail: 'SAM 4 节点 / 3 连线', icon: '✨' })
+    pushToast({ type: 'success', title: '已加载示例', detail: 'SAM_ViT_B → FPN → LoRA → Mask_Decoder', icon: '✨' })
   }
 
   const clearCanvas = () => {
@@ -438,25 +454,25 @@ function CanvasInner() {
     setTimeout(() => setStageToast(null), 3500)
   }, [nodes, edges, saveNow, learn, pushToast])
 
-  // 🚨 核心修改 1：将写死的计分逻辑替换为真实的异步 API 请求
+  // 🚨 核心修改 1：真正的后端评估（节点类型已对齐 node_catalog 白名单）
   const evaluateModel = async () => {
     if (nodes.length === 0) { setEvalResult({ valid: false, score: '0%', suggest: '❌ 画布为空，请先添加节点' }); return }
     if (edges.length === 0) { setEvalResult({ valid: false, score: '0%', suggest: '⚠️ 请连接节点完成模型搭建' }); return }
 
-    // 设置请求中的 UI 状态
     setEvalResult({ valid: true, score: '计算中...', suggest: '⏳ 评估智能体正在分析拓扑结构...' })
 
     try {
-      // 提取画布数据构造契约负载
+      const urlParams = new URLSearchParams(window.location.search)
+      const sessionFromUrl = urlParams.get('session') || ''
       const payload = {
-        session_id: "default_canvas_session",
+        session_id: sessionFromUrl || localStorage.getItem('vf_session_id') || 'canvas_' + Date.now().toString(36),
         user_intent: "评估当前画板配置",
         sandbox_config: {
           nodes: nodes.map(n => ({
             id: n.id,
-            type: n.type.toUpperCase(), // 契约要求如 BACKBONE, HEAD 等，这里做个简单映射转换
-            name: n.data.label,
-            data: {} 
+            type: n.type,           // 已经是 BACKBONE / HEAD / NECK / ADAPTER / PROCESSING
+            name: n.data.label,      // 算子名如 SAM_ViT_H、ResNet50 等
+            data: {}
           })),
           edges: edges.map(e => ({
             source: e.source,
@@ -465,10 +481,6 @@ function CanvasInner() {
         }
       }
 
-      // 发送真实请求给后端
-      // ⬇️ POST /api/v1/agent/evaluate → FastAPI 17077（Vite /api 代理，见 vite.config.js）
-      //    ⚠️ 后端端口提示：dev 环境走代理；prod 需反向代理到 17077
-      //    联调前确认后端 main.py 已启动并监听 17077 端口
       const response = await fetch('/api/v1/agent/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -479,14 +491,14 @@ function CanvasInner() {
 
       if (resJson.status === "success") {
         const data = resJson.data;
-        // 把后端的反馈完整存入 state
         setEvalResult({
           valid: data.is_valid,
           score: data.estimated_metrics?.optimized_value || 'N/A',
           suggest: data.is_valid ? '✅ 模型结构合理，评估完成' : '⚠️ 模型结构存在逻辑问题',
-          details: data.feedback // 包含 strengths, warnings, learning_suggestions
+          details: data.feedback,
+          validation: data.validation_details,
         });
-        /* 后端评估通过 → 联动学习画像（赛题闭环：模型工坊 → 学情评估） */
+        /* 后端评估通过 → 联动学习画像 */
         const fb = deriveFeedbackFromCanvas(nodes, edges)
         learn.submitModelFeedback(fb)
       } else {
@@ -515,28 +527,53 @@ function CanvasInner() {
     setTimeout(() => setSaveStatus(null), 2000)
   }
 
-  /* 🤖 AI 导师点评：基于画布状态给出自然语言点评（mock，体现 LLM 应用点） */
-  const requestAiReview = () => {
+  /* 🤖 AI 导师点评：调用后端真实评估 API，获取 LLM 生成的自然语言反馈 */
+  const requestAiReview = async () => {
     if (nodes.length === 0) {
-      setAiReview({ text: '画布是空的。先从左侧拖入一个"基座模型"开始吧，这是 SAM 微调的标准第一步。' })
+      setAiReview({ text: '画布是空的。先从左侧节点库拖入一个 BACKBONE 主干网络（如 SAM_ViT_B）开始吧。' })
       return
     }
     setAiReviewLoading(true)
-    setTimeout(() => {
-      const typeSet = new Set(nodes.map(n => n.type))
-      let review = ''
-      if (edges.length === 0) {
-        review = `你目前添加了 ${nodes.length} 个节点，但还没有连线。模型的前向传播需要节点之间的数据流，连线是把节点串成"管线"的关键步骤。试试从节点右侧的圆点拖到下一个节点的左侧圆点。`
-      } else if (typeSet.has('attention') && typeSet.has('output')) {
-        review = `你搭出了一个相对完整的管线（${nodes.length} 节点 / ${edges.length} 连线），并且用了 Attention 机制提升特征权重——这是 SAM 完整版的核心思路。建议再加一个 Dropout 节点防止过拟合，或者尝试多尺度特征融合提升精度。`
-      } else if (typeSet.has('output')) {
-        review = `你搭了 ${nodes.length} 个节点 / ${edges.length} 连线，已经形成了基本的数据流。考虑在中间加一个 Attention 层，让模型学会关注图像的关键区域，这对 SAM 分割任务很重要。`
-      } else {
-        review = `当前画布有 ${nodes.length} 节点 / ${edges.length} 连线。建议补一个"输出层"节点形成完整闭环，或者加 Attention 层提升模型对图像关键区域的关注能力。`
+    try {
+      const urlParams = new URLSearchParams(window.location.search)
+      const sessionFromUrl = urlParams.get('session') || ''
+      const payload = {
+        session_id: sessionFromUrl || localStorage.getItem('vf_session_id') || 'canvas_' + Date.now().toString(36),
+        user_intent: "请点评当前画板配置",
+        sandbox_config: {
+          nodes: nodes.map(n => ({
+            id: n.id,
+            type: n.type,
+            name: n.data.label,
+            data: {}
+          })),
+          edges: edges.map(e => ({ source: e.source, target: e.target }))
+        }
       }
-      setAiReview({ text: review })
+      const response = await fetch('/api/v1/agent/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      const resJson = await response.json()
+      if (resJson.status === 'success' && resJson.data?.feedback?.llm_summary) {
+        setAiReview({ text: resJson.data.feedback.llm_summary })
+      } else if (resJson.data?.feedback) {
+        // 没有 LLM 摘要时，拼接规则评估结果
+        const fb = resJson.data.feedback
+        const parts = []
+        if (fb.strengths?.length) parts.push('✅ ' + fb.strengths.join(' '))
+        if (fb.warnings?.length) parts.push('⚠️ ' + fb.warnings.join(' '))
+        if (fb.learning_suggestions?.length) parts.push('💡 ' + fb.learning_suggestions.join(' '))
+        setAiReview({ text: parts.join('\n\n') || '评估完成，暂无详细反馈。' })
+      } else {
+        setAiReview({ text: `评估完成。共 ${nodes.length} 个节点 / ${edges.length} 条连线。` })
+      }
+    } catch (error) {
+      setAiReview({ text: `❌ AI 导师暂时不可用: ${error.message}` })
+    } finally {
       setAiReviewLoading(false)
-    }, 800)
+    }
   }
 
   /* 不依赖后端，直接基于画布推导 → 联动画像（"用模型工坊评价学习效果"） */
@@ -605,98 +642,96 @@ function CanvasInner() {
   }
 
   const nodeTypeDist = useMemo(() => {
-    const dist = { base: 0, extract: 0, aggregate: 0, output: 0 }
-    nodes.forEach(n => { if (dist[n.type] !== undefined) dist[n.type]++ })
-    return [
-      { type: 'base', count: dist.base, label: '基座', color: '#3b82f6' },
-      { type: 'extract', count: dist.extract, label: '提取', color: '#10b981' },
-      { type: 'aggregate', count: dist.aggregate, label: '融合', color: '#f59e0b' },
-      { type: 'output', count: dist.output, label: '输出', color: '#8b5cf6' },
-    ]
+    const categories = ['BACKBONE', 'ADAPTER', 'NECK', 'HEAD', 'PROCESSING']
+    const dist = {}
+    categories.forEach(c => { dist[c] = 0 })
+    nodes.forEach(n => {
+      if (dist[n.type] !== undefined) dist[n.type]++
+    })
+    return categories.map(cat => ({
+      type: cat,
+      count: dist[cat],
+      label: CATEGORY_STYLE[cat]?.label || cat,
+      icon: CATEGORY_STYLE[cat]?.icon || '',
+      color: CATEGORY_STYLE[cat]?.border || '#94a3b8',
+    }))
   }, [nodes])
 
   const TabNav = () => null
 
   const LeftPanel = () => {
-    const [openGroups, setOpenGroups] = useState(['output', 'foundation', 'extract', 'fusion', 'output_module'])
+    const [openGroups, setOpenGroups] = useState(['BACKBONE', 'HEAD'])
     const toggleGroup = (key) => {
       setOpenGroups(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
     }
 
-    // 通用按钮渲染（支持高亮态）
-    const renderNodeBtn = (type) => {
-      const cfg = nodeColors[type]
-      if (!cfg) return null
-      const isHighlight = type === 'output'
+    // 渲染单个算子按钮
+    const renderNodeBtn = (category, nodeName) => {
+      const style = CATEGORY_STYLE[category]
+      if (!style) return null
+      const payload = `${category}:${nodeName}`  // 拖拽时传递的数据
       return (
         <div
-          key={type}
+          key={`${category}:${nodeName}`}
           draggable
           onDragStart={(e) => {
-            e.dataTransfer.setData('application/reactflow', type)
+            e.dataTransfer.setData('application/reactflow', payload)
             e.dataTransfer.effectAllowed = 'move'
           }}
-          onClick={() => addNode(type, cfg.label)}
-          title="拖到画布或点击添加"
+          onClick={() => addNode(category, nodeName)}
+          title={`${category} · ${nodeName} —— 拖到画布或点击添加`}
           style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: isHighlight ? '12px 12px' : '8px 10px',
-            borderRadius: isHighlight ? 10 : 8,
-            border: isHighlight ? `2px solid ${cfg.border}` : '1px solid #e2e8f0',
-            background: isHighlight ? cfg.bg : '#fff',
-            cursor: 'grab',
-            textAlign: 'left',
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 8px', borderRadius: 6,
+            border: '1px solid #e2e8f0', borderLeft: `3px solid ${style.border}`,
+            background: '#fff', cursor: 'grab', fontSize: 11,
             transition: 'all 0.15s',
-            borderLeft: isHighlight ? `4px solid ${cfg.border}` : `3px solid ${cfg.border}`,
-            fontSize: isHighlight ? 13 : 11,
-            boxShadow: isHighlight ? `0 4px 12px ${cfg.border}30` : 'none',
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = cfg.bg }}
-          onMouseLeave={e => { e.currentTarget.style.background = isHighlight ? cfg.bg : '#fff' }}
+          onMouseEnter={e => { e.currentTarget.style.background = style.bg }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
         >
-          <span style={{ fontSize: isHighlight ? 22 : 15 }}>{cfg.icon}</span>
-          <span style={{ fontWeight: 700, color: '#1e293b' }}>{cfg.label}</span>
+          <span style={{ fontSize: 13 }}>{style.icon}</span>
+          <span style={{ fontWeight: 600, color: '#1e293b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nodeName}</span>
         </div>
       )
     }
 
     return (
       <div style={{ background: '#fff', borderRadius: 12, padding: '14px 10px', overflowY: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-        <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 6, padding: '0 6px' }}>📦 节点库</h3>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 6, padding: '0 6px' }}>📦 算子库（对齐白名单）</h3>
         <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 10, padding: '0 6px' }}>按住拖拽到画布 · 点击也可添加</div>
 
-        {nodeGroups.map(group => {
-          const isHighlight = group.highlight
+        {Object.entries(CATALOG_NODES).map(([category, nodeNames]) => {
+          const style = CATEGORY_STYLE[category]
+          const isOpen = openGroups.includes(category)
           return (
-            <div key={group.key} style={{ marginBottom: 6 }}>
+            <div key={category} style={{ marginBottom: 4 }}>
               <div
-                onClick={() => toggleGroup(group.key)}
+                onClick={() => toggleGroup(category)}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: isHighlight ? '8px 8px' : '7px 6px',
-                  borderRadius: 8,
-                  cursor: 'pointer', userSelect: 'none',
+                  padding: '7px 8px', borderRadius: 8, cursor: 'pointer', userSelect: 'none',
+                  background: isOpen ? style.bg : 'transparent',
                   transition: 'all 0.2s',
-                  background: isHighlight ? '#faf5ff' : 'transparent',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = isHighlight ? '#f3e8ff' : '#f8fafc' }}
-                onMouseLeave={e => { e.currentTarget.style.background = isHighlight ? '#faf5ff' : 'transparent' }}
+                onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = '#f8fafc' }}
+                onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent' }}
               >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 14 }}>{style.icon}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: style.border }}>{category}</span>
+                  <span style={{ fontSize: 10, color: '#94a3b8' }}>({nodeNames.length})</span>
+                </span>
                 <span style={{
-                  fontSize: isHighlight ? 12 : 11,
-                  fontWeight: 700,
-                  color: isHighlight ? '#7c3aed' : '#475569',
-                }}>{group.name}</span>
-                <span style={{
-                  fontSize: 10, color: isHighlight ? '#7c3aed' : '#94a3b8',
-                  transform: openGroups.includes(group.key) ? 'rotate(90deg)' : 'rotate(0deg)',
+                  fontSize: 10, color: '#94a3b8',
+                  transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
                   transition: '0.2s',
                 }}>▶</span>
               </div>
 
-              {openGroups.includes(group.key) && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '2px 0 4px 4px' }}>
-                  {group.nodes.map(renderNodeBtn)}
+              {isOpen && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '2px 0 4px 6px' }}>
+                  {nodeNames.map(name => renderNodeBtn(category, name))}
                 </div>
               )}
             </div>

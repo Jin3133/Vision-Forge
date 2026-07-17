@@ -1,0 +1,38 @@
+{
+  "id": "vit_base_classification_imagenet",
+  "task_type": "图像分类",
+  "domain": "通用",
+  "backbone": {
+    "type": "BACKBONE",
+    "name": "ViT_Base"
+  },
+  "head": {
+    "type": "HEAD",
+    "name": "Classification_Head"
+  },
+  "dataset": "ImageNet-1K val",
+  "metrics": {
+    "top1_acc": 0.812,
+    "top5_acc": 0.953,
+    "FPS": 240,
+    "params_million": 86.6
+  },
+  "ablations": [
+    {
+      "variant": "baseline (本配置)",
+      "top1_acc": 0.812,
+      "delta": 0.0
+    },
+    {
+      "variant": "patch_size=32",
+      "top1_acc": 0.793,
+      "delta": -0.019
+    },
+    {
+      "variant": "添加Dropout=0.3",
+      "top1_acc": 0.805,
+      "delta": -0.007
+    }
+  ],
+  "source": "ViT (Dosovitskiy et al., ICLR 2021)"
+}

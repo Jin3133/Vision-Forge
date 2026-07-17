@@ -1,0 +1,38 @@
+{
+  "id": "resnet50_classification_imagenet",
+  "task_type": "图像分类",
+  "domain": "通用",
+  "backbone": {
+    "type": "BACKBONE",
+    "name": "ResNet50"
+  },
+  "head": {
+    "type": "HEAD",
+    "name": "Classification_Head"
+  },
+  "dataset": "ImageNet-1K val",
+  "metrics": {
+    "top1_acc": 0.761,
+    "top5_acc": 0.928,
+    "FPS": 388,
+    "params_million": 25.6
+  },
+  "ablations": [
+    {
+      "variant": "baseline (本配置)",
+      "top1_acc": 0.761,
+      "delta": 0.0
+    },
+    {
+      "variant": "添加SE_Block",
+      "top1_acc": 0.773,
+      "delta": 0.012
+    },
+    {
+      "variant": "替换为ResNet101",
+      "top1_acc": 0.775,
+      "delta": 0.014
+    }
+  ],
+  "source": "ResNet (He et al., CVPR 2016)"
+}

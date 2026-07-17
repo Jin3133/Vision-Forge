@@ -1,0 +1,42 @@
+{
+  "id": "resnet50_fpn_instance_coco",
+  "task_type": "实例分割",
+  "domain": "通用",
+  "backbone": {
+    "type": "BACKBONE",
+    "name": "ResNet50"
+  },
+  "neck": {
+    "type": "NECK",
+    "name": "Feature_Pyramid"
+  },
+  "head": {
+    "type": "HEAD",
+    "name": "Instance_Segmentor"
+  },
+  "dataset": "COCO 2017 val",
+  "metrics": {
+    "mAP_mask": 0.338,
+    "mAP_box": 0.384,
+    "FPS": 18,
+    "params_million": 44.1
+  },
+  "ablations": [
+    {
+      "variant": "baseline (本配置)",
+      "mAP_mask": 0.338,
+      "delta": 0.0
+    },
+    {
+      "variant": "mask_resolution=14",
+      "mAP_mask": 0.315,
+      "delta": -0.023
+    },
+    {
+      "variant": "替换为ResNet101",
+      "mAP_mask": 0.354,
+      "delta": 0.016
+    }
+  ],
+  "source": "Mask R-CNN (He et al., ICCV 2017)"
+}

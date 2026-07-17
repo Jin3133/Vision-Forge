@@ -1,6 +1,10 @@
 import sys
+import json
+import asyncio
+import threading
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any, List, Optional
@@ -9,10 +13,16 @@ from typing import Dict, Any, List, Optional
 current_dir = Path(__file__).resolve().parent
 sys.path.append(str(current_dir))
 
-from main_workflow import run_vision_forge_pipeline
+from main_workflow import dispatch_agent
 from core.node_catalog import NODE_CATALOG, NAME_TO_TYPE, is_valid_node
 from core.logger import logger
+from core.intent_classifier import classify_intent
+from core.database import engine, Base
 from agents.base_agent import AgentBase
+from agents.chat_agent import ChatAgent
+from core.state import TaskState
+from services.api.v1.learning_materials import router as learning_materials_router
+from services.models.learning_material import LearningMaterial  # 确保 Base.metadata 注册该表
 
 # 初始化 FastAPI 应用
 app = FastAPI(title="Vision-Forge API", description="视觉大模型多智能体教研平台")
@@ -25,6 +35,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 静态文件目录（构建后自动检测）
+import os as _os
+from fastapi.staticfiles import StaticFiles
+_static_dir = _os.environ.get("FRONTEND_STATIC_DIR", str(current_dir / "static"))
+_has_static = _os.path.isdir(_static_dir) and _os.path.isfile(_os.path.join(_static_dir, "index.html"))
+if _has_static:
+    logger.info(f"✅ 前端静态文件托管: {_static_dir}")
+
+# 注册学习讲义 API 路由
+app.include_router(learning_materials_router)
+
+# 启动时自动建表（SQLAlchemy create_all 幂等，不会重复创建）
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
+    logger.info("✅ 数据库表已就绪（含 learning_materials）")
 
 
 # ==================== 请求体数据模型 ====================
@@ -64,39 +91,115 @@ def _get_eval_agent() -> _EvalFeedbackAgent:
     return _eval_agent
 
 
-# ==================== 接口 1：智能对话与流水线 ====================
+# ==================== 接口 1：智能对话与流水线（SSE 流式版） ====================
 @app.post("/api/chat")
 async def chat_with_agents(request: ChatRequest):
-    logger.info(f"\n🌐 接收到前端网络请求: {request.user_intent}")
-    try:
-        final_state = run_vision_forge_pipeline(request.session_id, request.user_intent)
+    """SSE 流式接口 —— 实时推送每个 Agent 的执行进度与产出内容。
 
-        if final_state.get("current_step") == "error_stage":
-            return {
-                "code": 200,
-                "message": "pipeline_error",
-                "data": {
-                    "tutor_response": "⚠️ **系统提示**：抱歉，大模型接口连接超时或额度耗尽。请检查后端网络或星火大模型配置！",
-                    "evaluation_report": "",
-                    "final_report_html": ""
-                }
-            }
+    事件格式（SSE data 字段为 JSON）：
+      {"event":"stage", "agent":"architect", "status":"running"|"done"}
+      {"event":"content", "type":"tutor"|"evaluation"|"report", "text":"..."}
+      {"event":"error", "message":"...", "agent":"..."}
+      {"event":"done", "data":{...}}
+    """
+    logger.info(f"\n🌐 接收到前端 SSE 请求: {request.user_intent}")
 
-        return {
-            "code": 200,
-            "message": "success",
-            "data": {
-                "learner_profile": final_state.get("learner_profile", {}),
-                "sandbox_config": final_state.get("sandbox_config", {}),
-                "evaluation_report": final_state.get("evaluation_results", {}).get("report", ""),
-                "tutor_response": final_state.get("evaluation_results", {}).get("tutor_response", ""),
-                "final_report_html": final_state.get("evaluation_results", {}).get("final_report_html", "")
-            }
-        }
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"流水线执行崩溃: {str(e)}")
+    # 0. 三分类意图路由：
+    #    chat    → ChatAgent（纯概念问答）
+    #    explore → Architect 苏格拉底引导（场景探索 + 任务翻译）
+    #    build   → Architect + 完整流水线（明确搭建请求）
+    intent = classify_intent(request.user_intent)
+    logger.info(f"🧭 [Router] 意图分类: '{request.user_intent[:60]}...' → {intent}")
+
+    async def event_generator():
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+
+        if intent == "chat":
+            # ====== chat 模式：纯概念问答 → ChatAgent ======
+            def run_chat():
+                try:
+                    state = TaskState(
+                        session_id=request.session_id,
+                        user_intent=request.user_intent,
+                    )
+                    chat_agent = ChatAgent()
+                    delta = chat_agent.run(state)
+                    text = delta.get("evaluation_results", {}).get("tutor_response", "")
+                    asyncio.run_coroutine_threadsafe(
+                        queue.put({"event": "mode", "mode": "chat"}),
+                        loop,
+                    )
+                    asyncio.run_coroutine_threadsafe(
+                        queue.put({"event": "content", "type": "chat", "text": text}),
+                        loop,
+                    )
+                    asyncio.run_coroutine_threadsafe(
+                        queue.put({"event": "done", "data": delta}),
+                        loop,
+                    )
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    asyncio.run_coroutine_threadsafe(
+                        queue.put({"event": "error", "message": f"对话失败: {str(e)}", "agent": "system"}),
+                        loop,
+                    )
+
+            threading.Thread(target=run_chat, daemon=True).start()
+
+        else:
+            # ====== explore / build 模式：按需调度单个智能体 ======
+            # 每次请求只执行一个智能体，不做链式调用。
+            # Architect → Tutor / Evaluator / Generator 各自独立触发。
+            def run_pipeline():
+                """调度一个智能体执行，通过 queue 推送事件。"""
+                def emit(event: dict):
+                    asyncio.run_coroutine_threadsafe(queue.put(event), loop)
+
+                try:
+                    mode = "pipeline" if intent == "build" else "explore"
+                    asyncio.run_coroutine_threadsafe(
+                        queue.put({"event": "mode", "mode": mode}),
+                        loop,
+                    )
+                    result = dispatch_agent(
+                        request.session_id,
+                        request.user_intent,
+                        intent,  # "explore" | "build" | "chat"
+                        on_progress=emit,
+                    )
+                    # 调度完成后发送 done 事件
+                    asyncio.run_coroutine_threadsafe(
+                        queue.put({"event": "done", "data": result}),
+                        loop,
+                    )
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    asyncio.run_coroutine_threadsafe(
+                        queue.put({"event": "error", "message": f"调度失败: {str(e)}", "agent": "system"}),
+                        loop,
+                    )
+
+            threading.Thread(target=run_pipeline, daemon=True).start()
+
+        # 从队列读取事件并输出为 SSE
+        while True:
+            event = await queue.get()
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            if event.get("event") in ("done", "error"):
+                break
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # 禁用 nginx 缓冲
+        },
+    )
 
 
 # ==================== 接口 2：画板动态智能评估（重构版） ====================
@@ -231,6 +334,42 @@ async def evaluate_sandbox(request: EvaluateRequest):
     except Exception as e:
         logger.warning(f"[Evaluate] LLM 反馈生成失败（不影响主流程）: {e}")
 
+    # ========== 将评估结果写入会话状态，供后续 Tutor/Generator 使用 ==========
+    task_type = ""
+    backbone_name = ""
+    for n in valid_nodes:
+        if n.get("type", "").upper() == "BACKBONE":
+            backbone_name = n.get("name", "")
+    if backbone_name:
+        task_type = request.user_intent if request.user_intent else "视觉任务"
+
+    try:
+        from core.state import state_manager, SandboxConfig, NodeModel, EdgeModel
+        # 将前端传来的 dict 转为 Pydantic 模型
+        config_nodes = [NodeModel(**n) for n in valid_nodes]
+        config_edges = [EdgeModel(**e) for e in edges]
+        sandbox = SandboxConfig(
+            task_type=task_type,
+            suggested_backbone=backbone_name,
+            nodes=config_nodes,
+            edges=config_edges,
+        )
+        state_manager.update_state(request.session_id, {
+            "user_intent": request.user_intent,
+            "sandbox_config": sandbox,
+            "evaluation_results": {
+                "report": llm_summary,
+                "score": score_val,
+                "strengths": strengths,
+                "warnings": warnings,
+            },
+            "current_step": "tutor_stage",  # 准备好让 Tutor 接棒
+            "socratic_state": "done",
+        })
+        logger.info(f"[Evaluate] 评估结果已写入会话 {request.session_id}，current_step → tutor_stage")
+    except Exception as e:
+        logger.warning(f"[Evaluate] 写入会话状态失败（不影响评估返回）: {e}")
+
     return {
         "status": "success",
         "data": {
@@ -252,12 +391,71 @@ async def evaluate_sandbox(request: EvaluateRequest):
                 "invalid_nodes": invalid_nodes,
                 "type_distribution": type_counts,
                 "isolated_count": len(isolated) if len(nodes) > 1 else 0
-            }
+            },
+            "next_step": "返回首页继续对话，让算法教研智能体为你讲解源码"
         }
     }
 
 
-# ==================== 接口 3：健康检查 ====================
-@app.get("/")
+# ==================== 接口 3：Canvas 状态同步 ====================
+
+class CanvasSyncRequest(BaseModel):
+    session_id: str
+    sandbox_config: Dict[str, Any]
+
+@app.post("/api/canvas/sync")
+def canvas_sync(request: CanvasSyncRequest):
+    """Canvas 画布自动同步：每次画布改动时，将当前节点/边推送到会话黑板。
+    这样聊天中的智能体就能看到用户在 Canvas 上搭建了什么。"""
+    from core.state import state_manager, SandboxConfig, NodeModel, EdgeModel
+    nodes_raw = request.sandbox_config.get("nodes", [])
+    edges_raw = request.sandbox_config.get("edges", [])
+    try:
+        nodes = [NodeModel(**n) for n in nodes_raw]
+        edges = [EdgeModel(**e) for e in edges_raw]
+        config = SandboxConfig(
+            task_type="",
+            suggested_backbone="",
+            nodes=nodes,
+            edges=edges,
+        )
+        state_manager.update_state(request.session_id, {
+            "sandbox_config": config,
+        })
+        logger.info(f"[CanvasSync] session={request.session_id} nodes={len(nodes)} edges={len(edges)}")
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"[CanvasSync] 失败: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/session/{session_id}")
+def get_session_state(session_id: str):
+    """获取会话黑板状态（Canvas 加载时拉取建议配置）。"""
+    from core.state import state_manager
+    state = state_manager.get_state(session_id)
+    return {"status": "success", "data": state.model_dump()}
+
+# ==================== 接口 4：健康检查 / SPA 前端托管 ====================
+@app.get("/api/health")
 def health_check():
     return {"status": "Vision-Forge API is perfectly running!"}
+
+if _has_static:
+    # 托管前端静态资源
+    app.mount("/assets", StaticFiles(directory=_os.path.join(_static_dir, "assets")), name="vf_assets")
+    from fastapi.responses import FileResponse
+    # SPA fallback：非 API 路径返回 index.html（必须放在所有 API 路由之后）
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        file_path = _os.path.join(_static_dir, full_path)
+        if _os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(_os.path.join(_static_dir, "index.html"))
+    # 根路径也返回前端
+    @app.get("/")
+    async def serve_root():
+        return FileResponse(_os.path.join(_static_dir, "index.html"))
+else:
+    @app.get("/")
+    def health_check():
+        return {"status": "Vision-Forge API is perfectly running!"}

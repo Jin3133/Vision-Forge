@@ -1,0 +1,43 @@
+{
+  "id": "sam_vitb_mask_decoder_ade20k",
+  "task_type": "语义分割",
+  "domain": "通用",
+  "backbone": {
+    "type": "BACKBONE",
+    "name": "SAM_ViT_B"
+  },
+  "head": {
+    "type": "HEAD",
+    "name": "Mask_Decoder"
+  },
+  "dataset": "ADE20K val",
+  "metrics": {
+    "mIoU": 0.812,
+    "pixel_acc": 0.932,
+    "FPS": 12,
+    "params_million": 94.5
+  },
+  "ablations": [
+    {
+      "variant": "baseline (本配置)",
+      "mIoU": 0.812,
+      "delta": 0.0
+    },
+    {
+      "variant": "移除prompt token",
+      "mIoU": 0.785,
+      "delta": -0.027
+    },
+    {
+      "variant": "添加FPN neck",
+      "mIoU": 0.823,
+      "delta": 0.011
+    },
+    {
+      "variant": "替换为SAM_ViT_H",
+      "mIoU": 0.835,
+      "delta": 0.023
+    }
+  ],
+  "source": "SAM (Kirillov et al., ICCV 2023)"
+}

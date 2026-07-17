@@ -1,0 +1,34 @@
+{
+  "id": "mobilesam_mask_decoder_voc",
+  "task_type": "语义分割",
+  "domain": "农业/轻量",
+  "backbone": {
+    "type": "BACKBONE",
+    "name": "MobileSAM"
+  },
+  "head": {
+    "type": "HEAD",
+    "name": "Mask_Decoder"
+  },
+  "dataset": "PASCAL VOC 2012 val",
+  "metrics": {
+    "mIoU": 0.745,
+    "pixel_acc": 0.901,
+    "FPS": 85,
+    "params_million": 11.8
+  },
+  "ablations": [
+    {
+      "variant": "baseline (本配置)",
+      "mIoU": 0.745,
+      "delta": 0.0
+    },
+    {
+      "variant": "替换为SAM_ViT_B",
+      "mIoU": 0.812,
+      "delta": 0.067
+    }
+  ],
+  "source": "MobileSAM (Zhang et al., 2023)",
+  "notes": "轻量化方案，适合移动端部署"
+}

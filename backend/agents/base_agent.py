@@ -54,6 +54,18 @@ class AgentBase(ABC):
         with _cancel_signals_lock:
             _global_cancel_signals.pop(session_id, None)
 
+    @staticmethod
+    def _clean_output(text: str) -> str:
+        """后处理清洗：移除 DeepSeek 常见噪声标记（兜底措施）。"""
+        import re
+        # 去除单独成行的 *** 或 --- 或 ___ 分隔线
+        text = re.sub(r'^\s*[\*\-_]{3,}\s*$', '', text, flags=re.MULTILINE)
+        # 去除行首的 *** 标志（三重星号强调）
+        text = re.sub(r'\*\*\*(?!\s)', '', text)
+        # 合并多余的空行（最多保留连续 2 个空行）
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        return text.strip()
+
     def call_llm(
         self,
         user_input: str,
@@ -95,7 +107,7 @@ class AgentBase(ABC):
                     else:
                         raise
 
-                return response.choices[0].message.content
+                return self._clean_output(response.choices[0].message.content)
             except Exception as e:
                 last_err = e
                 wait = 1.5 * (attempt + 1)
@@ -106,7 +118,7 @@ class AgentBase(ABC):
                     time.sleep(wait)
 
         logger.error(f"[{self.name}] 大模型调用重试耗尽，放弃。最后错误: {last_err}")
-        return f"Error: {last_err}"
+        raise RuntimeError(f"[{self.name}] LLM 调用失败（重试 {self.max_retries} 次后仍失败）: {last_err}")
 
     @abstractmethod
     def run(self, state: TaskState) -> Dict[str, Any]:
