@@ -3,7 +3,7 @@ name: Build Windows EXE
 on:
   push:
     branches: [main, docs]
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   build:
@@ -24,25 +24,29 @@ jobs:
           python-version: '3.10'
 
       - name: 构建前端
+        shell: cmd
         run: |
           cd frontend
-          npm install
-          npm run build
+          call npm install
+          call npm run build
 
       - name: 复制前端到后端
+        shell: cmd
         run: |
-          mkdir -p backend/static
+          if not exist backend\static mkdir backend\static
           xcopy /E /Y frontend\dist\* backend\static\
 
       - name: 安装后端依赖
+        shell: cmd
         run: |
           pip install fastapi uvicorn pydantic pydantic-settings sqlalchemy openai python-jose passlib bcrypt chromadb
 
       - name: PyInstaller 打包
+        shell: cmd
         run: |
           pip install pyinstaller
           cd backend
-          pyinstaller --onefile --name VisionForge --add-data "static;static" --add-data "assets/code_mirror;assets/code_mirror" --add-data "assets/experiment_results;assets/experiment_results" --hidden-import uvicorn.logging --hidden-import uvicorn.loops.auto --hidden-import uvicorn.protocols.http.auto --hidden-import fastapi --hidden-import pydantic --hidden-import sqlalchemy --clean --noconfirm run.py
+          pyinstaller --onefile --name VisionForge --add-data "static;static" --add-data "assets/code_mirror;assets/code_mirror" --add-data "assets/experiment_results;assets/experiment_results" --exclude-module torch --exclude-module torchvision --exclude-module tensorflow --hidden-import uvicorn.logging --hidden-import uvicorn.loops.auto --hidden-import uvicorn.protocols.http.auto --hidden-import fastapi --hidden-import pydantic --hidden-import sqlalchemy --clean --noconfirm run.py
 
       - name: 上传产物
         uses: actions/upload-artifact@v4
