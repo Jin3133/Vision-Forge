@@ -18,6 +18,21 @@ Vision-Forge 是一个「视觉大模型微调 + 多智能体启发式教学」�
 
 ## 常用命令
 
+> ⚠️ **重要提醒**：启动前后端之后，**必须同时启动 cpolar 内网穿透**，否则远程用户无法访问本地服务。前后端各需要一条独立的 cpolar 隧道。
+
+### 启动全部服务（一键三连）
+```bash
+# 1. 启动后端（端口 17077）
+cd backend && uvicorn main:app --host 0.0.0.0 --port 17077 &
+
+# 2. 启动前端（端口 5173）
+cd frontend && npm run dev &
+
+# 3. 启动 cpolar 内网穿透（⚠️ 必须执行，否则外网不可达）
+cpolar http 17077 -subdomain=vision-forge -region=cn &
+cpolar http 5173 -subdomain=vision-forge-web -region=cn &
+```
+
 ### 后端（在 `backend/` 目录下运行）
 ```bash
 # 启动服务，端口必须是 17077（前端代理写死了这个端口）

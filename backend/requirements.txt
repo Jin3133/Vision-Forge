@@ -3,4 +3,12 @@ uvicorn[standard]
 langgraph
 chromadb
 pydantic
+pydantic-settings
 python-dotenv
+openai
+sqlalchemy
+httpx
+python-jose[cryptography]
+passlib[bcrypt]
+matplotlib
+requests

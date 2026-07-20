@@ -1,5 +1,13 @@
 import os
+import sys
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# PyInstaller 打包后，使用 sys._MEIPASS 作为资源路径基础
+if getattr(sys, 'frozen', False):
+    _BASE_DIR = Path(sys._MEIPASS)
+else:
+    _BASE_DIR = Path(__file__).resolve().parent  # backend/ 目录
 
 
 class Settings(BaseSettings):
@@ -9,12 +17,12 @@ class Settings(BaseSettings):
 
     # === 黑板状态持久化 ===
     STATE_PERSIST_ENABLED: bool = True
-    STATE_DB_PATH: str = "./vision_forge_state.db"
+    STATE_DB_PATH: str = str(_BASE_DIR / "vision_forge_state.db")
 
     # === RAG 知识库配置 ===
     # RAG_BACKEND 可选: "chroma"(本地向量库, 默认) | "ragflow"(远程服务) | "none"(关闭检索)
     RAG_BACKEND: str = "chroma"
-    CHROMA_PERSIST_DIR: str = "./assets/vector_database"
+    CHROMA_PERSIST_DIR: str = str(_BASE_DIR / "assets" / "vector_database")
     CHROMA_COLLECTION: str = "vision_forge_papers"
 
     # === 数据库与安全 (加上默认值，彻底解决启动报错) ===

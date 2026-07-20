@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, RadialBarChart, RadialBar, AreaChart, Area } from 'recharts'
-import { fetchPipelineStream } from '../api' // ✅ SSE 流式后端请求接口
 import { useLearn } from '../LearnContext.jsx'
 
 export default function Home() {
   const learn = useLearn()
+  const navigate = useNavigate()
 
   /* ═══════════════ state ═══════════════ */
   const [messages, setMessagesRaw] = useState(() => {
@@ -25,35 +25,47 @@ export default function Home() {
     }]
   })
 
-  // 封装 setMessages，每次更新自动同步到 localStorage
+  // 封装 setMessages，每次更新自动同步到 localStorage + 更新对话索引
   const setMessages = (valOrFn) => {
     setMessagesRaw(prev => {
       const next = typeof valOrFn === 'function' ? valOrFn(prev) : valOrFn
-      const sid = localStorage.getItem('vf_session_id')
-      if (sid) {
-        try { localStorage.setItem(`vf_messages_${sid}`, JSON.stringify(next)) } catch (_) {}
-      }
+      try { localStorage.setItem(`vf_messages_${sessionId}`, JSON.stringify(next)) } catch (_) {}
       return next
     })
   }
   const [input, setInput] = useState('')
+  const [attachments, setAttachments] = useState([]) // { name, type, size, dataUrl }
   const [isTyping, setIsTyping] = useState(false)
   const [streamText, setStreamText] = useState('')
   const [currentAgent, setCurrentAgent] = useState(null)
-  const [agentStage, setAgentStage] = useState(0) // 0=空闲, 1=分析, 2=检索, 3=生成, 4=评估
+  const [agentStage, setAgentStage] = useState(0)
   const [showHistory, setShowHistory] = useState(false)
-  const [showBlackboard, setShowBlackboard] = useState(false)
-  /* 4-Agent 阶段条：userToggle 是用户手动偏好；运行时（agentStage>0）强制展开覆盖 */
-  const [stageBarUserOpen, setStageBarUserOpen] = useState(false)
-  const showStageBar = agentStage > 0 || stageBarUserOpen
   const [showQuickStart, setShowQuickStart] = useState(false)
-  // 每个浏览器生成唯一会话 ID，不同用户/刷新后仍保持独立
-  const [sessionId] = useState(() => {
+  // 会话 ID 管理（支持开启新对话）
+  const [sessionId, setSessionIdRaw] = useState(() => {
     const saved = localStorage.getItem('vf_session_id')
     if (saved) return saved
+    return newSessionId()
+  })
+  function newSessionId() {
     const id = 'session_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8)
     localStorage.setItem('vf_session_id', id)
     return id
+  }
+
+  // 对话索引管理
+  function getConversations() {
+    try { return JSON.parse(localStorage.getItem('vf_conversations') || '[]') } catch (_) { return [] }
+  }
+  function saveConversations(list) {
+    try { localStorage.setItem('vf_conversations', JSON.stringify(list)) } catch (_) {}
+  }
+
+  // 当前会话标题（取第一条用户消息的前 20 字）
+  const [conversationTitle, setConversationTitle] = useState(() => {
+    const list = getConversations()
+    const cur = list.find(c => c.sessionId === sessionId)
+    return cur?.title || '新对话'
   })
   const messagesEndRef = useRef(null)
   const historyRef = useRef(null)
@@ -101,66 +113,78 @@ export default function Home() {
   ]
 
   /* 6 维画像（学习驾驶舱核心数据） */
-  const portrait = [
-    { key: '知识掌握', value: 78, color: '#3b82f6', icon: '📚' },
-    { key: '代码能力', value: 65, color: '#10b981', icon: '💻' },
-    { key: '认知风格', value: 72, color: '#22c55e', icon: '🧠' },
-    { key: '学习节奏', value: 70, color: '#eab308', icon: '⏱️' },
-    { key: '兴趣程度', value: 88, color: '#a855f7', icon: '⭐' },
-    { key: '易错点', value: 55, color: '#ef4444', icon: '⚠️' },
-  ]
-  const portraitAvg = Math.round(portrait.reduce((s, d) => s + d.value, 0) / portrait.length)
+  const portrait = useMemo(() => {
+    const dims = learn.learnerPortrait?.dimensions || {}
+    const colorMap = { '知识掌握': '#3b82f6', '代码能力': '#06b6d4', '认知风格': '#22c55e', '学习节奏': '#eab308', '兴趣程度': '#a855f7', '易错点': '#ef4444' }
+    const iconMap = { '知识掌握': '📚', '代码能力': '💻', '认知风格': '🧠', '学习节奏': '⏱️', '兴趣程度': '⭐', '易错点': '⚠️' }
+    return Object.entries(dims).map(([key, d]) => ({ key, value: d.value || 0, color: colorMap[key] || '#3b82f6', icon: iconMap[key] || '📊' }))
+  }, [learn.learnerPortrait])
+  const portraitAvg = Math.round(portrait.reduce((s, d) => s + d.value, 0) / Math.max(1, portrait.length))
 
-  /* 最近活动（演示用，可接入后端） */
-  const recentActivities = [
-    { time: '14:32', text: '完成阶段 3 · 搭建模型架构', icon: '🛠️', color: '#10b981' },
-    { time: '13:05', text: '学情评估智能体更新画像', icon: '📈', color: '#8b5cf6' },
-    { time: '11:20', text: '阅读源码 mask_decoder.py', icon: '💻', color: '#3b82f6' },
-  ]
+  /* ═══════════════ Dashboard 数据（从 LearnContext 动态计算） ═══════════════ */
+  const isNewUser = !learn.onboarded || !learn.goal
+  const completedStages = learn.mainStages?.filter(s => s.done)?.length || 0
+  const totalStages = isNewUser ? 0 : (learn.mainStages?.length || 4)
+  const currentStage = learn.mainStages?.find(s => !s.done) || learn.mainStages?.[learn.mainStages?.length - 1] || {}
 
-  /* ═══════════════ Dashboard Mock 数据 ═══════════════ */
+  /* 最近活动 */
+  const recentActivities = useMemo(() => {
+    if (isNewUser) return [{ time: '👋', text: '完成首启引导，选择你的学习目标', icon: '🚀', color: '#3b82f6' }]
+    const acts = []
+    if (learn.goal) acts.push({ time: '今日', text: `学习目标：${learn.goal === '自定义目标' ? (learn.customGoal || '自定义') : learn.goal}`, icon: '🎯', color: '#8b5cf6' })
+    if (completedStages > 0) acts.push({ time: '进度', text: `已完成 ${completedStages}/${totalStages} 个学习阶段`, icon: '✅', color: '#10b981' })
+    if (learn.weakTopics?.length > 0) acts.push({ time: '待攻克', text: `易错点：${learn.weakTopics[0]}`, icon: '⚠️', color: '#f59e0b' })
+    return acts.length > 0 ? acts : [{ time: '💬', text: '在首页与 AI 导师对话开始学习', icon: '💬', color: '#8b5cf6' }]
+  }, [isNewUser, learn.goal, learn.customGoal, completedStages, totalStages, learn.weakTopics])
+
   /* ① 今日学习数据 */
-  const todayStats = {
-    studyMinutes: 128,         /* 今日学习时长（分钟） */
-    studyDays: 17,             /* 累计学习天数 */
-    completedTasks: 6,         /* 今日完成任务数 */
-    totalTasks: 8,             /* 今日任务总数 */
-    points: 248,               /* 今日获得积分 */
-    pointsDelta: 32,           /* 较昨日新增 */
-  }
+  const todayStats = useMemo(() => ({
+    studyMinutes: isNewUser ? 0 : Math.round((learn.learningPace || 0) * 60 / 7),
+    studyDays: isNewUser ? 0 : Math.max(1, completedStages),
+    completedTasks: completedStages,
+    totalTasks: totalStages || '—',
+    points: isNewUser ? 0 : (learn.learnerPortrait?.overallScore || 0),
+  }), [isNewUser, learn.learningPace, completedStages, totalStages, learn.learnerPortrait])
 
-  /* ⑤ 继续学习（最近中断处） */
-  const continueLearning = {
-    title: 'SAM Mask Decoder 源码解读',
-    type: '源码阅读',
-    progress: 62,
-    lastTime: '2 小时前',
-    from: '模型工坊 · 源码伴读',
-  }
+  /* ⑤ 继续学习 */
+  const continueLearning = isNewUser
+    ? { title: '欢迎来到 Vision-Forge', type: '新手引导', progress: 0, lastTime: '现在开始', from: '完成首启引导，解锁个性化学习路径' }
+    : { title: currentStage.title || '继续学习', type: currentStage.agent || '学习任务', progress: totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0, lastTime: '最近活跃', from: `阶段 ${(learn.currentStageIdx || 0) + 1} · ${learn.stage || ''}` }
 
-  /* ② 最近学习（卡片） */
-  const recentLearnings = [
-    { id: 1, type: '章节',   title: '理解 ViT Patch 划分机制',          meta: '理论学习 · 14 分钟前', tag: '理论', color: '#3b82f6', bg: '#eff6ff', icon: '📖' },
-    { id: 2, type: '课程',   title: 'SAM 模型微调实战',                 meta: '视频课程 · 2 小时前',   tag: '课程', color: '#8b5cf6', bg: '#faf5ff', icon: '🎬' },
-    { id: 3, type: '文档',   title: 'PyTorch DataLoader 性能调优',     meta: '技术文档 · 昨天',       tag: '文档', color: '#10b981', bg: '#f0fdf4', icon: '📄' },
-  ]
+  /* ② 最近学习（新用户不显示种子数据） */
+  const recentLearnings = useMemo(() => {
+    if (isNewUser) return []
+    const entries = Object.entries(learn.knowledgeMap || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    const colors = [{ color: '#3b82f6', bg: '#eff6ff', icon: '📖' }, { color: '#8b5cf6', bg: '#faf5ff', icon: '🎬' }, { color: '#10b981', bg: '#f0fdf4', icon: '📄' }]
+    return entries.map(([name, val], i) => ({ id: i + 1, type: '知识点', title: `${name}（${val}%）`, meta: val >= 80 ? '已掌握' : '学习中', tag: val >= 80 ? '已掌握' : '学习中', color: colors[i].color, bg: colors[i].bg, icon: colors[i].icon }))
+  }, [isNewUser, learn.knowledgeMap])
 
-  /* ③ 最近实验（卡片） */
-  const recentExperiments = [
-    { id: 1, name: '图像分割基线实验',        status: '已完成', score: 0.87, accuracy: 'IoU 0.81', time: '今天 14:30', color: '#10b981', icon: '🧪' },
-    { id: 2, name: 'Adapter 微调对比',        status: '已完成', score: 0.79, accuracy: 'mAP 0.74', time: '昨天 20:12', color: '#3b82f6', icon: '⚗️' },
-    { id: 3, name: 'Prompt Encoder 消融',     status: '运行中', score: null,  accuracy: '已迭代 23/50', time: '正在跑 · 35min', color: '#f59e0b', icon: '🔬' },
-  ]
+  /* ③ 最近实验 */
+  const recentExperiments = useMemo(() => {
+    if (isNewUser) return []
+    const saved = (() => { try { return JSON.parse(localStorage.getItem('vf_canvas_snapshots') || '[]') } catch (_) { return [] } })()
+    if (saved.length > 0) return saved.slice(0, 3).map((s, i) => ({ id: i + 1, name: s.label || `快照 ${i + 1}`, status: '已保存', score: null, accuracy: `${s.nodes || 0} 节点`, time: s.time || '', color: '#3b82f6', icon: '🧪' }))
+    return [{ id: 1, name: '在模型工坊开始首次实验', status: '待开始', score: null, accuracy: '拖拽算子搭建模型', time: '新手指引', color: '#3b82f6', icon: '🧪' }]
+  }, [isNewUser])
 
-  /* ④ AI 推荐学习 */
-  const aiRecommendations = {
-    task: { icon: '🎯', tag: '推荐任务', title: '完成 Encoder-Decoder 搭建', desc: '基于你当前阶段 3 的进度',     cta: '去完成', color: '#3b82f6', bg: '#eff6ff' },
-    course: { icon: '🎬', tag: '推荐课程', title: '《SAM 入门到精通》P3',     desc: '与你薄弱点「Attention」相关', cta: '去学习', color: '#8b5cf6', bg: '#faf5ff' },
-    resource: { icon: '📚', tag: '推荐资源', title: '5 篇必读论文合集',         desc: '本周社区热门 · Vision-Forge 编辑精选', cta: '去查看', color: '#ec4899', bg: '#fdf2f8' },
-  }
+  /* ④ AI 推荐 */
+  const aiRecommendations = useMemo(() => {
+    if (isNewUser) return {
+      task: { icon: '🎯', tag: '第一步', title: '完成首启引导', desc: '选择学习目标，AI 为你定制专属路径', cta: '去引导页', color: '#3b82f6', bg: '#eff6ff' },
+      course: { icon: '🎬', tag: '推荐', title: '《SAM 入门到精通》P1', desc: '新手友好 · 从零理解视觉大模型', cta: '去学习', color: '#8b5cf6', bg: '#faf5ff' },
+      resource: { icon: '📚', tag: '必读', title: '5 篇 CV 入门论文', desc: '为新学员精选的入门读物', cta: '去查看', color: '#ec4899', bg: '#fdf2f8' },
+    }
+    const recs = {}
+    if (learn.weakTopics?.length > 0) recs.task = { icon: '🎯', tag: '巩固', title: `攻克：${learn.weakTopics[0]}`, desc: '基于学情分析推荐', cta: '去完成', color: '#3b82f6', bg: '#eff6ff' }
+    else recs.task = { icon: '🎯', tag: '推荐', title: '在模型工坊搭建首个模型', desc: '拖拽算子，可视化构建', cta: '去完成', color: '#3b82f6', bg: '#eff6ff' }
+    const lowK = Object.entries(learn.knowledgeMap || {}).filter(([, v]) => v > 0 && v < 40).sort((a, b) => a[1] - b[1])[0]
+    recs.course = lowK ? { icon: '🎬', tag: '补强', title: `${lowK[0]}（${lowK[1]}%）`, desc: '知识掌握度分析推荐', cta: '去学习', color: '#8b5cf6', bg: '#faf5ff' } : { icon: '🎬', tag: '推荐', title: '《SAM 入门到精通》P3', desc: '模型微调实战', cta: '去学习', color: '#8b5cf6', bg: '#faf5ff' }
+    recs.resource = learn.goal ? { icon: '📚', tag: '推荐', title: `${learn.goal} 拓展阅读`, desc: '精选论文与实操', cta: '去查看', color: '#ec4899', bg: '#fdf2f8' } : { icon: '📚', tag: '推荐', title: 'CV 必读论文合集', desc: '编辑精选', cta: '去查看', color: '#ec4899', bg: '#fdf2f8' }
+    return recs
+  }, [isNewUser, learn.weakTopics, learn.knowledgeMap, learn.goal])
 
-  /* 本周进度（用于 mini 环） */
-  const weekProgress = 68
+  /* 本周进度 */
+  const weekProgress = isNewUser ? 0 : (totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0)
 
   /* 任务阶段 */
   const stages = [
@@ -170,12 +194,9 @@ export default function Home() {
     { id: 4, name: '正在评估学习效果', agentId: 'evaluator' },
   ]
 
-  const historyList = [
-    { id: 1, title: '如何学习计算机视觉？', date: '2024-01-15' },
-    { id: 2, title: 'SAM 模型怎么用？', date: '2024-01-14' },
-    { id: 3, title: '生成我的学习方案', date: '2024-01-13' },
-    { id: 4, title: 'PyTorch入门教程', date: '2024-01-12' },
-  ]
+  const historyList = learn.goal
+    ? [{ id: 1, title: `学习目标：${learn.goal}`, date: new Date().toISOString().slice(0, 10) }]
+    : [{ id: 1, title: '欢迎来到 Vision-Forge', date: new Date().toISOString().slice(0, 10) }]
 
   /* ═══════════════ helpers ═══════════════ */
   function formatTime(d) {
@@ -264,6 +285,20 @@ export default function Home() {
       } else {
         setPortraitStep(0)
         setPortraitAnswers([])
+        // 更新 LearnContext 中的 6 维学习画像
+        try {
+          const portraitData = learn.computePortraitFromAnswers?.(newAnswers)
+          if (portraitData) {
+            setMessages(prev => [...prev, {
+              role: 'assistant', text: `✅ 学习画像已更新！综合评分：${portraitData.overallScore} 分。前往「学习中心 → 学情分析」查看你的 6 维能力雷达图。`, agent: 'evaluator',
+              time: formatTime(new Date()),
+            }])
+            setStreamText('')
+            setIsTyping(false)
+            setInput('')
+            return
+          }
+        } catch (e) { console.warn('画像更新失败:', e) }
         const report = generatePortraitReport(newAnswers)
         setIsTyping(true)
         setStreamText('')
@@ -286,88 +321,68 @@ export default function Home() {
     setMessages(prev => [...prev, { role: 'user', text, time: formatTime(new Date()) }])
     setInput('')
     setIsTyping(true)
-    setAgentStage(1)    // 立即显示第一个阶段
-    setStreamText('')    // 清空流式缓存
+    setStreamText('')
+    setAgentStage(1)
 
-    // Agent 名称 → 阶段编号映射（用于进度条）
-    const agentStageMap = { system: 0, architect: 1, tutor: 2, evaluator: 3, generator: 4 }
-    // 累积收到的全部内容（最终一次性写入消息列表）
-    let accumulatedContent = ''
+    // 发送对话请求（流式接收 SSE，逐段展示打字效果）
+    ;(async () => {
+      try {
+        const resp = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_intent: text, session_id: sessionId }),
+        })
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
 
-    // ⬇️ 使用 SSE 流式接口 —— 每个 Agent 的真实执行进度与内容实时推送到前端
-    fetchPipelineStream(text, sessionId, {
-      onStage: (event) => {
-        if (event.status === 'running') {
-          const stageIdx = agentStageMap[event.agent] || 0
-          setAgentStage(stageIdx)
-          setCurrentAgent(event.agent)
+        const reader = resp.body.getReader()
+        const decoder = new TextDecoder()
+        let buf = ''
+        let navEvent = null
+        let contentAcc = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buf += decoder.decode(value, { stream: true })
+          // 解析每个完整的 SSE 事件
+          const events = buf.split('\n\n')
+          buf = events.pop() || ''
+          for (const evt of events) {
+            const lines = evt.split('\n')
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue
+              try {
+                const e = JSON.parse(line.slice(6))
+                if (e.event === 'content') {
+                  contentAcc += e.text
+                  setStreamText(contentAcc)
+                } else if (e.event === 'navigate') {
+                  navEvent = e
+                } else if (e.event === 'done') {
+                  const data = e.data || {}
+                  const final = contentAcc || data.evaluation_results?.tutor_response || ''
+                  setAgentStage(0); setCurrentAgent(null); setStreamText(''); setIsTyping(false)
+                  setMessages(prev => [...prev, {
+                    role: 'assistant', text: final, agent: 'system', time: formatTime(new Date()),
+                    ...(navEvent?.target === 'canvas' ? { _canvasGuide: true, _sessionId: data.session_id || sessionId } : {}),
+                  }])
+                  return
+                } else if (e.event === 'error') {
+                  throw new Error(e.message || '智能体执行失败')
+                }
+              } catch (_) {}
+            }
+          }
         }
-      },
-
-      onNavigate: (event) => {
-        // 收到 Canvas 引导事件：标记以便 onDone 中显示导航按钮
-        window.__vf_lastNavigate = event
-      },
-
-      onContent: (event) => {
-        // 根据内容类型选择前缀：chat 模式无前缀，pipeline 模式保留标签
-        const prefix = event.type === 'chat'
-          ? ''  // 对话模式：直接追加，无标题前缀
-          : event.type === 'tutor'
-            ? '\n\n---\n\n'
-            : event.type === 'evaluation'
-              ? '\n\n📊 **【评估报告】**:\n'
-              : event.type === 'report'
-                ? '\n\n📄 **【学习讲义】**:\n'
-                : ''
-        accumulatedContent += prefix + event.text
-        setStreamText(accumulatedContent)
-      },
-
-      onDone: (event) => {
-        const data = event.data || {}
-        const finalContent = accumulatedContent || data.evaluation_results?.tutor_response || '四大智能体处理完毕。'
-        const navEvent = window.__vf_lastNavigate
-        window.__vf_lastNavigate = null
-
-        setAgentStage(0)
-        setCurrentAgent(null)
-        setStreamText('')
-        setIsTyping(false)
-
-        // 检查是否需要引导去 Canvas
-        if (navEvent && navEvent.target === 'canvas') {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            text: finalContent,
-            agent: 'system',
-            time: formatTime(new Date()),
-            _canvasGuide: true,  // 标记此行需要显示 Canvas 按钮
-            _sessionId: data.session_id || sessionId,
-          }])
-        } else {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            text: finalContent,
-            agent: 'system',
-            time: formatTime(new Date()),
-          }])
-        }
-      },
-
-      onError: (event) => {
-        setAgentStage(0)
-        setCurrentAgent(null)
-        setStreamText('')
-        setIsTyping(false)
+      } catch (err) {
+        setAgentStage(0); setCurrentAgent(null); setStreamText(''); setIsTyping(false)
         setMessages(prev => [...prev, {
           role: 'assistant',
-          text: `❌ **${event.agent || '系统'} 执行失败**: ${event.message}\n\n请检查后端网络或星火大模型配置。`,
-          agent: 'system',
-          time: formatTime(new Date()),
+          text: `❌ 请求失败: ${err.message}\n\n请检查后端是否正常运行。`,
+          agent: 'system', time: formatTime(new Date()),
         }])
-      },
-    })
+      }
+    })()
   }
 
   /* 生成画像评估报告 */
@@ -376,12 +391,31 @@ export default function Home() {
   }
 
   /* 加载历史对话 */
-  const loadHistory = (title) => {
-    setMessages([
-      { role: 'user', text: title, time: formatTime(new Date()) },
-      { role: 'assistant', text: '已加载历史对话，你可以继续提问～', time: formatTime(new Date()), agent: 'system' }
-    ])
+  const loadHistory = (conv) => {
+    try {
+      const saved = localStorage.getItem(`vf_messages_${conv.sessionId}`)
+      if (saved) {
+        const msgs = JSON.parse(saved)
+        setMessagesRaw(msgs)
+        localStorage.setItem('vf_session_id', conv.sessionId)
+        setSessionIdRaw(conv.sessionId)
+        setConversationTitle(conv.title || '历史对话')
+      }
+    } catch (_) {
+      setMessagesRaw([
+        { role: 'assistant', text: '无法加载该对话记录', time: formatTime(new Date()), agent: 'system' }
+      ])
+    }
     setShowHistory(false)
+  }
+
+  const startNewConversation = () => {
+    const sid = newSessionId()
+    setSessionIdRaw(sid)
+    setMessagesRaw([])
+    setConversationTitle('新对话')
+    setShowHistory(false)
+    setInput('')
   }
 
   /* 开始画像评估 */
@@ -604,183 +638,62 @@ export default function Home() {
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
           minWidth: 0,
         }}>
-          {/* 4-Agent 任务阶段式状态条 */}
+          {/* 顶部工具栏 */}
           <div style={{
-            padding: agentStage > 0 ? '8px 16px 10px' : '6px 16px',
-            borderBottom: '1px solid #e8ecf1',
-            background: agentStage > 0 ? '#fafbfc' : '#fff',
-            flexShrink: 0, transition: 'all 0.2s',
+            padding: '6px 16px', borderBottom: '1px solid #e8ecf1',
+            background: '#fff', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#475569' }}>
-                <span style={{
-                  display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
-                  background: agentStage > 0 ? '#f59e0b' : '#10b981',
-                  animation: 'pulse 1.5s infinite',
-                }} />
-                <span style={{ fontWeight: 600 }}>
-                  4-Agent {agentStage > 0
-                    ? `· 处理中（${agentStage}/${stages.length}）`
-                    : '· 中央状态机待命中'}
-                </span>
-                {agentStage > 0 && (
-                  <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 6 }}>
-                    {stages[Math.max(0, agentStage - 1)]?.name}
-                  </span>
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                {/* 📜 历史（移到 4-Agent 状态条右侧，与黑板/展开同一行） */}
-                <div style={{ position: 'relative' }} ref={historyRef}>
-                  <button
-                    onClick={() => setShowHistory(!showHistory)}
-                    style={{
-                      fontSize: 10, padding: '2px 8px', borderRadius: 6,
-                      background: showHistory ? '#eff6ff' : '#f8fafc',
-                      color: showHistory ? '#3b82f6' : '#475569',
-                      border: '1px solid ' + (showHistory ? '#bfdbfe' : '#e2e8f0'),
-                      cursor: 'pointer', fontWeight: 600,
-                      display: 'inline-flex', alignItems: 'center', gap: 3,
-                    }}
-                  >📜 历史 <span style={{ fontSize: 8 }}>{showHistory ? '▲' : '▼'}</span></button>
-                  {showHistory && (
-                    <div style={{
-                      position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                      width: 240, background: '#fff', borderRadius: 10, padding: 8,
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 30,
-                      border: '1px solid #e2e8f0',
-                    }}>
-                      <div style={{ fontSize: 10, color: '#94a3b8', padding: '4px 6px', marginBottom: 4 }}>点击加载历史对话</div>
-                      {historyList.map(item => (
-                        <div
-                          key={item.id}
-                          onClick={() => { loadHistory(item.title); setShowHistory(false); }}
-                          style={{
-                            padding: 8, borderRadius: 6, background: '#f8fafc',
-                            marginBottom: 4, cursor: 'pointer', fontSize: 11,
-                            color: '#475569', fontWeight: 500,
-                          }}
-                        >
-                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
-                          <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>{item.date}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={() => setShowBlackboard(!showBlackboard)}
-                  style={{
-                    fontSize: 10, padding: '2px 8px', borderRadius: 6,
-                    background: showBlackboard ? '#1e293b' : '#f8fafc',
-                    color: showBlackboard ? '#fff' : '#64748b',
-                    border: '1px solid ' + (showBlackboard ? '#1e293b' : '#e2e8f0'),
-                    cursor: 'pointer', fontWeight: 600,
-                  }}
-                >📓 黑板</button>
-                <button
-                  onClick={() => setStageBarUserOpen(!stageBarUserOpen)}
-                  disabled={agentStage > 0}
-                  title={agentStage > 0 ? '运行中不可收起' : ''}
-                  style={{
-                    fontSize: 10, padding: '2px 8px', borderRadius: 6,
-                    background: showStageBar ? '#eff6ff' : '#f8fafc',
-                    color: showStageBar ? '#3b82f6' : '#64748b',
-                    border: '1px solid ' + (showStageBar ? '#bfdbfe' : '#e2e8f0'),
-                    cursor: agentStage > 0 ? 'default' : 'pointer',
-                    fontWeight: 600,
-                    opacity: agentStage > 0 ? 0.7 : 1,
-                  }}
-                >{showStageBar ? '收起 ▲' : '展开 ▼'}</button>
-              </div>
-            </div>
-            {showStageBar && (
-              <>
-                {showBlackboard && (
-                  <div style={{ position: 'relative', marginTop: 8 }}>
-                    <Blackboard />
+            <span style={{ fontSize: 10, color: '#94a3b8', marginRight: 'auto' }}>{conversationTitle}</span>
+            <button onClick={startNewConversation} title="开启新对话" style={{
+              fontSize: 10, padding: '2px 8px', borderRadius: 6,
+              background: '#f0fdf4', color: '#059669',
+              border: '1px solid #a7f3d0', cursor: 'pointer', fontWeight: 600,
+            }}>➕ 新对话</button>
+            <div style={{ position: 'relative' }} ref={historyRef}>
+              <button onClick={() => setShowHistory(!showHistory)} style={{
+                fontSize: 10, padding: '2px 8px', borderRadius: 6,
+                background: showHistory ? '#eff6ff' : '#f8fafc',
+                color: showHistory ? '#3b82f6' : '#475569',
+                border: '1px solid ' + (showHistory ? '#bfdbfe' : '#e2e8f0'),
+                cursor: 'pointer', fontWeight: 600,
+              }}>📜 历史</button>
+              {showHistory && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+                  width: 280, background: '#fff', borderRadius: 10, padding: 8,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 30,
+                  border: '1px solid #e2e8f0', maxHeight: 360, overflow: 'auto',
+                }}>
+                  <div style={{ fontSize: 10, color: '#94a3b8', padding: '4px 6px', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>📋 历史对话</span>
+                    <span style={{ cursor: 'pointer', color: '#ef4444' }} onClick={() => {
+                      if (confirm('确定清空所有历史对话？')) { saveConversations([]); setShowHistory(false) }
+                    }}>清空</span>
                   </div>
-                )}
-                <div style={{ display: 'flex', alignItems: 'stretch', gap: 4, marginTop: 8, position: 'relative' }}>
-                  {stages.map((stage, idx) => {
-                    const agent = agents.find(a => a.id === stage.agentId)
-                    const isDone = agentStage > stage.id
-                    const isActive = agentStage === stage.id
-                    const agentColor = agent?.color || '#94a3b8'
-                    return (
-                      <div key={stage.id} style={{
-                        flex: 1, padding: '8px 10px', borderRadius: 10,
-                        background: isActive
-                          ? `linear-gradient(135deg, ${agentColor}25, ${agentColor}10)`
-                          : isDone
-                            ? `linear-gradient(135deg, ${agentColor}15, #f0fdf4)`
-                            : '#f8fafc',
-                        border: isActive
-                          ? `2px solid ${agentColor}`
-                          : isDone
-                            ? `1.5px solid ${agentColor}50`
-                            : '1.5px solid #e2e8f0',
-                        display: 'flex', flexDirection: 'column', gap: 4,
-                        transition: 'all 0.4s ease',
-                        position: 'relative', overflow: 'hidden',
-                        boxShadow: isActive ? `0 0 0 4px ${agentColor}22, 0 4px 12px ${agentColor}33` : 'none',
-                      }}>
-                        {isActive && (
-                          <div style={{
-                            position: 'absolute', inset: 0,
-                            background: `linear-gradient(90deg, transparent 0%, ${agentColor}30 50%, transparent 100%)`,
-                            animation: 'shimmer 1.5s infinite linear',
-                            pointerEvents: 'none',
-                          }} />
-                        )}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
-                          <span style={{
-                            fontSize: 11, fontWeight: 700,
-                            color: isActive ? '#fff' : isDone ? '#fff' : '#94a3b8',
-                            background: isActive ? agentColor : isDone ? '#10b981' : '#e2e8f0',
-                            width: 20, height: 20, borderRadius: '50%',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            flexShrink: 0,
-                            boxShadow: isActive ? `0 0 0 3px ${agentColor}30` : 'none',
-                          }}>
-                            {isDone ? '✓' : isActive ? '●' : (idx + 1)}
-                          </span>
-                          <span style={{ fontSize: 12 }}>{agent?.icon}</span>
-                          <span style={{
-                            fontSize: 11,
-                            color: isActive ? agentColor : isDone ? '#15803d' : '#64748b',
-                            fontWeight: isActive ? 700 : isDone ? 600 : 500,
-                            flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          }}>
-                            {stage.name}
-                          </span>
-                        </div>
-                        {isActive && (
-                          <div style={{
-                            height: 3, background: '#e2e8f0', borderRadius: 2, overflow: 'hidden', position: 'relative',
-                          }}>
-                            <div style={{
-                              position: 'absolute', left: 0, top: 0, bottom: 0,
-                              width: '40%',
-                              background: `linear-gradient(90deg, transparent, ${agentColor}, transparent)`,
-                              animation: 'progressSlide 1.2s infinite linear',
-                            }} />
-                          </div>
-                        )}
-                        {isDone && (
-                          <div style={{ height: 3, background: '#10b981', borderRadius: 2 }} />
-                        )}
+                  {getConversations().length === 0 ? (
+                    <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', padding: 12 }}>暂无历史对话</div>
+                  ) : getConversations().map(conv => (
+                    <div key={conv.sessionId} onClick={() => loadHistory(conv)} style={{
+                      padding: '8px 10px', borderRadius: 6,
+                      background: conv.sessionId === sessionId ? '#eff6ff' : '#f8fafc',
+                      marginBottom: 4, cursor: 'pointer', fontSize: 11,
+                      color: conv.sessionId === sessionId ? '#3b82f6' : '#475569', fontWeight: 500,
+                      border: conv.sessionId === sessionId ? '1px solid #bfdbfe' : '1px solid transparent',
+                    }}>
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {conv.sessionId === sessionId && <span style={{ fontSize: 8, color: '#3b82f6', marginRight: 4 }}>●</span>}
+                        {conv.title || '新对话'}
                       </div>
-                    )
-                  })}
+                      <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{conv.createdAt ? new Date(conv.createdAt).toLocaleDateString('zh-CN') : ''}</span>
+                        <span>{conv.messageCount || 0} 条消息</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </>
-            )}
-            {showBlackboard && !showStageBar && (
-              <div style={{ position: 'absolute', top: 40, right: 16, zIndex: 40 }}>
-                <Blackboard />
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* 消息列表 */}
@@ -988,6 +901,36 @@ export default function Home() {
                     onKeyDown={e => e.key === 'Enter' && sendMessage()}
                     placeholder={portraitStep > 0 ? '请回答上述问题...' : '向 AI 导师提问，或点击下方主线任务阶段继续...'}
                   />
+                  {/* 添加附件按钮 */}
+                  <label style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 36, height: 36, borderRadius: 10,
+                    background: attachments.length > 0 ? '#ede9fe' : '#f8fafc',
+                    border: `1.5px solid ${attachments.length > 0 ? '#8b5cf6' : '#e2e8f0'}`,
+                    cursor: 'pointer', fontSize: 16, flexShrink: 0, transition: 'all 0.2s',
+                    position: 'relative',
+                  }} title="添加附件（图片 / Word）">
+                    📎
+                    {attachments.length > 0 && (
+                      <span style={{
+                        position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: '50%',
+                        background: '#8b5cf6', color: '#fff', fontSize: 9, fontWeight: 700,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>{attachments.length}</span>
+                    )}
+                    <input type="file" accept="image/*,.doc,.docx" multiple
+                      onChange={e => {
+                        const files = Array.from(e.target.files || [])
+                        Promise.all(files.map(f => new Promise(res => {
+                          const reader = new FileReader()
+                          reader.onload = () => res({ name: f.name, type: f.type, size: f.size, dataUrl: reader.result })
+                          reader.readAsDataURL(f)
+                        }))).then(newFiles => setAttachments(prev => [...prev, ...newFiles]).catch(() => {}))
+                        e.target.value = ''
+                      }}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
                   <button
                     onClick={() => sendMessage()}
                     style={{
@@ -999,6 +942,29 @@ export default function Home() {
                     }}
                   >发送</button>
                 </div>
+
+                {/* 附件预览区 */}
+                {attachments.length > 0 && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                    {attachments.map((f, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '4px 10px 4px 4px', borderRadius: 8,
+                        background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 11,
+                      }}>
+                        {f.type?.startsWith('image/') ? (
+                          <img src={f.dataUrl} alt="" style={{ width: 28, height: 28, borderRadius: 4, objectFit: 'cover' }} />
+                        ) : (
+                          <span style={{ fontSize: 18 }}>📄</span>
+                        )}
+                        <span style={{ color: '#475569', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                        <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} style={{
+                          background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14, padding: '0 2px', lineHeight: 1,
+                        }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
         </div>
 

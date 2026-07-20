@@ -59,20 +59,44 @@ export default function Register() {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!validate()) return
     setLoading(true)
-    setTimeout(() => {
-      /* 写入登录态并跳转到登录页 */
+    try {
+      // 调用后端注册 API
+      const res = await fetch('/api/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: form.username,
+          password: form.password,
+          name: form.realName,
+          role: 'student',
+          class_name: form.major || '',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setErrors({ username: data.detail || '注册失败' })
+        setLoading(false)
+        return
+      }
+      // 保存注册信息到 localStorage（兼容旧逻辑）
       localStorage.setItem('registeredUser', JSON.stringify({
-        realName: form.realName,
-        username: form.username,
-        studentId: form.studentId,
-        major: form.major,
+        realName: form.realName, username: form.username,
+        studentId: form.studentId, major: form.major,
       }))
       setLoading(false)
       navigate('/login')
-    }, 900)
+    } catch (_) {
+      // 后端不可用 → 纯本地注册（Mock 模式降级）
+      localStorage.setItem('registeredUser', JSON.stringify({
+        realName: form.realName, username: form.username,
+        studentId: form.studentId, major: form.major,
+      }))
+      setLoading(false)
+      navigate('/login')
+    }
   }
 
   /* 输入框统一样式 */
@@ -478,9 +502,9 @@ export default function Register() {
             />
             <span>
               我已阅读并同意
-              <a href="#" onClick={(e) => e.preventDefault()} style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}>《用户服务协议》</a>
+              <a href="/docs/TERMS.md" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}>《用户服务协议》</a>
               和
-              <a href="#" onClick={(e) => e.preventDefault()} style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}>《隐私政策》</a>
+              <a href="/docs/PRIVACY.md" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}>《隐私政策》</a>
             </span>
           </label>
           {errors.agreed && <div style={{ fontSize: 11, color: '#ef4444', marginTop: -8, marginBottom: 8 }}>⚠️ {errors.agreed}</div>}

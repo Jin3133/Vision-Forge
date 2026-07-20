@@ -12,7 +12,7 @@ class LearningMaterial(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, comment="主键ID")
     session_id = Column(String(100), nullable=False, index=True, comment="关联的会话ID")
     title = Column(String(255), nullable=False, comment="讲义标题")
-    material_type = Column(String(50), nullable=False, default="讲义", comment="类型: 讲义/评估报告/架构图")
+    material_type = Column(String(50), nullable=False, default="讲义", comment="类型: 讲义/思维导图/练习题/PPT大纲/拓展阅读/实操案例")
     content_html = Column(Text, nullable=False, comment="讲义HTML内容")
     sandbox_config_json = Column(Text, nullable=True, comment="关联的沙盒配置JSON快照")
     task_type = Column(String(50), nullable=True, comment="视觉任务类型")

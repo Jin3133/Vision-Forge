@@ -145,17 +145,218 @@ const FILE_TREE = [
       },
     ],
   },
+  {
+    folder: 'ResNet / CNN',
+    files: [
+      { name: 'resnet.py', title: 'ResNet50 残差网络', summary: '经典 CNN Backbone，残差连接解决梯度消失',
+        code: `class ResNet50(nn.Module):
+    """ResNet50 — 50层残差网络，广泛用于图像分类/检测的 Backbone。"""
+    def __init__(self, num_classes=1000):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 64, 7, 2, 3, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(3, 2, 1)
+        self.layer1 = self._make_layer(64, 64, 3)    # 3 个 Bottleneck
+        self.layer2 = self._make_layer(256, 128, 4)   # 4 个 Bottleneck
+        self.layer3 = self._make_layer(512, 256, 6)   # 6 个 Bottleneck
+        self.layer4 = self._make_layer(1024, 512, 3)  # 3 个 Bottleneck
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(2048, num_classes)
+
+    def _make_layer(self, in_c, out_c, blocks):
+        layers = [Bottleneck(in_c, out_c, downsample=True)]
+        for _ in range(1, blocks):
+            layers.append(Bottleneck(out_c * 4, out_c))
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.maxpool(self.relu(self.bn1(self.conv1(x))))
+        x = self.layer1(x); x = self.layer2(x)
+        x = self.layer3(x); x = self.layer4(x)
+        return self.avgpool(x)`, },
+    ],
+  },
+  {
+    folder: 'YOLO',
+    files: [
+      { name: 'yolo_head.py', title: 'YOLO 检测头', summary: 'YOLO 目标检测器的输出头，预测 bbox + class',
+        code: `class YOLODetectHead(nn.Module):
+    """YOLO 检测头 — 在特征图上预测边界框和类别。"""
+    def __init__(self, in_channels=[256, 512, 1024], num_classes=80):
+        super().__init__()
+        self.num_classes = num_classes
+        self.heads = nn.ModuleList([
+            nn.Conv2d(c, (num_classes + 5) * 3, 1) for c in in_channels
+        ])
+
+    def forward(self, features):
+        outputs = []
+        for feat, head in zip(features, self.heads):
+            B, _, H, W = feat.shape
+            out = head(feat)  # (B, 255, H, W)
+            out = out.view(B, 3, 5 + self.num_classes, H, W)
+            outputs.append(out)
+        return outputs`, },
+    ],
+  },
+  {
+    folder: 'LoRA / Adapter',
+    files: [
+      { name: 'lora_adapter.py', title: 'LoRA 低秩适配器', summary: '参数高效微调——仅训练低秩矩阵，冻结原模型',
+        code: `class LoRALayer(nn.Module):
+    """LoRA (Low-Rank Adaptation) — 在原权重旁加低秩旁路。"""
+    def __init__(self, in_dim, out_dim, rank=8, alpha=16):
+        super().__init__()
+        self.rank = rank
+        self.alpha = alpha
+        self.A = nn.Parameter(torch.randn(in_dim, rank) * 0.01)   # 降维
+        self.B = nn.Parameter(torch.zeros(rank, out_dim))         # 升维
+        self.scale = alpha / rank
+
+    def forward(self, x):
+        return self.scale * (x @ self.A @ self.B)
+
+class LoRAWrapper(nn.Module):
+    """将 LoRA 注入到任意 nn.Linear 层。"""
+    def __init__(self, original_linear, rank=8, alpha=16):
+        super().__init__()
+        self.original = original_linear
+        self.lora = LoRALayer(original_linear.in_features,
+                              original_linear.out_features, rank, alpha)
+
+    def forward(self, x):
+        return self.original(x) + self.lora(x)
+# 📌 仅展示部分：完整 LoRA 源码含 IA3/BitFit 变体，位于 assets/code_mirror/`, },
+    ],
+  },
+  {
+    folder: 'Neck (特征融合)',
+    files: [
+      { name: 'fpn.py', title: '特征金字塔网络', summary: 'FPN/BiFPN/PAN/ASPP——多尺度特征融合',
+        code: `class FPN(nn.Module):
+    """Feature Pyramid Network — 自顶向下路径增强。"""
+    def __init__(self, in_channels=[256, 512, 1024, 2048], out_channels=256):
+        super().__init__()
+        self.lateral = nn.ModuleList([nn.Conv2d(c, out_channels, 1) for c in in_channels])
+        self.smooth = nn.ModuleList([nn.Conv2d(out_channels, out_channels, 3, 1, 1) for _ in in_channels])
+
+    def forward(self, features):
+        laterals = [conv(f) for f, conv in zip(features, self.lateral)]
+        outputs = [laterals[-1]]
+        for i in range(len(laterals)-2, -1, -1):
+            up = F.interpolate(outputs[-1], size=laterals[i].shape[-2:], mode='nearest')
+            outputs.append(laterals[i] + up)
+        return [self.smooth[i](o) for i, o in enumerate(reversed(outputs))]
+# 📌 仅展示部分：完整 Neck 模块含 BiFPN/PAN/ASPP/PPM，位于 assets/code_mirror/`, },
+    ],
+  },
+  {
+    folder: 'Preprocessing',
+    files: [
+      { name: 'preprocessing.py', title: '图像预处理', summary: 'Resize/Normalize/NMS/RandomFlip 数据增强',
+        code: `class ImagePreprocessor:
+    """图像预处理管线：Resize → Normalize → Augment。"""
+    def __init__(self, target_size=1024, mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225]):
+        self.target_size = target_size
+        self.mean = mean; self.std = std
+
+    def resize(self, img):
+        h, w = img.shape[:2]
+        scale = self.target_size / max(h, w)
+        new_h, new_w = int(h * scale), int(w * scale)
+        return cv2.resize(img, (new_w, new_h))
+
+    def normalize(self, img):
+        img = img.astype(np.float32) / 255.0
+        for c in range(3):
+            img[:, :, c] = (img[:, :, c] - self.mean[c]) / self.std[c]
+        return img
+
+    def nms(self, boxes, scores, iou_thresh=0.5):
+        """非极大值抑制，去除重叠检测框。"""
+        idx = np.argsort(scores)[::-1]
+        keep = []
+        while len(idx) > 0:
+            keep.append(idx[0])
+            ious = compute_iou(boxes[idx[0]], boxes[idx[1:]])
+            idx = idx[1:][ious < iou_thresh]
+        return keep
+# 📌 仅展示部分：完整预处理含 4 类算子，位于 assets/code_mirror/`, },
+    ],
+  },
+  {
+    folder: 'ViT / Transformer',
+    files: [
+      { name: 'vit_encoder.py', title: 'ViT 编码器', summary: 'Vision Transformer——图像 Patch → Token 序列',
+        code: `class ViTEncoder(nn.Module):
+    """Vision Transformer 编码器。"""
+    def __init__(self, img_size=224, patch_size=16, embed_dim=768, depth=12, num_heads=12):
+        super().__init__()
+        self.patch_embed = nn.Conv2d(3, embed_dim, patch_size, patch_size)
+        self.pos_embed = nn.Parameter(torch.randn(1, (img_size//patch_size)**2, embed_dim))
+        self.blocks = nn.ModuleList([TransformerBlock(embed_dim, num_heads) for _ in range(depth)])
+        self.norm = nn.LayerNorm(embed_dim)
+
+    def forward(self, x):
+        x = self.patch_embed(x).flatten(2).transpose(1, 2)
+        x = x + self.pos_embed
+        for blk in self.blocks: x = blk(x)
+        return self.norm(x)
+# 📌 仅展示部分：完整 ViT 含 12 层 Transformer Block + 窗口注意力，位于 assets/code_mirror/`, },
+      { name: 'swin_transformer.py', title: 'Swin Transformer', summary: '移动窗口 Transformer——层级式特征图',
+        code: `class SwinTransformer(nn.Module):
+    """Swin Transformer — 移动窗口注意力，层级式金字塔结构。"""
+    def __init__(self, embed_dim=96, depths=[2,2,6,2], num_heads=[3,6,12,24]):
+        super().__init__()
+        self.patch_embed = PatchMerging(3, embed_dim)
+        self.layers = nn.ModuleList()
+        for i in range(len(depths)):
+            self.layers.append(SwinStage(
+                dim=embed_dim * (2**i),
+                depth=depths[i],
+                num_heads=num_heads[i],
+                window_size=7,
+                shift=(i % 2 != 0)  # 交替窗口与移动窗口
+            ))
+
+    def forward(self, x):
+        x = self.patch_embed(x)
+        for layer in self.layers: x = layer(x)
+        return x
+# 📌 仅展示部分：Swin 完整实现含 W-MSA/SW-MSA + PatchMerging，位于 assets/code_mirror/`, },
+    ],
+  },
 ];
 
 /* ───────── 节点类型 → 源码文件映射 ───────── */
 const NODE_TO_FILE = {
-  encoder: 'image_encoder.py',
-  prompt_encoder: 'prompt_encoder.py',
-  attention: 'transformer.py',  // 多头注意力在 transformer.py
-  decoder: 'model.py',
-  base: 'model.py',             // 基座模型整体
+  // SAM 系列
+  'SAM_ViT_H': 'sam_model.py', 'SAM_ViT_B': 'sam_model.py', 'MobileSAM': 'sam_model.py', 'FastSAM': 'sam_model.py',
+  'Mask_Decoder': 'mask_decoder.py',
+  // Attention / Transformer 系列
+  'ViT_Base': 'vit_encoder.py', 'Swin_Transformer': 'swin_transformer.py',
+  'Attention': 'transformer.py',
+  // ResNet
+  'ResNet50': 'resnet.py', 'EfficientNetV2': 'resnet.py',
+  // DINO
+  'DINO_v2': 'dino.py',
+  // YOLO
+  'YOLO_Detect_Head': 'yolo_head.py', 'BBox_Predictor': 'yolo_head.py',
+  // LoRA / Adapter
+  'LoRA_Sampler': 'lora_adapter.py', 'Conv_Adapter': 'lora_adapter.py', 'IA3': 'lora_adapter.py',
+  // Neck
+  'Feature_Pyramid': 'fpn.py', 'BiFPN': 'fpn.py', 'PAN': 'fpn.py', 'ASPP': 'fpn.py',
+  // Heads
+  'Classification_Head': 'heads.py', 'Segmentation_Head': 'heads.py', 'Keypoint_Detector': 'heads.py',
+  'Anomaly_Detector': 'heads.py', 'Depth_Estimator': 'heads.py',
+  // Processing
+  'Resize': 'preprocessing.py', 'Normalize': 'preprocessing.py', 'Random_Flip': 'preprocessing.py', 'NMS': 'preprocessing.py',
+  // 类型兜底
+  encoder: 'vit_encoder.py', prompt_encoder: 'mask_decoder.py',
+  attention: 'transformer.py', decoder: 'sam_model.py', base: 'sam_model.py',
 };
-const DEFAULT_FILE = 'model.py';
+const DEFAULT_FILE = 'sam_model.py';
 
 /* ───────── 文件中文说明（侧栏用） ───────── */
 const EXPLANATIONS = {
@@ -207,6 +408,79 @@ const EXPLANATIONS = {
 - d_k = d_model / num_heads，每个头的维度
 - scale factor = 1/√d_k 防止点积过大
 - dropout 在 softmax 后应用`,
+
+  'resnet.py': `ResNet50（resnet.py）是计算机视觉最经典的 Backbone 之一：
+
+核心结构：
+1. Stem：7×7 卷积 + 3×3 MaxPool，快速降采样
+2. 4 个 Stage，每 Stage 包含多个 Bottleneck（1×1→3×3→1×1）
+3. 残差连接（Residual Connection）让梯度可以直通，解决深层网络退化
+4. 全局平均池化代替全连接，大幅减少参数量
+
+📌 仅展示部分：完整 ResNet 含 ResNet18/34/50/101/152 变体，位于 assets/code_mirror/`,
+
+  'yolo_head.py': `YOLO 检测头（yolo_head.py）负责在特征图上预测目标：
+
+输出格式：
+1. bbox 坐标（x, y, w, h）— 相对于 anchor 的偏移
+2. objectness — 该 anchor 是否包含目标
+3. class scores — 各类别概率
+
+多尺度检测：在 3 个不同尺度的特征图上分别预测，覆盖大/中/小目标。
+
+📌 仅展示部分：完整 YOLO 含 anchor 生成 + NMS 后处理，位于 assets/code_mirror/`,
+
+  'lora_adapter.py': `LoRA 适配器（lora_adapter.py）实现参数高效微调：
+
+核心思想：
+1. 冻结原始模型所有权重
+2. 在每个 Linear 层旁加低秩矩阵 A（d×r）和 B（r×d）
+3. 仅训练 A 和 B，参数量仅为原始的 r/d 倍
+
+变体：IA3（仅缩放向量）、BitFit（仅训练 bias）
+
+📌 仅展示部分：完整 LoRA 含 IA3/BitFit/AdapterFormer 变体，位于 assets/code_mirror/`,
+
+  'fpn.py': `特征金字塔（fpn.py）构建多尺度特征图：
+
+网络结构：
+1. Bottom-up pathway — Backbone 的前向过程，生成多级特征图（C2-C5）
+2. Top-down pathway — 从顶层向下逐级上采样并融合
+3. Lateral connections — 1×1 卷积统一通道数
+
+变体：BiFPN（双向+加权）、PAN（额外自底向上路径）、ASPP（空洞空间金字塔池化）
+
+📌 仅展示部分：完整 Neck 含 5 种变体，位于 assets/code_mirror/`,
+
+  'preprocessing.py': `图像预处理（preprocessing.py）包含数据增强和归一化：
+
+算子列表：
+1. Resize — 等比缩放至统一尺寸
+2. Normalize — 减均值除标准差
+3. RandomFlip — 随机水平/垂直翻转
+4. NMS — 非极大值抑制去除冗余检测框
+
+📌 仅展示部分：完整预处理含 4 类算子的多种实现，位于 assets/code_mirror/`,
+
+  'vit_encoder.py': `ViT 编码器（vit_encoder.py）将图像转为 Token 序列：
+
+关键步骤：
+1. Patch Embedding：图像切分为固定大小的 patch，线性投影为 token
+2. Position Embedding：可学习的位置编码
+3. 12 层 Transformer Block：多头自注意力 + FFN
+4. LayerNorm：Pre-norm 结构（注意力前归一化）
+
+📌 仅展示部分：完整 ViT 含 12 层 Transformer + 窗口注意力，位于 assets/code_mirror/`,
+
+  'swin_transformer.py': `Swin Transformer（swin_transformer.py）引入层级式结构：
+
+创新点：
+1. Patch Merging — 逐级合并相邻 patch，构建金字塔特征
+2. W-MSA — 窗口内自注意力（非全局），降低复杂度
+3. SW-MSA — 移动窗口自注意力，跨窗口通信
+4. 层级输出 C1→C2→C3→C4，天然适合检测/分割任务
+
+📌 仅展示部分：完整 Swin 含 4 个 Stage，位于 assets/code_mirror/`,
 
   'dino.py': `DINO（dino.py）是自监督视觉表征学习的经典框架。
 

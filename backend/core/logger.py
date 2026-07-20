@@ -5,9 +5,10 @@ from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 import time
 
 def setup_logger():
-    # 创建日志目录
-    if not os.path.exists("logs"):
-        os.makedirs("logs")
+    # 创建日志目录（基于 backend/ 目录，避免 CWD 依赖）
+    _log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+    if not os.path.exists(_log_dir):
+        os.makedirs(_log_dir)
 
     logger = logging.getLogger("VisionForge")
     logger.setLevel(logging.INFO)

@@ -14,7 +14,7 @@ from services.models.user import User
 from services.schemas.user import UserLogin, Token, UserInfo
 
 # ✅ 3. 修正认证服务导入 (确保你的 auth.py 放到了 services 目录下)
-from services.auth import (
+from services.biz_logic.auth import (
     hash_password,
     verify_password,
     create_access_token,
@@ -55,6 +55,34 @@ def login(user: UserLogin, request: Request, db: Session = Depends(get_db)):
         "token_type": "bearer",
         "role": db_user.role
     }
+
+
+# ✅ 公开注册接口（无需管理员权限）
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    name: str = ""
+    role: str = "student"
+    class_name: str = ""
+
+@router.post("/register", summary="用户注册")
+def register_user(data: RegisterRequest, db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.username == data.username).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="用户名已存在")
+    if len(data.password) < 6:
+        raise HTTPException(status_code=400, detail="密码至少 6 位")
+    new_user = User(
+        username=data.username,
+        password=hash_password(data.password),
+        name=data.name or data.username,
+        role=data.role if data.role in ["student", "teacher", "admin"] else "student",
+        class_name=data.class_name,
+        create_time=datetime.utcnow(),
+    )
+    db.add(new_user)
+    db.commit()
+    return {"message": f"注册成功", "username": data.username}
 
 
 # ✅ 获取当前登录用户信息
@@ -239,4 +267,30 @@ def search_users(
     total = query.count()
     users = query.offset((page - 1) * page_size).limit(page_size).all()
     return {"users": users, "total": total}
+
+
+# ✅ 管理员：仪表盘统计数据
+@router.get("/admin/stats", summary="管理员仪表盘统计")
+def admin_stats(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    total_users = db.query(User).count()
+    admin_count = db.query(User).filter(User.role.in_(["admin", "管理员"])).count()
+    teacher_count = db.query(User).filter(User.role.in_(["teacher", "教师"])).count()
+    student_count = db.query(User).filter(User.role.in_(["student", "学生"])).count()
+    recent_users = db.query(User).order_by(User.create_time.desc()).limit(5).all()
+
+    return {
+        "total_users": total_users,
+        "by_role": {
+            "admin": admin_count,
+            "teacher": teacher_count,
+            "student": student_count,
+        },
+        "recent_users": [
+            {"id": u.id, "username": u.username, "name": u.name, "role": u.role, "create_time": u.create_time.isoformat() if u.create_time else None}
+            for u in recent_users
+        ],
+    }
 

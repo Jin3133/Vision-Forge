@@ -121,11 +121,28 @@ export const fetchPipelineResult = async (userIntent, sessionId = "default_sessi
  * 为指定 session 生成学习讲义（调用后端 Generator 智能体 + 存入数据库）
  * POST /api/learning-materials/generate
  */
-export const generateLearningMaterial = async (sessionId, title = null) => {
+export const generateLearningMaterial = async (sessionId, title = null, materialTypes = null) => {
   const res = await fetch('/api/learning-materials/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, title }),
+    body: JSON.stringify({ session_id: sessionId, title, material_types: materialTypes }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+};
+
+/**
+ * 批量生成多种学习材料
+ * POST /api/learning-materials/generate-batch
+ */
+export const generateLearningMaterialsBatch = async (sessionId, materialTypes = null) => {
+  const res = await fetch('/api/learning-materials/generate-batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, material_types: materialTypes }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

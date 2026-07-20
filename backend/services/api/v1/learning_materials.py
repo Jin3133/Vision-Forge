@@ -4,14 +4,14 @@
 import json
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 from core.database import SessionLocal
 from core.state import state_manager
 from core.logger import logger
 from services.models.learning_material import LearningMaterial
-from agents.generator_agent import GeneratorAgent
+from agents.generator_agent import GeneratorAgent, RESOURCE_TYPES
 
 router = APIRouter(prefix="/api/learning-materials", tags=["learning-materials"])
 
@@ -31,6 +31,12 @@ def _get_generator() -> GeneratorAgent:
 class GenerateRequest(BaseModel):
     session_id: str
     title: Optional[str] = None
+    material_types: Optional[List[str]] = None  # 可选，不传则只生成讲义
+
+
+class GenerateBatchRequest(BaseModel):
+    session_id: str
+    material_types: Optional[List[str]] = None  # 不传则生成全部 6 种
 
 
 class MaterialItem(BaseModel):
@@ -72,13 +78,21 @@ def generate_material(req: GenerateRequest):
     if not evaluation.get("report"):
         raise HTTPException(status_code=400, detail="会话尚无评估报告，请先完成架构评估")
 
-    logger.info(f"[LearningMaterials] 为 session={session_id} 生成讲义...")
+    logger.info(f"[LearningMaterials] 为 session={session_id} 生成材料...")
 
-    # 2. 调用 Generator 生成 HTML 讲义
+    # 2. 调用 Generator
     try:
         generator = _get_generator()
-        delta = generator.run(state)
-        html_content = delta.get("evaluation_results", {}).get("final_report_html", "")
+        material_types = req.material_types or ["讲义"]
+
+        if len(material_types) == 1 and material_types[0] == "讲义":
+            # 单讲义走原有快速通道
+            delta = generator.run(state)
+            html_content = delta.get("evaluation_results", {}).get("final_report_html", "")
+        else:
+            # 多类型批量生成
+            delta = generator.run_multi(state, material_types)
+            html_content = delta.get("generated_materials", {}).get("讲义", "")
         if not html_content:
             raise HTTPException(status_code=500, detail="讲义生成失败：内容为空")
     except Exception as e:
@@ -128,13 +142,15 @@ def generate_material(req: GenerateRequest):
 
 
 @router.get("")
-def list_materials(session_id: Optional[str] = None):
-    """获取讲义列表，可按 session_id 过滤。"""
+def list_materials(session_id: Optional[str] = None, material_type: Optional[str] = None):
+    """获取材料列表，可按 session_id 和 material_type 过滤。"""
     db = SessionLocal()
     try:
         query = db.query(LearningMaterial).order_by(LearningMaterial.created_at.desc())
         if session_id:
             query = query.filter(LearningMaterial.session_id == session_id)
+        if material_type:
+            query = query.filter(LearningMaterial.material_type == material_type)
 
         rows = query.all()
         items = [
@@ -149,6 +165,67 @@ def list_materials(session_id: Optional[str] = None):
             for r in rows
         ]
         return {"status": "success", "data": {"total": len(items), "items": [it.model_dump() for it in items]}}
+    finally:
+        db.close()
+
+
+@router.post("/generate-batch")
+def generate_materials_batch(req: GenerateBatchRequest):
+    """批量生成多种学习材料（讲义/思维导图/练习题/PPT大纲/拓展阅读/实操案例）。"""
+    session_id = req.session_id
+    material_types = req.material_types or RESOURCE_TYPES
+
+    state = state_manager.get_state(session_id)
+    if not state or not state.user_intent:
+        raise HTTPException(status_code=404, detail="会话不存在或无有效意图")
+
+    sandbox_config = getattr(state, "sandbox_config", None)
+    if not sandbox_config or not getattr(sandbox_config, "nodes", []):
+        raise HTTPException(status_code=400, detail="会话尚无沙盒配置")
+
+    logger.info(f"[LearningMaterials] 批量生成 material_types={material_types}")
+
+    try:
+        generator = _get_generator()
+        delta = generator.run_multi(state, material_types)
+        materials = delta.get("generated_materials", {})
+    except Exception as e:
+        logger.error(f"[LearningMaterials] 批量生成失败: {e}")
+        raise HTTPException(status_code=500, detail=f"批量生成失败: {str(e)}")
+
+    db = SessionLocal()
+    try:
+        results = []
+        sc = getattr(sandbox_config, "model_dump", None)
+        config_json = json.dumps(sc() if sc else {}, ensure_ascii=False)
+        task_type = getattr(sandbox_config, "task_type", "") or ""
+
+        for mt, content in materials.items():
+            if not content:
+                continue
+            material = LearningMaterial(
+                session_id=session_id,
+                title=f"{task_type} {mt}" if task_type else mt,
+                material_type=mt,
+                content_html=content,
+                sandbox_config_json=config_json,
+                task_type=task_type,
+            )
+            db.add(material)
+            db.flush()
+            results.append({
+                "id": material.id,
+                "title": material.title,
+                "material_type": material.material_type,
+            })
+
+        db.commit()
+        logger.info(f"[LearningMaterials] 批量生成完成: {len(results)} 条")
+        return {"status": "success", "data": {"materials": results, "count": len(results)}}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[LearningMaterials] 批量写入失败: {e}")
+        raise HTTPException(status_code=500, detail=f"存储失败: {str(e)}")
     finally:
         db.close()
 

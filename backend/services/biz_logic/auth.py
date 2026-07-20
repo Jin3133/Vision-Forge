@@ -22,12 +22,15 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
 # ------------------ 密码处理 ------------------
 
-# ❗目前保留你原来用于测试的明文方案，跑通后再改为 pwd_context.hash
+# 使用 bcrypt 哈希密码（已启用）
 def hash_password(password: str) -> str:
-    return password
+    return pwd_context.hash(password)
 
 def verify_password(plain_password: str, db_password: str) -> bool:
-    return plain_password == db_password
+    # 兼容：如果数据库中的密码是明文（旧数据），做明文比对
+    if db_password and not db_password.startswith('$2b$'):
+        return plain_password == db_password
+    return pwd_context.verify(plain_password, db_password)
 
 
 # ------------------ JWT 令牌生成 ------------------

@@ -39,14 +39,14 @@ jobs:
       - name: 安装后端依赖
         shell: cmd
         run: |
-          pip install fastapi uvicorn pydantic pydantic-settings sqlalchemy openai python-jose passlib bcrypt chromadb
+          pip install fastapi uvicorn pydantic pydantic-settings sqlalchemy openai python-jose passlib bcrypt chromadb httpx requests matplotlib langgraph
 
       - name: PyInstaller 打包
         shell: cmd
         run: |
           pip install pyinstaller
           cd backend
-          pyinstaller --onefile --name VisionForge --add-data "static;static" --add-data "assets/code_mirror;assets/code_mirror" --add-data "assets/experiment_results;assets/experiment_results" --exclude-module torch --exclude-module torchvision --exclude-module tensorflow --hidden-import uvicorn.logging --hidden-import uvicorn.loops.auto --hidden-import uvicorn.protocols.http.auto --hidden-import fastapi --hidden-import pydantic --hidden-import sqlalchemy --clean --noconfirm run.py
+          pyinstaller --onefile --name VisionForge --add-data "static;static" --add-data "assets/code_mirror;assets/code_mirror" --add-data "assets/experiment_results;assets/experiment_results" --add-data "assets/vector_database;assets/vector_database" --exclude-module torch --exclude-module torchvision --exclude-module tensorflow --hidden-import uvicorn.logging --hidden-import uvicorn.loops.auto --hidden-import uvicorn.protocols.http.auto --hidden-import fastapi --hidden-import pydantic --hidden-import pydantic_settings --hidden-import sqlalchemy --hidden-import chromadb --hidden-import httpx --hidden-import requests --hidden-import matplotlib --hidden-import passlib.handlers.bcrypt --hidden-import langgraph --clean --noconfirm run.py
 
       - name: 上传产物
         uses: actions/upload-artifact@v4

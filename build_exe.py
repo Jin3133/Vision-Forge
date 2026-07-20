@@ -53,11 +53,15 @@ pyi_cmd = [
     '--hidden-import', 'pydantic',
     '--hidden-import', 'sqlalchemy',
     '--hidden-import', 'chromadb',
+    '--hidden-import', 'httpx',
+    '--hidden-import', 'requests',
+    '--hidden-import', 'matplotlib',
     '--clean',
     '--noconfirm',
     'run.py',
 ]
 
+excludes = ['torch', 'torchvision', 'tensorflow']
 for ex in excludes:
     pyi_cmd.extend(['--exclude-module', ex])
 

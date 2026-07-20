@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from typing import Dict, Any, List
 from core.state import TaskState
@@ -90,7 +91,10 @@ class TutorAgent(AgentBase):
         seen = set()
 
         current_dir = Path(__file__).resolve().parent
-        code_dir = current_dir.parent / "assets" / "code_mirror"
+        if getattr(sys, 'frozen', False):
+            code_dir = Path(sys._MEIPASS) / "assets" / "code_mirror"
+        else:
+            code_dir = current_dir.parent / "assets" / "code_mirror"
 
         # 从 nodes 列表中解析，只保留真实存在的文件
         nodes = getattr(sandbox_config, "nodes", []) or []

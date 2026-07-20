@@ -134,20 +134,68 @@ const nodeTypes = {
   PROCESSING: (p) => <CatalogNode {...p} type="PROCESSING" />,
 }
 
-// ==================== 预置数据 ====================
-const presetModels = [
-  { id: 1, name: 'SAM 基础模型', type: 'BACKBONE', accuracy: 89.2, size: '352MB', description: 'SAM_ViT_B + Mask_Decoder' },
-  { id: 2, name: 'SAM + FPN 多尺度', type: 'NECK', accuracy: 91.5, size: '428MB', description: 'SAM_ViT_B + Feature_Pyramid + Mask_Decoder' },
-  { id: 3, name: 'SAM + LoRA 微调', type: 'ADAPTER', accuracy: 93.8, size: '486MB', description: 'SAM_ViT_B + LoRA_Sampler + Mask_Decoder' },
-  { id: 4, name: 'YOLO 检测管线', type: 'HEAD', accuracy: 94.2, size: '512MB', description: 'ResNet50 + PAN + YOLO_Detect_Head' },
-]
+// ==================== 模型对比数据（从画布节点动态计算） ====================
+// Backbone 基准精度映射
+const BACKBONE_BASELINE = {
+  'SAM_ViT_H': 92, 'SAM_ViT_B': 89, 'MobileSAM': 86, 'FastSAM': 84,
+  'DINO_v2': 90, 'Swin_Transformer': 88, 'ViT_Base': 87,
+  'ResNet50': 85, 'EfficientNetV2': 84,
+}
+const ADAPTER_BONUS = { 'LoRA_Sampler': 3, 'Conv_Adapter': 2, 'IA3': 2, 'AdapterFormer': 2, 'BitFit': 1 }
+const NECK_BONUS = { 'Feature_Pyramid': 3, 'BiFPN': 4, 'ASPP': 1, 'PPM': 1, 'PAN': 2 }
 
-const compareData = [
-  { name: 'SAM 基础', 精度: 89.2, 速度: 85, 内存: 352 },
-  { name: 'SAM+FPN', 精度: 91.5, 速度: 78, 内存: 428 },
-  { name: 'SAM+LoRA', 精度: 93.8, 速度: 72, 内存: 486 },
-  { name: 'YOLO管线', 精度: 94.2, 速度: 68, 内存: 512 },
-]
+function calcMetrics(nodes) {
+  if (!nodes || nodes.length === 0) return { 精度: 0, 速度: 0, 内存: 0 }
+  const names = nodes.map(n => (typeof n.data?.label === 'string') ? n.data.label : (n.name || ''))
+  // 精度：取 backbone 基准 + adapter bonus + neck bonus
+  const backbone = names.find(n => BACKBONE_BASELINE[n]) || ''
+  let acc = BACKBONE_BASELINE[backbone] || 82
+  names.forEach(n => { acc += ADAPTER_BONUS[n] || 0; acc += NECK_BONUS[n] || 0 })
+  acc = Math.min(99, acc + Math.floor(Math.random() * 3)) // 微量随机模拟评估差异
+  // 速度：节点越多越慢
+  const speed = Math.max(30, 100 - nodes.length * 5 + Math.floor(Math.random() * 8))
+  // 内存：每节点约 40-100MB
+  const mem = nodes.length * 50 + Math.floor(Math.random() * 80)
+  return { 精度: acc, 速度: speed, 内存: mem }
+}
+
+function getCompareData(currentNodes) {
+  // 从 Canvas 快照生成对比数据
+  let snapshots = []
+  try { snapshots = JSON.parse(localStorage.getItem('vf_canvas_snapshots') || '[]') } catch (_) {}
+  const items = []
+  // 当前画布作为第一个
+  if (currentNodes && currentNodes.length > 0) {
+    const m = calcMetrics(currentNodes)
+    items.push({ name: '当前画布', 精度: m.精度, 速度: m.速度, 内存: m.内存 })
+  }
+  // 历史快照
+  snapshots.slice(0, 3).forEach((s, i) => {
+    if (s.nodes && s.nodes.length > 0) {
+      const m = calcMetrics(s.nodes)
+      items.push({ name: s.label || `快照 ${i + 1}`, 精度: m.精度, 速度: m.速度, 内存: m.内存 })
+    }
+  })
+  // 兜底：如果没有任何数据，给默认演示
+  if (items.length === 0) {
+    items.push({ name: '当前画布', 精度: 85, 速度: 80, 内存: 300 })
+  }
+  return items
+}
+
+function getPresetModels(currentNodes) {
+  let snapshots = []
+  try { snapshots = JSON.parse(localStorage.getItem('vf_canvas_snapshots') || '[]') } catch (_) {}
+  const models = []
+  snapshots.slice(0, 4).forEach((s, i) => {
+    if (s.nodes && s.nodes.length > 0) {
+      const names = s.nodes.map(n => n.data?.label || n.name || '?').join(' + ')
+      const m = calcMetrics(s.nodes)
+      models.push({ id: i + 1, name: s.label || `模型 ${i + 1}`, type: '自定义', accuracy: m.精度, size: `${m.内存}MB`, description: names.slice(0, 3).join(' + ') })
+    }
+  })
+  return models
+}
 
 // ==================== 空状态组件 ====================
 const EmptyCanvasHint = () => (
@@ -196,6 +244,10 @@ function CanvasInner() {
 
   /* ───── 新增：撤销/重做 / 自动保存 / Toast / Drawer 状态 ───── */
   const { toasts, push: pushToast, remove: removeToast } = useToasts()
+
+  // 模型对比数据：从当前画布节点 + 历史快照动态计算
+  const compareData = useMemo(() => getCompareData(nodes), [nodes])
+  const presetModels = useMemo(() => getPresetModels(nodes), [nodes])
 
   // 历史快照：镜像 nodes/edges，撤销/重做时回写
   // 关键设计：用 useState 单独存一份"上一帧 + 下一帧"，避免和 useNodesState 的高频变更打架
@@ -660,7 +712,7 @@ function CanvasInner() {
   const TabNav = () => null
 
   const LeftPanel = () => {
-    const [openGroups, setOpenGroups] = useState(['BACKBONE', 'HEAD'])
+    const [openGroups, setOpenGroups] = useState(['BACKBONE', 'ADAPTER', 'NECK', 'HEAD', 'PROCESSING'])
     const toggleGroup = (key) => {
       setOpenGroups(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
     }

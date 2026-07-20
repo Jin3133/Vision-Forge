@@ -11,6 +11,7 @@ import Resources from './pages/Resources.jsx'
 import Profile from './pages/Profile.jsx'
 import Onboarding from './pages/Onboarding.jsx'
 import AccountSettings from './pages/AccountSettings.jsx'
+import AdminDashboard from './pages/AdminDashboard.jsx'
 import { LearnProvider, useLearn } from './LearnContext.jsx'
 import { AuthProvider, useAuth } from './AuthContext.jsx'
 import { ToastProvider } from './components/Toast.jsx'
@@ -129,7 +130,13 @@ function Layout({ children }) {
         { name: '个人档案', path: '/profile',                       icon: '👤' },
         { name: '我的收藏', path: '/profile?tab=favorites',         icon: '❤️' },
       ]
-    }
+    },
+    ...(user?.role === 'admin' || user?.role === '管理员' ? [{
+      name: '系统管理', icon: '🛡️',
+      children: [
+        { name: '用户管理', path: '/admin', icon: '👥' },
+      ]
+    }] : []),
   ]
 
   const dynamicTitle = getDynamicTitle(path, tab)
@@ -484,13 +491,29 @@ function PrivateRoute({ children }) {
   return children
 }
 
+function AdminRoute({ children }) {
+  const { isAuthenticated, initialized, user } = useAuth()
+  if (!initialized) return null
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  const role = user?.role || ''
+  if (!['admin', '管理员'].includes(role)) {
+    return (
+      <div style={{ textAlign: 'center', padding: 80, color: '#64748b', fontFamily: 'system-ui, sans-serif' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
+        <h2 style={{ color: '#1e293b', margin: 0 }}>无访问权限</h2>
+        <p style={{ marginTop: 8 }}>仅管理员可访问此页面</p>
+        <Link to="/" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 600 }}>返回首页</Link>
+      </div>
+    )
+  }
+  return children
+}
+
 /* Welcome 路由：仅首次登录时强制展示，已看过的用户直接放行到首页 */
 function WelcomeRoute() {
   const { isAuthenticated, initialized } = useAuth()
   if (!initialized) return null
   if (!isAuthenticated) {
-    /* 兜底：兼容旧的 isLoggedIn 标记 */
-    if (localStorage.getItem('isLoggedIn') === 'true') return <Welcome />
     return <Navigate to="/login" replace />
   }
   const seen = (() => {
@@ -508,7 +531,7 @@ function OnboardingGate() {
 
 export default function App() {
   const [user, setUser] = useState({
-    name: '张明', studentId: '2022105430066',
+    name: '李明', studentId: '2022105430066',
     college: '计算机与软件学院', major: '软件工程', avatar: '👤',
     username: 'demo_user', role: '学生', email: '', phone: '',
   })
@@ -530,6 +553,7 @@ export default function App() {
                 <Route path="/resources" element={<PrivateRoute><Layout><Resources /></Layout></PrivateRoute>} />
                 <Route path="/profile" element={<PrivateRoute><Layout><Profile /></Layout></PrivateRoute>} />
                 <Route path="/settings" element={<PrivateRoute><Layout><AccountSettings /></Layout></PrivateRoute>} />
+                <Route path="/admin" element={<AdminDashboard />} />
               </Routes>
             </Router>
           </LearnProvider>
