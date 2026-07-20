@@ -30,6 +30,36 @@ const LS_REMEMBER_KEY = 'vf_remember_username'
 /* Mock Token 有效期：默认 2 小时 */
 const TOKEN_TTL_MS = 2 * 60 * 60 * 1000
 
+/* 演示账号预设学习数据 */
+const DEMO_LEARN_STATE = {
+  "onboarded": true, "goal": "SAM微调", "customGoal": "", "topic": "SAM微调", "stage": "项目实战复盘",
+  "currentStageIdx": 3, "knowledgeLevel": "中级", "learningPace": 8.5,
+  "stagesVersion": 2,
+  "knowledgeMap": { "SAM": 78, "YOLO": 55, "Mask2Former": 25, "UNet": 45, "ViT": 72, "Transformer": 68, "ResNet": 85, "CNN": 90, "DINO": 30, "LoRA": 55, "Adapter": 35, "Attention": 70 },
+  "weakTopics": ["Attention 多头机制理解不深", "LoRA rank 选择原则"],
+  "masteredTopics": ["CNN 基础", "ResNet 残差连接", "数据预处理流程"],
+  "lastModelFeedback": { "mastered": ["CNN", "ResNet"], "weak": ["Attention", "LoRA"] },
+  "mainStages": [
+    { "id": 1, "title": "理解 SAM 架构原理", "desc": "阅读论文并完成摘要笔记", "agent": "📖 理论学习", "done": true },
+    { "id": 2, "title": "完成源码阅读与笔记", "desc": "对照 code_mirror 逐行理解", "agent": "💻 源码阅读", "done": true },
+    { "id": 3, "title": "搭建 SAM 微调管线", "desc": "在模型工坊搭建并保存模型", "agent": "🧱 模型搭建", "done": true },
+    { "id": 4, "title": "项目实战复盘", "desc": "输出可交付的项目总结", "agent": "🚀 综合应用", "done": false }
+  ],
+  "learnerPortrait": {
+    "dimensions": {
+      "知识掌握": { "value": 78, "trend": [42, 48, 55, 58, 63, 68, 72, 78] },
+      "认知风格": { "value": 72, "trend": [50, 52, 55, 58, 62, 65, 68, 72] },
+      "易错点": { "value": 55, "trend": [30, 32, 35, 38, 42, 45, 50, 55] },
+      "学习节奏": { "value": 75, "trend": [55, 58, 60, 62, 66, 68, 72, 75] },
+      "兴趣程度": { "value": 88, "trend": [60, 65, 70, 73, 78, 82, 85, 88] },
+      "代码能力": { "value": 65, "trend": [35, 40, 45, 50, 53, 58, 62, 65] }
+    },
+    "overallScore": 72,
+    "aiReview": { "overall": "B+", "level": "成长型学习者", "highlight": "你的兴趣维度 88 分，学习驱动力强", "weak": "易错点需专项强化", "next": "优先攻克 Attention 机制" },
+    "lastUpdated": "2026-07-19T15:30:00Z"
+  }
+}
+
 /* ───────────────── 预留的 Mock API（后续接后端时直接替换） ───────────────── */
 
 /* 模拟异步延迟（让 loading 动画有意义） */
@@ -86,13 +116,13 @@ function markAsOldUser(username) {
  * 生成一个看起来像 JWT 但其实是 Mock 的字符串
  * 真实接入时这里会被后端返回的 token 替代
  */
-function generateMockToken(username) {
+function generateMockToken(username, role = 'student') {
   const rand = Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
   const payload = btoa(unescape(encodeURIComponent(JSON.stringify({
     sub: username,
     iat: Date.now(),
     exp: Date.now() + TOKEN_TTL_MS,
-    role: 'student',
+    role,
   })))).replace(/=+$/, '')
   return `mock.${rand}.${payload}`
 }
@@ -109,36 +139,68 @@ function decodeMockToken(token) {
 }
 
 /**
- * Mock 登录接口
- * 入参：{ username, password }
- * 出参：{ code, message, data: { token, user, expiresAt } }
- *
- * ⚠️ 当前为 Mock：任何非空用户名 + 密码长度≥6 即返回成功
- * 真实接入时把函数体换成 fetch('/api/auth/login', ...) 即可
- * ⚠️ 后端端口提示：/api/auth/login 走 Vite /api 代理 → FastAPI 17077
+ * 登录接口 — 优先调用真实后端 API，失败时自动降级为 Mock
  */
 async function mockLoginApi({ username, password }) {
-  await sleep(800)
   if (!username || !password) {
     return { code: 400, message: '请输入用户名和密码', data: null }
   }
   if (password.length < 6) {
     return { code: 400, message: '密码至少 6 位', data: null }
   }
-  /* 触发「密码错误」分支：用户名=wrongdemo、密码=123456 → 触发演示用错误 */
+
+  // 尝试真实后端登录
+  try {
+    const res = await fetch('/api/users/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+    if (res.ok) {
+      const json = await res.json()
+      // 后端返回格式：{ id, username, name, role, access_token, ... } （平铺，无嵌套）
+      const userData = json.data?.user || json.user || json
+      return {
+        code: 200,
+        message: '登录成功',
+        data: {
+          token: json.access_token || json.data?.access_token || '',
+          expiresAt: Date.now() + TOKEN_TTL_MS,
+          user: {
+            username: userData.username || json.username || username,
+            name: userData.name || json.name || username,
+            role: userData.role || json.role || 'student',
+            studentId: userData.student_id || userData.studentId || '',
+            college: userData.college || '',
+            major: userData.major || '',
+            class_name: userData.class_name || '',
+          },
+        },
+      }
+    }
+    // 非 200 响应 → 降级到 Mock 模式（后端无此用户或未启动）
+    console.warn('[Auth] 后端登录失败，降级到 Mock 模式:', res.status)
+  } catch (_) {
+    // 后端不可用 → 降级为 Mock 模式
+  }
+
+  // Mock 降级：任何非空用户名 + 密码≥6 即成功
+  await sleep(500)
   if (username === 'wrongdemo') {
     return { code: 401, message: '用户名或密码错误', data: null }
   }
-  const token = generateMockToken(username)
+  const mockRole = username === 'admin' ? 'admin' : 'student'
+  const token = generateMockToken(username, mockRole)
   const expiresAt = Date.now() + TOKEN_TTL_MS
   return {
     code: 200,
-    message: '登录成功',
+    message: '登录成功（Mock 模式）',
     data: {
       token,
       user: {
         username,
         name: username === 'demo_user' ? '体验学员' : username,
+        role: username === 'admin' ? 'admin' : 'student',
         studentId: '2022105430066',
         college: '计算机与软件学院',
         major: '软件工程',
@@ -299,10 +361,19 @@ export function AuthProvider({ children }) {
       }
       /* 保留兼容：旧代码用 localStorage.isLoggedIn 判断登录态 */
       try { localStorage.setItem('isLoggedIn', 'true') } catch (_) {}
-      /* 判定新/老用户：首次登录的 username 视为新用户 → 弹 Welcome */
+      /* 演示账号：预置学习数据；其它账号：强制重置为空白 */
+      if (username === 'demo_user') {
+        try { localStorage.setItem('vf_learn_state_v2', JSON.stringify(DEMO_LEARN_STATE)) } catch (_) {}
+        try { window.__vf_resetLearnState?.() } catch (_) {}
+      } else {
+        try { localStorage.removeItem('vf_learn_state_v2') } catch (_) {}
+        try { localStorage.removeItem('vf_welcome_seen') } catch (_) {}
+        try { localStorage.removeItem('vf_new_users') } catch (_) {}
+        try { window.__vf_resetLearnState?.() } catch (_) {}
+      }
+      /* 判定新/老用户 */
       const isNewUser = checkIsNewUser(username)
       if (!isNewUser) {
-        /* 老用户：直接把 welcome seen 标记写上，避免后续被任何路径再次拦截 */
         try { localStorage.setItem('vf_welcome_seen', '1') } catch (_) {}
       }
       return {

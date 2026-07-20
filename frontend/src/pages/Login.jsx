@@ -19,7 +19,7 @@ export default function Login() {
 
   /* 进入页面时回填记住的用户名 + 处理「会话过期被踢回」的场景 */
   useEffect(() => {
-    const saved = localStorage.getItem('rememberUsername')
+    const saved = localStorage.getItem('vf_remember_username')
     if (saved) {
       setUsername(saved)
       setRememberMe(true)
@@ -51,7 +51,12 @@ export default function Login() {
    *  - 老用户 → 直接 /（不再弹 Welcome）
    *  - 新用户 → /welcome（一次性介绍页）
    */
-  const navigateAfterLogin = (isNewUser) => {
+  const navigateAfterLogin = (isNewUser, userRole) => {
+    // 管理员登录后直接跳转管理端
+    if (userRole === 'admin' || userRole === '管理员') {
+      setTimeout(() => navigate('/admin', { replace: true }), 300)
+      return
+    }
     if (isNewUser) {
       navigate('/welcome', { replace: true })
     } else {
@@ -75,10 +80,11 @@ export default function Login() {
         isNewUser ? '欢迎首次来到 Vision-Forge 🎉' : '登录成功，欢迎回来 👋',
         'success', 1800
       )
+      const userRole = resp.data?.user?.role || ''
       setUser(resp.data.user)
-      /* 短暂延迟让 success toast 出现再跳转，体验更顺 */
+      /* 管理员跳转管理端，普通用户正常跳转 */
       setTimeout(() => {
-        navigateAfterLogin(isNewUser)
+        navigateAfterLogin(isNewUser, userRole)
       }, 500)
     } else {
       showToast(resp.message || '登录失败', 'error', 2800)
@@ -440,7 +446,7 @@ export default function Login() {
             )}
           </div>
 
-          {/* 记住我 + 忘记密码 */}
+          {/* 记住我 + 忘记密码 + 管理员入口 */}
           <div
             style={{
               display: 'flex',
@@ -468,19 +474,34 @@ export default function Login() {
               />
               记住登录
             </label>
-            <Link
-              to="/forgot-password"
-              style={{
-                fontSize: 12,
-                color: '#3b82f6',
-                textDecoration: 'none',
-                fontWeight: 500,
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#1d4ed8'}
-              onMouseLeave={(e) => e.currentTarget.style.color = '#3b82f6'}
-            >
-              忘记密码？
-            </Link>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <Link
+                to="/admin"
+                style={{
+                  fontSize: 12,
+                  color: '#8b5cf6',
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#7c3aed'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#8b5cf6'}
+              >
+                🛡️ 管理员入口
+              </Link>
+              <Link
+                to="/forgot-password"
+                style={{
+                  fontSize: 12,
+                  color: '#3b82f6',
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#1d4ed8'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#3b82f6'}
+              >
+                忘记密码？
+              </Link>
+            </div>
           </div>
 
           {/* 登录按钮 */}

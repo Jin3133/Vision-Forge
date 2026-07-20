@@ -22,7 +22,11 @@ from agents.base_agent import AgentBase
 from agents.chat_agent import ChatAgent
 from core.state import TaskState
 from services.api.v1.learning_materials import router as learning_materials_router
+from services.api.v1.user import router as user_router
+from services.api.v1.admin import router as admin_router
 from services.models.learning_material import LearningMaterial  # 确保 Base.metadata 注册该表
+from services.models.user import User  # 确保 Base.metadata 注册用户表
+from services.models.module_usage_logs import AgentUsageLog  # 确保 Base.metadata 注册日志表
 
 # 初始化 FastAPI 应用
 app = FastAPI(title="Vision-Forge API", description="视觉大模型多智能体教研平台")
@@ -47,11 +51,41 @@ if _has_static:
 # 注册学习讲义 API 路由
 app.include_router(learning_materials_router)
 
-# 启动时自动建表（SQLAlchemy create_all 幂等，不会重复创建）
+# 注册用户管理 API 路由（登录/注册/角色管理）
+app.include_router(user_router, prefix="/api/users")
+app.include_router(admin_router)
+
+# 启动时自动建表 + 创建默认管理员账号
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
-    logger.info("✅ 数据库表已就绪（含 learning_materials）")
+    logger.info("✅ 数据库表已就绪")
+
+    # 创建默认管理员账号（如不存在）
+    from services.models.user import User
+    from services.biz_logic.auth import hash_password
+    from core.database import SessionLocal
+    db = SessionLocal()
+    try:
+        admin = db.query(User).filter(User.username == "admin").first()
+        if not admin:
+            admin_user = User(
+                username="admin",
+                password=hash_password("admin123"),
+                name="系统管理员",
+                role="admin",
+                class_name="",
+            )
+            db.add(admin_user)
+            db.commit()
+            logger.info("🔐 默认管理员账号已创建 — 用户名: admin | 密码: admin123")
+        else:
+            logger.info(f"🔐 管理员账号已存在 — 用户名: {admin.username}")
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"⚠️ 默认管理员创建跳过: {e}")
+    finally:
+        db.close()
 
 
 # ==================== 请求体数据模型 ====================
@@ -184,11 +218,15 @@ async def chat_with_agents(request: ChatRequest):
 
             threading.Thread(target=run_pipeline, daemon=True).start()
 
-        # 从队列读取事件并输出为 SSE
+        # 从队列读取事件并输出为 SSE（带超时保护）
         while True:
-            event = await queue.get()
-            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-            if event.get("event") in ("done", "error"):
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=120.0)  # 2 分钟超时
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                if event.get("event") in ("done", "error"):
+                    break
+            except asyncio.TimeoutError:
+                yield f"data: {json.dumps({'event': 'error', 'message': '请求超时，请重试', 'agent': 'system'}, ensure_ascii=False)}\n\n"
                 break
 
     return StreamingResponse(
@@ -436,6 +474,15 @@ def get_session_state(session_id: str):
     return {"status": "success", "data": state.model_dump()}
 
 # ==================== 接口 4：健康检查 / SPA 前端托管 ====================
+@app.post("/api/cancel/{session_id}")
+def cancel_session(session_id: str):
+    """取消指定会话的智能体执行。"""
+    from agents.base_agent import AgentBase
+    AgentBase.cancel_session(session_id)
+    logger.info(f"🛑 [API] 会话 {session_id} 取消信号已发送")
+    return {"status": "cancelled", "session_id": session_id}
+
+
 @app.get("/api/health")
 def health_check():
     return {"status": "Vision-Forge API is perfectly running!"}

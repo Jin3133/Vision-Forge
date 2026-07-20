@@ -115,31 +115,35 @@ def dispatch_agent(session_id: str, user_intent: str,
         return state.model_dump()
 
     # ============================================================
-    # 情况 2：场景探索（explore）→ Architect 启动苏格拉底引导
+    # 情况 2：场景探索（explore）→ Architect 单轮引导
     # ============================================================
     if intent_type == "explore":
         emit({"event": "stage", "agent": "architect", "status": "running"})
         try:
-            # 全新探索：先手动清空内存中的旧评估残留（dict merge 无法清空）
             state = state_manager.get_state(session_id)
-            state.evaluation_results = {}
-            # 重置苏格拉底状态
-            state_manager.update_state(session_id, {
-                "user_intent": user_intent,
-                "socratic_state": "idle",
-                "socratic_turn": 0,
-                "socratic_track": {},
-                "current_step": "architect_stage",
-            })
-            delta = architect.run(state_manager.get_state(session_id))
+            # 如果已经在苏格拉底对话中，续接当前对话
+            if state.socratic_state == "probing" and state.socratic_history:
+                state.socratic_history[-1]["answer"] = user_intent
+                state_manager.update_state(session_id, {"current_step": "socratic_stage"})
+                delta = architect.run(state_manager.get_state(session_id))
+            else:
+                # 新探索：启动单轮引导（不强制多轮苏格拉底）
+                state.evaluation_results = {}
+                state_manager.update_state(session_id, {
+                    "user_intent": user_intent,
+                    "socratic_state": "idle",
+                    "socratic_turn": 0,
+                    "socratic_track": {},
+                    "current_step": "architect_stage",
+                })
+                delta = architect.run(state_manager.get_state(session_id))
             state_manager.update_state(session_id, delta)
             emit({"event": "stage", "agent": "architect", "status": "done"})
-            new_state = state_manager.get_state(session_id)
             _emit_content(emit, delta)
-            return new_state.model_dump()
+            return state_manager.get_state(session_id).model_dump()
         except Exception as e:
-            logger.error(f"💥 Architect 探索启动失败: {e}")
-            emit({"event": "error", "message": str(e), "agent": "architect"})
+            logger.error(f"💥 Architect 探索执行失败: {e}")
+            emit({"event": "error", "message": f"智能体执行异常: {str(e)}", "agent": "architect"})
             return state.model_dump()
 
     # ============================================================
@@ -196,8 +200,18 @@ def dispatch_agent(session_id: str, user_intent: str,
             return state.model_dump()
 
     # ============================================================
-    # 情况 5：兜底 → 返回当前状态
+    # 情况 5：兜底 → ChatAgent 作为通用回复
     # ============================================================
-    logger.info(f"🎯 [Dispatch] 无匹配调度规则，返回当前状态")
-    _emit_content(emit, {})  # 兜底：无新内容
-    return state.model_dump()
+    logger.info(f"🎯 [Dispatch] 无匹配调度规则，使用 ChatAgent 兜底")
+    from agents.chat_agent import ChatAgent
+    emit({"event": "stage", "agent": "chat", "status": "running"})
+    try:
+        chat = ChatAgent()
+        delta = chat.run(state)
+        emit({"event": "stage", "agent": "chat", "status": "done"})
+        emit({"event": "content", "type": "chat", "text": delta.get("evaluation_results", {}).get("tutor_response", "你好！我是 Vision-Forge AI 助手，有什么可以帮你的？")})
+        return state.model_dump()
+    except Exception as e:
+        logger.error(f"💥 兜底 ChatAgent 失败: {e}")
+        emit({"event": "content", "type": "chat", "text": "抱歉，我暂时无法处理你的请求。请尝试更具体地描述你的学习需求。"})
+        return state.model_dump()

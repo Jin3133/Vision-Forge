@@ -1,31 +1,31 @@
-import React from 'react'
+import React, { useMemo } from 'react'
+import { useLearn } from '../../LearnContext.jsx'
 
-/* 学习统计卡片（5 项：连续学习 / 学习时长 / 完成知识点 / 练习正确率 / AI 生成资源数）
-   风格：蓝白科技风 + 渐变悬浮 */
-const STATS = [
-  {
-    key: 'streak', icon: '🔥', label: '连续学习', value: 14, suffix: '天',
-    hint: '距 7 天里程碑 +1', color: '#f97316', bg: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
-  },
-  {
-    key: 'hours', icon: '⏱️', label: '累计学习时长', value: 86, suffix: 'h',
-    hint: '本周 +12.5h', color: '#3b82f6', bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-  },
-  {
-    key: 'topics', icon: '🎯', label: '完成知识点', value: 42, suffix: '个',
-    hint: '总进度 68%', color: '#10b981', bg: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
-  },
-  {
-    key: 'accuracy', icon: '🎯', label: '练习正确率', value: 78, suffix: '%',
-    hint: '近 30 天均值', color: '#a855f7', bg: 'linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)',
-  },
-  {
-    key: 'ai', icon: '🤖', label: 'AI 生成资源', value: 23, suffix: '份',
-    hint: '讲义 / 习题 / 实验', color: '#06b6d4', bg: 'linear-gradient(135deg, #ecfeff 0%, #cffafe 100%)',
-  },
-]
-
+/* 学习统计卡片（5 项：综合评分 / 知识掌握 / 代码能力 / 易错点 / 学习节奏）
+   数据来源：LearnContext.learnerPortrait */
 export default function LearningStats() {
+  const learn = useLearn()
+  const portrait = learn.learnerPortrait || { dimensions: {}, overallScore: 0 }
+  const dims = portrait.dimensions || {}
+
+  const stats = useMemo(() => {
+    const knowledgeVal = dims['知识掌握']?.value ?? 0
+    const codingVal = dims['代码能力']?.value ?? 0
+    const pitfallVal = dims['易错点']?.value ?? 0
+    const paceVal = dims['学习节奏']?.value ?? 0
+    const interestVal = dims['兴趣程度']?.value ?? 0
+
+    return [
+      { key: 'overall', icon: '🎯', label: '综合评分', value: portrait.overallScore || Math.round(
+        Object.values(dims).reduce((s, d) => s + (d.value || 0), 0) / Math.max(1, Object.keys(dims).length)
+      ), suffix: '分', hint: '6 维平均', color: '#3b82f6', bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' },
+      { key: 'knowledge', icon: '📚', label: '知识掌握', value: knowledgeVal, suffix: '分', hint: '概念理解', color: '#3b82f6', bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' },
+      { key: 'coding', icon: '💻', label: '代码能力', value: codingVal, suffix: '分', hint: '工程实践', color: '#06b6d4', bg: 'linear-gradient(135deg, #ecfeff 0%, #cffafe 100%)' },
+      { key: 'pace', icon: '⏱️', label: '学习节奏', value: paceVal, suffix: '分', hint: `${learn.learningPace || 0}h/周`, color: '#eab308', bg: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)' },
+      { key: 'interest', icon: '⭐', label: '兴趣程度', value: interestVal, suffix: '分', hint: '内驱力指标', color: '#a855f7', bg: 'linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)' },
+    ]
+  }, [portrait.overallScore, dims, learn.learningPace])
+
   return (
     <div style={{
       background: '#fff', borderRadius: 12, padding: 20,
@@ -36,10 +36,10 @@ export default function LearningStats() {
         <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: 0 }}>
           📊 学习统计
         </h3>
-        <span style={{ fontSize: 12, color: '#94a3b8' }}>近 30 天汇总</span>
+        <span style={{ fontSize: 12, color: '#94a3b8' }}>6 维画像关键指标</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-        {STATS.map((s) => (
+        {stats.map((s) => (
           <div
             key={s.key}
             style={{

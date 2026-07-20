@@ -66,24 +66,17 @@ const DEFAULT_STATE = {
   topic: '',
   stage: '',
   knowledgeLevel: '初级',
-  knowledgeMap: {
-    'SAM': 30,
-    'YOLO': 15,
-    'Mask2Former': 5,
-    'UNet': 25,
-    'ViT': 40,
-    'Transformer': 50,
-    'ResNet': 60,
-    'CNN': 70,
-    'DINO': 10,
-    'LoRA': 20,
-    'Adapter': 15,
-    'Attention': 55,
-  },
-  weakTopics: ['Attention 参数理解'],
-  masteredTopics: ['CNN 基础', 'ResNet'],
+  knowledgeMap: {},
+  weakTopics: [],
+  masteredTopics: [],
   lastModelFeedback: null,
-  learningPace: 4.5,
+  learningPace: 0,
+  learnerPortrait: {
+    dimensions: {},
+    overallScore: 0,
+    aiReview: { highlight: '', weak: '', next: '', overall: '', level: '' },
+    lastUpdated: null,
+  },
 }
 
 function loadInitial() {
@@ -128,7 +121,17 @@ export function LearnProvider({ children }) {
   }, [])
 
   const resetOnboarding = useCallback(() => {
-    setState(DEFAULT_STATE)
+    try { localStorage.removeItem(STORAGE_KEY) } catch (_) {}
+    setState({ ...DEFAULT_STATE, stagesVersion: STAGES_VERSION })
+  }, [])
+
+  // 暴露全局重置函数，供 AuthContext 调用
+  useEffect(() => {
+    window.__vf_resetLearnState = () => {
+      try { localStorage.removeItem(STORAGE_KEY) } catch (_) {}
+      setState({ ...DEFAULT_STATE, stagesVersion: STAGES_VERSION })
+    }
+    return () => { delete window.__vf_resetLearnState }
   }, [])
 
   /* ── 推进主线阶段 ── */
@@ -207,6 +210,86 @@ export function LearnProvider({ children }) {
     })
   }, [])
 
+  /* ── 6 维学习画像 ── */
+  const updateLearnerPortrait = useCallback((portraitData) => {
+    setState(s => ({
+      ...s,
+      learnerPortrait: {
+        ...s.learnerPortrait,
+        ...portraitData,
+        dimensions: {
+          ...s.learnerPortrait.dimensions,
+          ...(portraitData.dimensions || {}),
+        },
+        lastUpdated: new Date().toISOString(),
+      },
+    }))
+  }, [])
+
+  const computePortraitFromAnswers = useCallback((answers) => {
+    // 从 6 问答案计算 6 维能力数值（前端规则引擎）
+    const dims = { ...DEFAULT_STATE.learnerPortrait.dimensions }
+
+    // 问1: 领域了解程度 → 知识掌握
+    const q1 = answers[0] || ''
+    if (q1.includes('深入') || q1.includes('较深入')) dims['知识掌握'].value = 85
+    else if (q1.includes('基础') || q1.includes('有基础')) dims['知识掌握'].value = 65
+    else dims['知识掌握'].value = 35
+
+    // 问2: 学习方式偏好 → 认知风格
+    const q2 = answers[1] || ''
+    if (q2.includes('动手实践') || q2.includes('实践')) dims['认知风格'].value = 80
+    else if (q2.includes('读论文')) dims['认知风格'].value = 70
+    else if (q2.includes('听课')) dims['认知风格'].value = 60
+    else dims['认知风格'].value = 55
+
+    // 问3: 框架熟练度 → 代码能力
+    const q3 = answers[2] || ''
+    if (q3.includes('熟练') || q3.includes('非常')) dims['代码能力'].value = 85
+    else if (q3.includes('一般') || q3.includes('基本')) dims['代码能力'].value = 60
+    else dims['代码能力'].value = 30
+
+    // 问4: Attention 理解 → 计算易错点（反向）
+    const q4 = answers[3] || ''
+    if (q4.includes('深入') || q4.includes('非常')) dims['易错点'].value = 80  // 理解深 → 易错少
+    else if (q4.includes('基本') || q4.includes('了解')) dims['易错点'].value = 50
+    else dims['易错点'].value = 30
+
+    // 问5: 每周学习时长 → 学习节奏
+    const q5 = answers[4] || ''
+    const hours = parseInt(q5.match(/\d+/)?.[0]) || 5
+    dims['学习节奏'].value = Math.min(100, hours * 8)
+
+    // 问6: 想掌握的技能 → 兴趣程度
+    const q6 = answers[5] || ''
+    if (q6.length > 10) dims['兴趣程度'].value = 85
+    else dims['兴趣程度'].value = 70
+
+    // 更新趋势：将当前值追加到趋势数组
+    Object.keys(dims).forEach(key => {
+      dims[key].trend = [...(dims[key].trend || []).slice(-7), dims[key].value]
+    })
+
+    const overallScore = Math.round(
+      Object.values(dims).reduce((s, d) => s + d.value, 0) / Object.keys(dims).length
+    )
+
+    const portraitData = {
+      dimensions: dims,
+      overallScore,
+      aiReview: {
+        overall: overallScore >= 80 ? 'A' : overallScore >= 60 ? 'B+' : 'B',
+        level: overallScore >= 80 ? '进阶学习者' : '成长型学习者',
+        highlight: `评估完成！你的综合学习画像得分为 ${overallScore} 分。`,
+        weak: `建议关注得分较低的维度（<60分），针对性提升。`,
+        next: '继续在模型工坊中实践，学习画像会随学习进度动态更新。',
+      },
+    }
+
+    updateLearnerPortrait(portraitData)
+    return portraitData
+  }, [updateLearnerPortrait])
+
   /* ── 共享黑板（Task_State.json 前端镜像，美化展示） ── */
   const blackboard = {
     CurrentTopic: state.topic,
@@ -229,6 +312,8 @@ export function LearnProvider({ children }) {
       setCurrentStageByTitle,
       updateKnowledge,
       submitModelFeedback,
+      updateLearnerPortrait,
+      computePortraitFromAnswers,
     }}>
       {children}
     </LearnContext.Provider>

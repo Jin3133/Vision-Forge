@@ -9,6 +9,7 @@ BenchmarkService — 结构化消融实验基准数据服务
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from core.logger import logger
@@ -37,7 +38,10 @@ class BenchmarkService:
     def _load_all(self):
         """加载所有消融实验 JSON。"""
         current_dir = Path(__file__).resolve().parent
-        data_dir = current_dir.parent.parent / "assets" / "experiment_results"
+        if getattr(sys, 'frozen', False):
+            data_dir = Path(sys._MEIPASS) / "assets" / "experiment_results"
+        else:
+            data_dir = current_dir.parent.parent / "assets" / "experiment_results"
         if not data_dir.exists():
             logger.warning(f"[BenchmarkService] 数据目录不存在: {data_dir}")
             return

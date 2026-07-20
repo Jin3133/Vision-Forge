@@ -73,7 +73,6 @@ class RagService:
 
         try:
             import chromadb
-            from chromadb.config import Settings as ChromaSettings
 
             persist_dir = settings.CHROMA_PERSIST_DIR
             collection_name = settings.CHROMA_COLLECTION
@@ -81,11 +80,8 @@ class RagService:
             # 如果持久化目录不存在则创建
             os.makedirs(persist_dir, exist_ok=True)
 
-            self._chroma_client = chromadb.Client(ChromaSettings(
-                chroma_db_impl="duckdb+parquet",
-                persist_directory=persist_dir,
-                anonymized_telemetry=False
-            ))
+            # ChromaDB 0.4+ API：使用 PersistentClient
+            self._chroma_client = chromadb.PersistentClient(path=persist_dir)
 
             # 获取或创建集合
             self._chroma_collection = self._chroma_client.get_or_create_collection(

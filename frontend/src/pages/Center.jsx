@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
@@ -8,26 +8,24 @@ import {
 import LearningStats from '../components/learn/LearningStats.jsx';
 import AbilityDelta from '../components/learn/AbilityDelta.jsx';
 import MapTab from '../components/learn/MapTab.jsx';
+import { useLearn } from '../LearnContext.jsx';
 
 /* ════════════════════════════════════════════════════════════
    PortraitTech —— 六维学习画像（科技感）
    6 模块：① 雷达图  ② 综合评分  ③ 成长趋势  ④ 历史变化
          ⑤ 学习统计  ⑥ 能力变化  ⑦ AI 评价
-   全部只回答「我是怎样的学习者？」—— 不放学习路线 / 知识树。
+   数据来源：LearnContext.learnerPortrait（由 Home 6 问评估驱动）。
    ════════════════════════════════════════════════════════════ */
 
-// 6 维维度数据（含 Mock 历史曲线）
-const PT_DIMS = [
-  { key: '知识掌握', en: 'Knowledge',     value: 75, color: '#3b82f6', icon: '📚', trend: [42, 48, 55, 58, 63, 68, 72, 75] },
-  { key: '认知风格', en: 'Cognition',     value: 68, color: '#22c55e', icon: '🧠', trend: [50, 52, 55, 58, 60, 63, 65, 68] },
-  { key: '易错点',   en: 'Pitfalls',      value: 45, color: '#ef4444', icon: '⚠️', trend: [30, 32, 35, 36, 38, 40, 43, 45] },
-  { key: '学习节奏', en: 'Pace',          value: 70, color: '#eab308', icon: '⏱️', trend: [55, 58, 60, 62, 64, 66, 68, 70] },
-  { key: '兴趣程度', en: 'Interest',      value: 85, color: '#a855f7', icon: '⭐', trend: [60, 65, 70, 73, 76, 79, 82, 85] },
-  { key: '代码能力', en: 'Coding',        value: 62, color: '#06b6d4', icon: '💻', trend: [35, 40, 45, 50, 53, 57, 60, 62] },
-]
-
-// 维度解释（Mock）
-const PT_DIM_DESC = {
+const DIM_COLORS = {
+  '知识掌握': '#3b82f6', '认知风格': '#22c55e', '易错点': '#ef4444',
+  '学习节奏': '#eab308', '兴趣程度': '#a855f7', '代码能力': '#06b6d4',
+}
+const DIM_ICONS = {
+  '知识掌握': '📚', '认知风格': '🧠', '易错点': '⚠️',
+  '学习节奏': '⏱️', '兴趣程度': '⭐', '代码能力': '💻',
+}
+const DIM_DESC = {
   '知识掌握': '对核心概念、原理性知识的吸收与再现能力。得分越高说明你在该领域的理论基础越扎实。',
   '认知风格': '面对新知识时的信息加工偏好（理论型 / 实践型 / 视觉型）。识别你的偏好能定制更高效的学习路径。',
   '易错点':   '在常见陷阱、典型错误上的暴露频率。得分越低说明盲区越多，需要专项强化训练。',
@@ -35,39 +33,6 @@ const PT_DIM_DESC = {
   '兴趣程度': '对当前主题的好奇心、主动探索意愿与内在驱动力。兴趣是最好的学习燃料。',
   '代码能力': '独立编写、调试、阅读代码的综合能力。深度学习最终要落到代码与工程实践上。',
 }
-
-// AI 综合评价（亮点 / 短板 / 建议）
-const PT_AI_REVIEW = {
-  overall: 'B+',
-  level: '成长型学习者',
-  levelColor: '#0ea5e9',
-  highlight: {
-    label: '亮点',
-    icon: '✨',
-    color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe',
-    text: '你的兴趣维度 85 分，全维 Top 1。说明你对本领域有强烈的内驱力——这是稀缺的、也是后续学习最重要的燃料。',
-  },
-  weak: {
-    label: '短板',
-    icon: '⚠️',
-    color: '#ef4444', bg: '#fef2f2', border: '#fecaca',
-    text: '易错点维度仅 45 分，是当前最大瓶颈。常见错误反复出现，缺少专项错题复盘机制。',
-  },
-  next: {
-    label: '成长建议',
-    icon: '🎯',
-    color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0',
-    text: '下一阶段优先攻克 Attention；同步在「学习地图」开启 SAM 项目实践。预计 2 周内易错点 +10、代码能力 +8。',
-  },
-}
-
-// 历史变化（Mock · 近 8 周每周均值）
-const PT_HISTORY = Array.from({ length: 8 }, (_, w) => {
-  const point = { week: `W${w + 1}` }
-  PT_DIMS.forEach(d => { point[d.key] = d.trend[w] })
-  point['均值'] = Math.round(PT_DIMS.reduce((s, d) => s + d.trend[w], 0) / PT_DIMS.length)
-  return point
-})
 
 // 学习画像 —— 与项目其它页面统一的卡片样式
 const PT_CARD = {
@@ -80,10 +45,57 @@ const PT_CARD = {
 
 function PortraitTech() {
   const navigate = useNavigate()
-  const heroDim = PT_DIMS[0]
-  const overallNow = Math.round(PT_DIMS.reduce((s, d) => s + d.value, 0) / PT_DIMS.length)
-  const overallPrev = Math.round(PT_DIMS.reduce((s, d) => s + d.trend[d.trend.length - 2], 0) / PT_DIMS.length)
+  const learn = useLearn()
+  const portrait = learn.learnerPortrait || { dimensions: {}, aiReview: {}, overallScore: 0 }
+
+  // 从 LearnContext 构建维度数据
+  const dims = useMemo(() => {
+    return Object.entries(portrait.dimensions || {}).map(([key, d]) => ({
+      key, value: d.value || 0, color: DIM_COLORS[key] || '#3b82f6',
+      icon: DIM_ICONS[key] || '📊', trend: d.trend || [], description: d.description || DIM_DESC[key] || '',
+    }))
+  }, [portrait.dimensions])
+
+  const heroDim = dims[0] || { key: '知识掌握', value: 0, color: '#3b82f6', icon: '📚' }
+  const overallNow = portrait.overallScore || Math.round(dims.reduce((s, d) => s + d.value, 0) / Math.max(1, dims.length))
+  const overallPrev = dims.length > 0 ? Math.round(dims.reduce((s, d) => s + (d.trend.length >= 2 ? d.trend[d.trend.length - 2] : d.value), 0) / dims.length) : overallNow
   const overallDelta = overallNow - overallPrev
+
+  // 历史变化 - 从 trend 数组构建
+  const ptHistory = useMemo(() => {
+    if (dims.length === 0) return []
+    const maxLen = Math.max(...dims.map(d => d.trend.length), 0)
+    return Array.from({ length: maxLen }, (_, w) => {
+      const point = { week: `W${w + 1}` }
+      dims.forEach(d => { point[d.key] = d.trend[w] ?? null })
+      const valid = Object.values(point).filter(v => typeof v === 'number')
+      point['均值'] = valid.length > 0 ? Math.round(valid.reduce((s, v) => s + v, 0) / valid.length) : 0
+      return point
+    })
+  }, [dims])
+
+  // AI 评价 - 从 portrait 数据动态生成
+  const aiReview = useMemo(() => {
+    const sorted = [...dims].sort((a, b) => b.value - a.value)
+    const top = sorted[0]
+    const bottom = sorted[sorted.length - 1]
+    return {
+      overall: portrait.aiReview?.overall || (overallNow >= 80 ? 'A' : overallNow >= 60 ? 'B+' : 'B'),
+      level: portrait.aiReview?.level || (overallNow >= 80 ? '进阶学习者' : '成长型学习者'),
+      highlight: {
+        label: '亮点', icon: '✨', color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe',
+        text: portrait.aiReview?.highlight || (top ? `${top.key}维度 ${top.value} 分，是你当前最强的能力维度。继续保持！` : ''),
+      },
+      weak: {
+        label: '短板', icon: '⚠️', color: '#ef4444', bg: '#fef2f2', border: '#fecaca',
+        text: portrait.aiReview?.weak || (bottom ? `${bottom.key}维度仅 ${bottom.value} 分，是当前最大瓶颈，建议重点攻克。` : ''),
+      },
+      next: {
+        label: '成长建议', icon: '🎯', color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0',
+        text: portrait.aiReview?.next || '继续在首页完成 6 问评估，获取更准确的画像数据和个性化建议。',
+      },
+    }
+  }, [dims, overallNow, portrait.aiReview])
 
   const sectionTitle = {
     fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 14px',
@@ -98,7 +110,7 @@ function PortraitTech() {
         <div style={PT_CARD}>
           <h3 style={sectionTitle}>🎯 六维能力雷达</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <RadarChart data={PT_DIMS.map(d => ({ subject: d.key, A: d.value, fullMark: 100 }))}>
+            <RadarChart data={dims.map(d => ({ subject: d.key, A: d.value, fullMark: 100 }))}>
               <PolarGrid stroke="#e2e8f0" />
               <PolarAngleAxis dataKey="subject" tick={{ fontSize: 12, fill: '#475569' }} />
               <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} stroke="#e2e8f0" />
@@ -122,12 +134,12 @@ function PortraitTech() {
             </span>
           </div>
           <div style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>
-            等级 <strong style={{ color: '#3b82f6' }}>{PT_AI_REVIEW.level}</strong>
+            等级 <strong style={{ color: '#3b82f6' }}>{aiReview.level}</strong>
           </div>
 
           {/* 6 维迷你条 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {PT_DIMS.map(d => (
+            {dims.map(d => (
               <div key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 14, width: 18 }}>{d.icon}</span>
                 <span style={{ color: '#475569', fontSize: 12, width: 56 }}>{d.key}</span>
@@ -191,13 +203,13 @@ function PortraitTech() {
             <span style={{ fontSize: 12, color: '#94a3b8' }}>近 8 周</span>
           </div>
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={PT_HISTORY}>
+            <LineChart data={ptHistory}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} />
               <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 12, paddingTop: 6 }} iconType="circle" />
-              {PT_DIMS.map(d => (
+              {dims.map(d => (
                 <Line key={d.key} type="monotone" dataKey={d.key} stroke={d.color} strokeWidth={2} dot={{ r: 2 }} />
               ))}
             </LineChart>
@@ -232,9 +244,9 @@ function PortraitTech() {
           }}>基于近 30 天学习数据</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
-          <ReviewItem {...PT_AI_REVIEW.highlight} />
-          <ReviewItem {...PT_AI_REVIEW.weak} />
-          <ReviewItem {...PT_AI_REVIEW.next} onClick={() => navigate('/center?tab=map')} />
+          <ReviewItem {...aiReview.highlight} />
+          <ReviewItem {...aiReview.weak} />
+          <ReviewItem {...aiReview.next} onClick={() => navigate('/center?tab=map')} />
         </div>
       </div>
     </div>
@@ -297,7 +309,7 @@ export default function Center() {
     }
   }, [urlTab, navigate]);
 
-  /* 6 维画像由后端 AI 智能体（学情评估 Agent）统一计算驱动 */
+  /* 6 维画像数据来源于 LearnContext.learnerPortrait（由 Home 页 6 问评估 + 学习数据动态驱动） */
 
   return (
     <div style={{ padding: '8px 16px 16px', maxWidth: 1200, margin: '0 auto' }}>

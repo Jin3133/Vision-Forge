@@ -1,1616 +1,555 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useLearn } from '../LearnContext.jsx'
-
 import { useToasts, ToastStack } from '../components/resources/Toast'
-import { ResourceCardSkeleton, ResourceGridSkeleton, ModuleContentSkeleton } from '../components/resources/Skeleton'
-import { EmptyState } from '../components/resources/EmptyState'
-import { MarkdownPreview } from '../components/resources/MarkdownPreview'
-import { ShareModal } from '../components/resources/ShareModal'
-import { PdfPreviewModal } from '../components/resources/PdfPreviewModal'
-import { fetchFavorites, toggleFavorite, isFavorited } from '../api/favorites.js'
-import { fetchLearningMaterials, generateLearningMaterial } from '../api.js'
+import { fetchLearningMaterials, generateLearningMaterial, generateLearningMaterialsBatch, fetchLearningMaterialById } from '../api.js'
 
-// ==================== 预设资源数据 ====================
-const defaultResources = [
-  { id: 1, title: 'SAM模型从入门到实战', cate: 'cv', progress: 20, collect: false, desc: '从零掌握视觉分割模型', author: '算法教研智能体', time: '4.5小时', type: '讲义', emoji: '📚', gradient: 'linear-gradient(135deg,#3b82f6,#60a5fa)' },
-  { id: 2, title: '计算机视觉思维导图', cate: 'cv', progress: 0, collect: false, desc: '知识体系全景图', author: '资源生成智能体', time: '1小时', type: '思维导图', emoji: '🗺️', gradient: 'linear-gradient(135deg,#8b5cf6,#a78bfa)' },
-  { id: 3, title: 'PyTorch深度学习基础', cate: 'code', progress: 50, collect: true, desc: '深度学习框架快速入门', author: '算法教研智能体', time: '6小时', type: '实操案例', emoji: '💻', gradient: 'linear-gradient(135deg,#10b981,#34d399)' },
-  { id: 4, title: '注意力机制详解', cate: 'theory', progress: 80, collect: true, desc: '模型核心原理解析', author: '算法教研智能体', time: '2.5小时', type: '讲义', emoji: '📖', gradient: 'linear-gradient(135deg,#3b82f6,#2563eb)' },
-  { id: 5, title: '遥感图像分割实战', cate: 'project', progress: 0, collect: false, desc: '行业案例手把手教学', author: '架构引导智能体', time: '3小时', type: '实操案例', emoji: '🚀', gradient: 'linear-gradient(135deg,#f59e0b,#fbbf24)' },
-  { id: 6, title: 'SAM模型练习题集', cate: 'quiz', progress: 0, collect: false, desc: '巩固知识点', author: '学情评估智能体', time: '1.5小时', type: '练习题', emoji: '📝', gradient: 'linear-gradient(135deg,#ef4444,#f87171)' },
-  { id: 7, title: 'Transformer拓展阅读', cate: 'theory', progress: 0, collect: false, desc: '经典论文与最新进展', author: '算法教研智能体', time: '2小时', type: '拓展阅读', emoji: '📰', gradient: 'linear-gradient(135deg,#06b6d4,#22d3ee)' },
-  { id: 8, title: '图像分割PPT大纲', cate: 'cv', progress: 0, collect: false, desc: '课件结构一键生成', author: '资源生成智能体', time: '30分钟', type: 'PPT大纲', emoji: '📊', gradient: 'linear-gradient(135deg,#ec4899,#f472b6)' },
+/* ══════════════ 演示资源数据 ══════════════ */
+const DEMO_RESOURCES = [
+  { id: 1, title: 'SAM模型从入门到实战', type: '讲义', emoji: '📚', color: '#3b82f6', bg: '#eff6ff', desc: '从零掌握视觉分割模型 SAM 的核心架构与微调方法', author: 'Architect 智能体', time: '4.5小时', icon: '📖' },
+  { id: 2, title: '计算机视觉知识思维导图', type: '思维导图', emoji: '🗺️', color: '#a855f7', bg: '#faf5ff', desc: 'Backbone/Neck/Head 全架构知识图谱一图掌握', author: 'Tutor 智能体', time: '2小时', icon: '🧠' },
+  { id: 3, title: 'SAM 模型练习题集', type: '练习题', emoji: '📝', color: '#22c55e', bg: '#f0fdf4', desc: '12道选择题+3道简答+2道编程实战题', author: 'Evaluator 智能体', time: '3小时', icon: '✏️' },
+  { id: 4, title: '图像分割教学PPT大纲', type: 'PPT大纲', emoji: '📊', color: '#f59e0b', bg: '#fffbeb', desc: '15页结构化幻灯片，覆盖从CNN到Transformer的分割演进', author: 'Generator 智能体', time: '1.5小时', icon: '📑' },
+  { id: 5, title: 'Attention 机制拓展阅读', type: '拓展阅读', emoji: '📄', color: '#ef4444', bg: '#fef2f2', desc: '5篇必读论文 + 阅读指南 + 思考题', author: 'Tutor 智能体', time: '6小时', icon: '📰' },
+  { id: 6, title: 'PyTorch 遥感图像分割实战', type: '实操案例', emoji: '💻', color: '#06b6d4', bg: '#ecfeff', desc: '环境配置→数据预处理→模型训练→结果分析完整流程', author: 'Generator 智能体', time: '8小时', icon: '🔬' },
+  { id: 7, title: 'YOLO 检测管线详解', type: '讲义', emoji: '📚', color: '#8b5cf6', bg: '#f5f3ff', desc: 'ResNet50+PAN+YOLO Head 完整检测管线解析', author: 'Architect 智能体', time: '5小时', icon: '📖' },
+  { id: 8, title: 'ViT 与 Transformer 架构精讲', type: '讲义', emoji: '📚', color: '#ec4899', bg: '#fdf2f8', desc: '从 Self-Attention 到 Vision Transformer 全面剖析', author: 'Tutor 智能体', time: '6小时', icon: '📖' },
 ]
 
-const cateMap = {
-  all: '全部',
-  cv: '计算机视觉',
-  code: '编程开发',
-  theory: '理论基础',
-  project: '项目实战',
-  quiz: '练习题',
-}
-
-const resourceTypes = ['讲义', '思维导图', '练习题', '实操案例', '拓展阅读', 'PPT大纲']
-
-const typeEmoji = {
-  '讲义': '📚',
-  '思维导图': '🗺️',
-  '练习题': '📝',
-  '实操案例': '💻',
-  '拓展阅读': '📰',
-  'PPT大纲': '📊',
-}
-
-// ==================== Markdown 渲染组件 ====================
-const MarkdownCard = ({ content, title }) => {
-  const lines = content.split('\n')
-  const elements = []
-  let i = 0
-  while (i < lines.length) {
-    const line = lines[i]
-    // 标题
-    if (line.startsWith('# ')) {
-      elements.push(<h1 key={i} style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: '16px 0 10px', borderBottom: '2px solid #e2e8f0', paddingBottom: 6 }}>{line.slice(2)}</h1>)
-    } else if (line.startsWith('## ')) {
-      elements.push(<h2 key={i} style={{ fontSize: 16, fontWeight: 700, color: '#334155', margin: '14px 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ width: 4, height: 16, background: '#3b82f6', borderRadius: 2 }}></span>{line.slice(3)}
-      </h2>)
-    } else if (line.startsWith('### ')) {
-      elements.push(<h3 key={i} style={{ fontSize: 14, fontWeight: 600, color: '#475569', margin: '10px 0 6px' }}>{line.slice(4)}</h3>)
-    }
-    // 代码块
-    else if (line.startsWith('```')) {
-      const lang = line.slice(3).trim()
-      let code = ''
-      i++
-      while (i < lines.length && !lines[i].startsWith('```')) {
-        code += lines[i] + '\n'
-        i++
-      }
-      elements.push(
-        <div key={`code-${i}`} style={{ margin: '10px 0', borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-          {lang && <div style={{ background: '#f1f5f9', padding: '4px 12px', fontSize: 11, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>{lang}</div>}
-          <pre style={{ background: '#f8fafc', padding: '12px', fontSize: 12, overflow: 'auto', margin: 0, color: '#334155', lineHeight: 1.6 }}><code>{code}</code></pre>
-        </div>
-      )
-    }
-    // 表格
-    else if (line.startsWith('|') && lines[i + 1]?.includes('|---')) {
-      const headerCells = line.split('|').filter(c => c.trim()).map(c => c.trim())
-      i += 2
-      const rows = []
-      while (i < lines.length && lines[i].startsWith('|')) {
-        rows.push(lines[i].split('|').filter(c => c.trim()).map(c => c.trim()))
-        i++
-      }
-      i--
-      elements.push(
-        <table key={`table-${i}`} style={{ width: '100%', borderCollapse: 'collapse', margin: '10px 0', fontSize: 12, borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-          <thead><tr style={{ background: '#f1f5f9' }}>
-            {headerCells.map((h, hi) => <th key={hi} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: '#475569', borderBottom: '1px solid #e2e8f0' }}>{h}</th>)}
-          </tr></thead>
-          <tbody>{rows.map((row, ri) => (
-            <tr key={ri} style={{ background: ri % 2 === 0 ? '#fff' : '#f8fafc' }}>
-              {row.map((c, ci) => <td key={ci} style={{ padding: '8px 10px', color: '#334155', borderBottom: '1px solid #f1f5f9' }}>{c}</td>)}
-            </tr>
-          ))}</tbody>
-        </table>
-      )
-    }
-    // 列表
-    else if (line.match(/^\s*[-*+]\s/)) {
-      const items = []
-      while (i < lines.length && lines[i].match(/^\s*[-*+]\s/)) {
-        const text = lines[i].replace(/^\s*[-*+]\s/, '')
-        // 粗体
-        const formatted = text.split(/(\*\*.*?\*\*)/).map((p, pi) =>
-          p.startsWith('**') && p.endsWith('**')
-            ? <strong key={pi} style={{ color: '#1e293b' }}>{p.slice(2, -2)}</strong>
-            : p
-        )
-        items.push(<li key={i} style={{ marginBottom: 4, color: '#475569', lineHeight: 1.6 }}>{formatted}</li>)
-        i++
-      }
-      i--
-      elements.push(<ul key={`ul-${i}`} style={{ paddingLeft: 20, margin: '6px 0' }}>{items}</ul>)
-    }
-    // 有序列表
-    else if (line.match(/^\s*\d+\.\s/)) {
-      const items = []
-      while (i < lines.length && lines[i].match(/^\s*\d+\.\s/)) {
-        const text = lines[i].replace(/^\s*\d+\.\s/, '')
-        const formatted = text.split(/(\*\*.*?\*\*)/).map((p, pi) =>
-          p.startsWith('**') && p.endsWith('**')
-            ? <strong key={pi} style={{ color: '#1e293b' }}>{p.slice(2, -2)}</strong>
-            : p
-        )
-        items.push(<li key={i} style={{ marginBottom: 4, color: '#475569', lineHeight: 1.6 }}>{formatted}</li>)
-        i++
-      }
-      i--
-      elements.push(<ol key={`ol-${i}`} style={{ paddingLeft: 20, margin: '6px 0' }}>{items}</ol>)
-    }
-    // 引用
-    else if (line.startsWith('>')) {
-      elements.push(
-        <blockquote key={i} style={{
-          borderLeft: '3px solid #3b82f6', margin: '8px 0', padding: '8px 12px',
-          background: '#eff6ff', borderRadius: '0 8px 8px 0', color: '#475569', fontSize: 12, lineHeight: 1.6,
-        }}>{line.slice(1).trim()}</blockquote>
-      )
-    }
-    // 普通段落（非空）
-    else if (line.trim()) {
-      const formatted = line.split(/(\*\*.*?\*\*)/).map((p, pi) =>
-        p.startsWith('**') && p.endsWith('**')
-          ? <strong key={pi} style={{ color: '#1e293b' }}>{p.slice(2, -2)}</strong>
-          : p
-      )
-      elements.push(<p key={i} style={{ margin: '6px 0', color: '#475569', lineHeight: 1.7, fontSize: 13 }}>{formatted}</p>)
-    }
-    i++
-  }
-
-  return (
-    <div style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', border: '1px solid #e2e8f0', maxHeight: 500, overflow: 'auto' }}>
-      {elements}
-    </div>
-  )
-}
-
-// ==================== 生成内容模拟 ====================
-const generateMockContent = (resourceType, userPrompt) => {
-  const templates = {
-    '讲义': `# ${userPrompt} 学习讲义
-
-## 一、学习目标
-- 掌握${userPrompt}的**核心概念**
-- 理解${userPrompt}的**应用场景**
-- 能够独立完成相关实践
-
-## 二、知识点梳理
-1. **基础概念**：深入理解${userPrompt}的基本原理
-2. **核心算法**：掌握关键算法实现步骤
-3. **实践应用**：通过案例巩固知识
-
-## 三、核心代码示例
-\`\`\`python
-import torch
-import torch.nn as nn
-
-# ${userPrompt}核心实现
-def core_algorithm(input_data):
-    # 步骤1: 数据预处理
-    processed = preprocess(input_data)
-    # 步骤2: 特征提取
-    features = extract_features(processed)
-    # 步骤3: 模型推理
-    output = model_inference(features)
-    return output
-\`\`\`
-
-## 四、学习路径
-> 基础理论 → 代码实践 → 项目实战 → 总结提升
-
-## 五、推荐资源
-- 📖 推荐论文：相关经典文献阅读
-- 💻 代码仓库：GitHub开源项目参考
-- 🎥 视频教程：配套讲解视频`,
-
-    '思维导图': `# ${userPrompt} 知识思维导图
-
-## 核心知识架构
-
-| 模块 | 子主题 | 重要程度 |
-|------|--------|----------|
-| 基础概念 | 定义与发展历程 | ★★★ |
-| 核心原理 | 算法机制与数学模型 | ★★★★★ |
-| 应用场景 | 图像识别、目标检测 | ★★★★ |
-| 实践工具 | PyTorch/TensorFlow实现 | ★★★★ |
-| 进阶方向 | 模型优化与部署落地 | ★★★ |
-
-## 知识节点关系
-
-digraph ${userPrompt} {
-  根节点 -> 基础概念
-  根节点 -> 核心原理
-  根节点 -> 应用场景
-  核心原理 -> 实践工具
-  应用场景 -> 进阶方向
-}
-
-## 学习建议
-> 建议按**基础→原理→实践→进阶**的顺序系统学习`,
-
-    '练习题': `# ${userPrompt} 练习题
-
-## 一、选择题
-1. 关于${userPrompt}的描述，正确的是？
-   - A. 仅适用于图像分类任务
-   - B. 核心思想是注意力机制
-   - C. 需要大量标注数据训练
-   - D. 以上都正确
-
-2. ${userPrompt}的核心创新点是？
-   - A. 提出新的损失函数
-   - B. 引入多尺度特征融合
-   - C. 使用Transformer架构
-   - D. 实现零样本泛化
-
-## 二、简答题
-1. 简述${userPrompt}的主要工作原理
-2. ${userPrompt}相比传统方法有哪些优缺点？
-
-## 三、编程实践题
-\`\`\`python
-# 任务：完成${userPrompt}的核心函数
-def implement_model(input_tensor):
-    """
-    实现${userPrompt}的核心逻辑
-    Args:
-        input_tensor: 输入张量 [B, C, H, W]
-    Returns:
-        output: 输出结果
-    """
-    # 请补全代码
-    pass
-\`\`\`
-
-## 参考答案要点
-> 关注模型的**输入输出格式**、**核心参数**和**推理流程**`,
-
-    '实操案例': `# ${userPrompt} 实操案例
-
-## 项目背景
-本案例将带你完成一个基于${userPrompt}的实际项目，从环境配置到模型部署全流程。
-
-## 环境配置
-\`\`\`bash
-pip install torch torchvision
-pip install opencv-python numpy matplotlib
-\`\`\`
-
-## 核心代码
-\`\`\`python
-import torch
-import torch.nn as nn
-import cv2
-import numpy as np
-
-class ${userPrompt.replace(/\s/g, '')}Model(nn.Module):
-    def __init__(self, num_classes=10):
-        super().__init__()
-        self.backbone = nn.Sequential(
-            nn.Conv2d(3, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-        )
-        self.classifier = nn.Linear(64 * 14 * 14, num_classes)
-
-    def forward(self, x):
-        features = self.backbone(x)
-        features = features.view(features.size(0), -1)
-        return self.classifier(features)
-
-# 训练循环
-model = ${userPrompt.replace(/\s/g, '')}Model()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-\`\`\`
-
-## 运行结果分析
-| 指标 | 数值 | 说明 |
-|------|------|------|
-| 准确率 | 92.5% | 验证集表现 |
-| 推理速度 | 45ms/张 | GPU环境下 |
-| 模型大小 | 128MB | 可进一步优化 |
-
-## 总结
-> 通过本案例，你掌握了${userPrompt}的完整应用流程`,
-
-    '拓展阅读': `# ${userPrompt} 拓展阅读
-
-## 经典论文
-1. **《${userPrompt}: A Comprehensive Survey》**
-   - 发表时间：2023
-   - 核心贡献：系统综述${userPrompt}的技术发展
-   - 阅读建议：重点看**Related Work**部分
-
-2. **《Advanced Techniques in ${userPrompt}》**
-   - 发表时间：2024
-   - 核心贡献：提出改进算法，精度提升5%
-
-## 最新进展
-> 2024年${userPrompt}领域的重要突破：
-- 新的训练策略降低计算成本30%
-- 多模态融合成为研究热点
-- 轻量化部署方案日益成熟
-
-## 推荐阅读顺序
-\`\`\`
-入门论文 → 核心方法论文 → 最新进展论文 → 代码实践
-\`\`\`
-
-## 相关资源
-| 类型 | 链接 | 说明 |
-|------|------|------|
-| 官方仓库 | github.com/example/${userPrompt} | 开源实现 |
-| 教程博客 | example.com/blog | 中文讲解 |
-| 视频课程 | example.com/course | 配套视频 |`,
-
-    'PPT大纲': `# ${userPrompt} PPT大纲
-
-## 第1部分：引言（2页）
-- ${userPrompt}的背景与意义
-- 本课学习目标
-
-## 第2部分：基础概念（4页）
-- 核心定义与术语
-- 发展历程时间线
-- 与传统方法的对比
-
-## 第3部分：核心原理（6页）
-- 算法整体流程图
-- 关键模块详解
-- 数学公式推导
-- 代码片段展示
-
-## 第4部分：实验与应用（4页）
-- 实验设置与数据集
-- 定量结果表格
-- 可视化效果展示
-
-## 第5部分：总结与展望（2页）
-- 关键技术要点回顾
-- 未来研究方向
-- 课后思考题目
-
-## PPT制作建议
-> - 每页控制在**3-5个要点**
-> - 多用**图表**代替文字
-> - 代码用**高亮主题**展示`,
-  }
-  return templates[resourceType] || templates['讲义']
-}
-
-// ==================== 学习包生成器 ====================
-// 围绕用户目标 + 易错点，输出"一整套课程"：讲义 + 思维导图 + 练习任务 + 实验案例 + 源码阅读 + 推荐论文
-const generateLearningPack = (goal, customGoal, weakTopics) => {
-  const topic = goal === '自定义目标' ? (customGoal || '自定义学习') : (goal || '视觉模型')
-  const weak = (weakTopics && weakTopics.length) ? weakTopics.join('、') : '暂无'
-  return {
-    title: `${topic} · 专属学习包`,
-    summary: `围绕「${topic}」定制的端到端学习路径，含讲义、思维导图、练习、实验、源码、论文 6 大模块。`,
-    modules: [
-      {
-        icon: '📚', name: '讲义模块', desc: `${topic} 核心概念与原理速通（约 30 min）`,
-        content: `# ${topic} · 学习讲义
-
-## 一、学习目标
-- 掌握 **${topic}** 的核心概念与数学原理
-- 能够独立完成一个最小可运行示例
-- 形成对该方向的「知识地图」位置感
-
-## 二、知识点大纲
-1. **基础概念**：定义与发展历程
-2. **核心算法**：${topic} 的关键步骤拆解
-3. **实践路径**：从 demo 到生产环境的进阶
-
-## 三、关键公式与代码
-\`\`\`python
-import torch
-import torch.nn as nn
-
-class ${topic.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '')}Mini(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.encoder = nn.Sequential(nn.Conv2d(3, 16, 3, padding=1), nn.ReLU())
-        self.decoder = nn.Sequential(nn.Conv2d(16, 3, 3, padding=1), nn.Sigmoid())
-
-    def forward(self, x):
-        return self.decoder(self.encoder(x))
-\`\`\`
-
-## 四、针对你的薄弱点
-你最近的易错点：**${weak}**
-建议重点阅读本章「${weak}」对应小节，再去「源码阅读」模块对照实现。
-`,
-      },
-      {
-        icon: '🗺️', name: '思维导图', desc: '5 大主题 × 12 节点的知识骨架',
-        content: `# ${topic} · 知识思维导图
-
-| 模块 | 子主题 | 重要程度 |
-|------|--------|----------|
-| 基础概念 | 定义与发展 | ★★★ |
-| 核心原理 | ${topic} 算法机制 | ★★★★★ |
-| 实践工具 | PyTorch / TensorFlow | ★★★★ |
-| 应用场景 | 1+N 跨学科落地 | ★★★★ |
-| 进阶方向 | 微调 / 蒸馏 / 部署 | ★★★ |
-
-\`\`\`
-${topic}
-├─ 基础概念 ─┬─ 定义
-│             └─ 发展历程
-├─ 核心原理 ─┬─ 算法机制
-│             └─ 数学模型
-├─ 实践工具 ─┬─ PyTorch
-│             └─ TensorFlow
-└─ 进阶方向 ─┬─ 微调
-              └─ 部署
-\`\`\`
-`,
-      },
-      {
-        icon: '📝', name: '练习任务', desc: '4 道由 AI 导师出的诊断题（含易错点）',
-        content: `# ${topic} · 练习任务
-
-## 选择题（针对易错点：${weak}）
-1. 关于 **${topic}** 的描述，下列正确的是？
-   - A. 仅适用于图像分类
-   - B. 核心思想是注意力机制  ← 重点
-   - C. 不需要标注数据
-   - D. 与 Transformer 无关
-
-2. 在该方向中，最容易出错的一步是？
-   - A. 数据增强
-   - B. 学习率设置
-   - C. 损失函数选择
-   - D. 推理后处理
-
-## 实操任务
-- [ ] 复现官方 README 中的最小 demo
-- [ ] 在自己的数据集上跑通
-- [ ] 提交到「模型工坊」让评估智能体打分
-`,
-      },
-      {
-        icon: '💻', name: '实验案例', desc: '完整端到端项目（含数据集 / 训练 / 评估）',
-        content: `# ${topic} · 实验案例
-
-## 项目结构
-\`\`\`
-project/
-├─ data/          # 数据集
-├─ models/        # 模型定义
-├─ train.py       # 训练脚本
-├─ eval.py        # 评估脚本
-└─ README.md
-\`\`\`
-
-## 训练核心
-\`\`\`python
-model = ${topic.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '')}Mini()
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
-for epoch in range(10):
-    for x, y in dataloader:
-        loss = criterion(model(x), y)
-        loss.backward()
-        optimizer.step()
-\`\`\`
-
-## 评估指标
-| 指标 | 目标 | 你的结果 |
-|------|------|----------|
-| 准确率 | > 85% | 待填写 |
-| 推理速度 | < 50ms | 待填写 |
-| 模型大小 | < 200MB | 待填写 |
-`,
-      },
-      {
-        icon: '💻', name: '源码阅读路线', desc: '3-5 个关键文件，按依赖顺序阅读',
-        content: `# ${topic} · 源码阅读路线
-
-## 推荐阅读顺序
-1. **model.py** — 顶层入口，看懂 forward 数据流
-2. **encoder.py** — 特征提取核心
-3. **decoder.py** — 输出重建
-4. **utils.py** — 数据预处理与损失函数
-
-## 关键问题（带着问题去读）
-- 模型如何处理变长输入？
-- 注意力机制的 Q/K/V 维度怎么对齐？
-- 训练和推理的 forward 有何不同？
-`,
-      },
-      {
-        icon: '📰', name: '推荐论文', desc: '经典 + 最新，4 篇代表论文',
-        content: `# ${topic} · 推荐论文
-
-## 经典论文
-1. **《Attention Is All You Need》** — Transformer 奠基
-2. **《Segment Anything》** — SAM 原论文
-
-## 最新进展
-3. **《${topic} 综述 2024》** — 把握前沿
-4. **《多模态 ${topic}》** — 跨模态方向
-
-## 阅读建议
-- 第一遍：只看 abstract + 4 张图
-- 第二遍：对照代码看公式
-- 第三遍：自己复现最小版本
-`,
-      },
-    ],
+/* ══════════════ 资源详情内容生成 ══════════════ */
+function getResourceContent(item) {
+  const t = item.title
+  switch (item.type) {
+    case '讲义':
+      return `<div style="font-size:14px;line-height:1.9;color:#334155">
+<h3 style="color:#1e293b;margin-top:0">📖 ${t}</h3>
+<p>本讲义由 <b>AI 智能体</b> 根据你的学习画像自动生成，覆盖以下模块：</p>
+<h4 style="color:#3b82f6">一、核心概念</h4>
+<p>深入理解 ${t} 的基本原理与关键机制，从理论层面建立扎实的知识基础。</p>
+<h4 style="color:#3b82f6">二、架构设计</h4>
+<p>详细拆解模型结构，包括 Backbone → Neck → Head 各模块的设计思路与连接方式。</p>
+<pre style="background:#f1f5f9;padding:12px;border-radius:8px;font-size:12px">
+# 伪代码示例
+model = Backbone("ResNet50")
+model.add(Neck("FPN"))
+model.add(Head("Mask_Decoder"))
+output = model.forward(input_image)</pre>
+<h4 style="color:#3b82f6">三、实战指南</h4>
+<ul><li>环境配置与依赖安装</li><li>数据集准备与预处理</li><li>训练配置与超参数调优</li><li>模型评估与结果分析</li></ul>
+<h4 style="color:#3b82f6">四、学习建议</h4>
+<p>建议按 <b>理论→代码→实验→总结</b> 的顺序学习，每完成一章做对应的练习题巩固。</p>
+</div>`
+    case '思维导图':
+      return `<div style="font-size:14px;line-height:1.9;color:#334155">
+<h3 style="color:#1e293b;margin-top:0">🗺️ ${t}</h3>
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+<tr style="background:#f8fafc"><th style="padding:8px;text-align:left;border:1px solid #e2e8f0">知识模块</th><th style="padding:8px;text-align:left;border:1px solid #e2e8f0">关键内容</th><th style="padding:8px;text-align:left;border:1px solid #e2e8f0">重要度</th></tr>
+<tr><td style="padding:8px;border:1px solid #e2e8f0"><b>Backbone 主干网络</b></td><td style="padding:8px;border:1px solid #e2e8f0">ResNet / ViT / SAM / Swin</td><td style="padding:8px;border:1px solid #e2e8f0">⭐⭐⭐⭐⭐</td></tr>
+<tr style="background:#f8fafc"><td style="padding:8px;border:1px solid #e2e8f0"><b>Neck 特征融合</b></td><td style="padding:8px;border:1px solid #e2e8f0">FPN / BiFPN / PAN / ASPP</td><td style="padding:8px;border:1px solid #e2e8f0">⭐⭐⭐⭐</td></tr>
+<tr><td style="padding:8px;border:1px solid #e2e8f0"><b>Head 检测头</b></td><td style="padding:8px;border:1px solid #e2e8f0">YOLO / Mask Decoder / BBox</td><td style="padding:8px;border:1px solid #e2e8f0">⭐⭐⭐⭐⭐</td></tr>
+<tr style="background:#f8fafc"><td style="padding:8px;border:1px solid #e2e8f0"><b>Adapter 微调</b></td><td style="padding:8px;border:1px solid #e2e8f0">LoRA / IA3 / BitFit</td><td style="padding:8px;border:1px solid #e2e8f0">⭐⭐⭐</td></tr>
+<tr><td style="padding:8px;border:1px solid #e2e8f0"><b>数据处理</b></td><td style="padding:8px;border:1px solid #e2e8f0">Resize / Normalize / Augment</td><td style="padding:8px;border:1px solid #e2e8f0">⭐⭐⭐⭐</td></tr>
+</table>
+<p style="margin-top:16px"><b>学习路径：</b>基础概念 → 核心原理 → 代码实践 → 论文复现 → 项目实战</p>
+</div>`
+    case '练习题':
+      return `<div style="font-size:14px;line-height:1.9;color:#334155">
+<h3 style="color:#1e293b;margin-top:0">📝 ${t}</h3>
+<h4 style="color:#22c55e">一、选择题（每题5分）</h4>
+<p><b>1.</b> SAM 模型中 Mask Decoder 的核心输入不包括？</p>
+<p style="color:#64748b;margin-left:16px">A. Image Embedding &nbsp; B. Prompt Embedding &nbsp; <b style="color:#22c55e">C. Class Label ✓</b> &nbsp; D. Positional Encoding</p>
+<p><b>2.</b> 以下哪项不属于 Backbone 的常见选择？</p>
+<p style="color:#64748b;margin-left:16px">A. ResNet50 &nbsp; B. ViT_Base &nbsp; <b style="color:#22c55e">C. Adam Optimizer ✓</b> &nbsp; D. SAM_ViT_B</p>
+<h4 style="color:#22c55e;margin-top:20px">二、简答题（每题15分）</h4>
+<p><b>1.</b> 简述 FPN（Feature Pyramid Network）解决的核心问题及其工作原理。</p>
+<p><b>2.</b> 比较 LoRA 微调与全量 Fine-tuning 的优缺点。</p>
+<h4 style="color:#22c55e;margin-top:20px">三、编程实战（30分）</h4>
+<p>使用 PyTorch 构建一个包含 ResNet50 Backbone + FPN Neck + 自定义 Head 的模型，并完成前向传播测试。</p>
+</div>`
+    case 'PPT大纲':
+      return `<div style="font-size:14px;line-height:1.9;color:#334155">
+<h3 style="color:#1e293b;margin-top:0">📊 ${t}</h3>
+<p><b>共 15 页幻灯片</b>，结构如下：</p>
+<ol>
+<li><b>封面</b> — 课程标题、学习目标、适用人群</li>
+<li><b>背景与动机</b> — 为什么需要图像分割？应用场景展示</li>
+<li><b>传统方法回顾</b> — 阈值法、边缘检测、区域生长的局限性</li>
+<li><b>CNN 时代的分割</b> — FCN、U-Net 的核心创新</li>
+<li><b>SAM 模型架构</b> — Image Encoder + Prompt Encoder + Mask Decoder</li>
+<li><b>Prompt Engineering</b> — Point、Box、Mask 三种提示方式</li>
+<li><b>Backbone 详解</b> — ViT 在 SAM 中的角色</li>
+<li><b>Neck 与特征融合</b> — FPN/BiFPN 在检测中的关键作用</li>
+<li><b>Head 设计</b> — 分类头、检测头、分割头的差异</li>
+<li><b>微调策略</b> — LoRA/IA3 参数高效微调实践</li>
+<li><b>实验设计与评估</b> — IoU/mAP 指标解读</li>
+<li><b>常见问题与调优</b> — 过拟合、梯度消失的解决方案</li>
+<li><b>实战案例</b> — 玉米病斑检测完整流程</li>
+<li><b>总结与展望</b> — 视觉大模型的发展趋势</li>
+<li><b>Q&A</b> — 互动问答</li>
+</ol>
+</div>`
+    case '拓展阅读':
+      return `<div style="font-size:14px;line-height:1.9;color:#334155">
+<h3 style="color:#1e293b;margin-top:0">📄 ${t}</h3>
+<h4 style="color:#ef4444">经典必读论文（3篇）</h4>
+<p><b>1. "Attention Is All You Need"</b> — Vaswani et al., NeurIPS 2017<br/><span style="color:#64748b">Transformer 架构的开山之作，奠定了 Self-Attention 的理论基础。</span></p>
+<p><b>2. "Segment Anything"</b> — Kirillov et al., ICCV 2023<br/><span style="color:#64748b">SAM 模型论文，提出了可提示的图像分割框架，含 11M 图像数据集。</span></p>
+<p><b>3. "Deep Residual Learning for Image Recognition"</b> — He et al., CVPR 2016<br/><span style="color:#64748b">ResNet 残差网络，解决了深层网络训练困难的问题，引用超 15 万次。</span></p>
+<h4 style="color:#ef4444;margin-top:16px">进阶推荐（2篇）</h4>
+<p><b>4. "Feature Pyramid Networks for Object Detection"</b> — Lin et al., CVPR 2017</p>
+<p><b>5. "LoRA: Low-Rank Adaptation of Large Language Models"</b> — Hu et al., ICLR 2022</p>
+<p style="margin-top:16px;background:#fef2f2;padding:10px;border-radius:8px"><b>📌 阅读建议：</b>按 1→3→4→2→5 顺序阅读，预计总耗时 8-10 小时。每篇论文读完写 200 字摘要加深理解。</p>
+</div>`
+    case '实操案例':
+      return `<div style="font-size:14px;line-height:1.9;color:#334155">
+<h3 style="color:#1e293b;margin-top:0">💻 ${t}</h3>
+<h4 style="color:#06b6d4">1. 环境准备</h4>
+<pre style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:12px">pip install torch torchvision opencv-python numpy matplotlib</pre>
+<h4 style="color:#06b6d4">2. 数据预处理</h4>
+<pre style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:12px">from torch.utils.data import Dataset, DataLoader
+import torchvision.transforms as T
+
+class SegDataset(Dataset):
+    def __init__(self, image_dir, mask_dir, transform=None):
+        self.images = sorted(os.listdir(image_dir))
+        self.masks = sorted(os.listdir(mask_dir))
+        self.transform = transform or T.Compose([
+            T.ToTensor(), T.Resize((512, 512))
+        ])</pre>
+<h4 style="color:#06b6d4">3. 模型构建</h4>
+<p>使用 ResNet50 Backbone + FPN Neck + 自定义分割 Head</p>
+<h4 style="color:#06b6d4">4. 训练配置</h4>
+<p>学习率 1e-4 | Batch Size 8 | Epochs 50 | AdamW 优化器 | Dice Loss + BCE Loss</p>
+<h4 style="color:#06b6d4">5. 评估指标</h4>
+<p>预期 IoU ≥ 0.78 | Dice ≥ 0.85 | 推理速度 ≥ 15 FPS</p>
+</div>`
+    default:
+      return `<div style="font-size:14px;line-height:1.9;color:#334155"><h3>${t}</h3><p>${item.desc}</p></div>`
   }
 }
 
-// ==================== 今日推荐（按错点推送） ====================
-const buildTodayRecommend = (weakTopics) => {
-  const map = {
-    'Attention 参数理解': [
-      { title: 'Transformer 可视化讲解', tag: '视频', color: '#3b82f6' },
-      { title: 'ViT 源码解析', tag: '源码', color: '#10b981' },
-      { title: 'Attention 实验案例', tag: '案例', color: '#f59e0b' },
-    ],
-    'Encoder': [
-      { title: '图像编码器全景', tag: '讲义', color: '#3b82f6' },
-      { title: 'ViT 论文精读', tag: '论文', color: '#8b5cf6' },
-    ],
-    'Decoder': [
-      { title: 'Mask Decoder 工作流', tag: '讲义', color: '#3b82f6' },
-      { title: '从零搭建 Decoder', tag: '案例', color: '#f59e0b' },
-    ],
-  }
-  const items = []
-  weakTopics.forEach(t => {
-    if (map[t]) items.push(...map[t])
-  })
-  // 默认兜底
-  if (!items.length) {
-    items.push(
-      { title: 'CV 入门路线图', tag: '讲义', color: '#3b82f6' },
-      { title: 'PyTorch 基础 30 题', tag: '练习', color: '#10b981' },
-    )
-  }
-  return items
-}
-
-// ==================== 主组件 ====================
+/* ══════════════ 主组件 ══════════════ */
 export default function Resources() {
-  const location = useLocation()
-  const navigate = useNavigate()
   const learn = useLearn()
-  const urlParams = new URLSearchParams(location.search)
-  const urlTab = urlParams.get('tab') || 'recommend'
-  /* 兼容旧 courses/library → recommend */
-  const activeTab = urlTab === 'courses' || urlTab === 'library' ? 'recommend' : urlTab
-  const setActiveTab = (tab) => {
-    const tabMap = { 'recommend': 'recommend', 'generate': 'generate', 'favorites': 'favorites' }
-    navigate(`/resources?tab=${tabMap[tab] || tab}`)
-  }
-  const [cateTab, setCateTab] = useState('all')
-  const [search, setSearch] = useState('')
-  const [favorites, setFavorites] = useState([])
-  const [realMaterials, setRealMaterials] = useState([])  // 从后端加载的真实讲义
+  const [searchParams] = (() => { try { return [new URLSearchParams(window.location.hash.split('?')[1] || '')] } catch (_) { return [new URLSearchParams()] } })()
+  const urlTab = searchParams.get('tab') || 'recommend'
+  const [activeTab, setActiveTab] = useState(urlTab === 'generate' ? 'generate' : 'recommend')
+  const { toasts, pushToast, removeToast } = useToasts()
 
-  /* 从统一收藏 store 同步"资源"分类下的 id 集合（用于卡片显示星标状态） */
-  useEffect(() => {
-    let alive = true
-    const sync = async () => {
-      const res = await fetchFavorites({ category: 'resource' })
-      if (!alive) return
-      if (res?.code === 0) {
-        setFavorites((res.data || []).map((f) => f.id))
-      }
-    }
-    sync()
-    /* 跨 Tab 同步：监听 localStorage 变化（个人中心改动会触发） */
-    const onStorage = (e) => {
-      if (e.key === 'vf_favorites_v2') sync()
-    }
-    window.addEventListener('storage', onStorage)
-    return () => { alive = false; window.removeEventListener('storage', onStorage) }
-  }, [activeTab])
+  // 详情弹窗
+  const [detailItem, setDetailItem] = useState(null)
 
-  // 从后端加载真实讲义列表
-  useEffect(() => {
-    let alive = true
-    const load = async () => {
-      try {
-        const res = await fetchLearningMaterials()
-        if (alive && res?.status === 'success') {
-          setRealMaterials(res.data?.items || [])
-        }
-      } catch (e) {
-        console.warn('[Resources] 加载讲义失败:', e)
-      }
-    }
-    load()
-    return () => { alive = false }
-  }, [activeTab])
+  // 生成状态
+  const [genSessionId, setGenSessionId] = useState('')
+  const [genLoading, setGenLoading] = useState(false)
+  const [genResult, setGenResult] = useState(null)
+  const [genBatch, setGenBatch] = useState(false)
 
-  // 资源中心 Toast（独立于 stageToast）
-  const { toasts, push: pushToast, remove: removeToast } = useToasts()
-
-  // 加载骨架开关：首次进入 + 切换 Tab 时短暂显示
-  const [loading, setLoading] = useState(true)
-  useEffect(() => {
-    setLoading(true)
-    const t = setTimeout(() => setLoading(false), 450)
-    return () => clearTimeout(t)
-  }, [activeTab])
-
-  // 持久化收藏 —— 已迁移到统一 store (vf_favorites_v2)，此处无需再写
-
-  // 资源数据（mock 数据 + 后端真实讲义合并）
-  const resources = useMemo(() => {
-    const mock = defaultResources.map(r => ({
-      ...r,
-      collect: favorites.includes(r.id),
-    }))
-    // 将后端真实讲义转为与 mock 兼容的卡片格式
-    const real = realMaterials.map(m => ({
-      id: `real-${m.id}`,
-      title: m.title,
-      cate: 'cv',
-      progress: 0,
-      collect: false,
-      desc: m.task_type || 'AI 生成',
-      author: '资源生成智能体',
-      time: '',
-      type: m.material_type,
-      emoji: '📚',
-      gradient: 'linear-gradient(135deg,#10b981,#34d399)',
-      _isReal: true,
-      _realId: m.id,
-    }))
-    return [...real, ...mock]
-  }, [favorites, realMaterials])
-
-  // 筛选
-  const filtered = resources.filter(item =>
-    (cateTab === 'all' || item.cate === cateTab) &&
-    (item.title.includes(search) || item.desc.includes(search))
-  )
-
-  // 切换收藏 —— 写入统一 store
-  const toggleFavorite = async (id) => {
-    const target = defaultResources.find(r => r.id === id)
-    if (!target) return
-    const existed = favorites.includes(id)
-    setFavorites(prev => existed ? prev.filter(fid => fid !== id) : [...prev, id])
+  const handleGenerate = async () => {
+    if (!genSessionId.trim()) { pushToast({ type: 'error', title: '请输入会话ID', icon: '⚠️' }); return }
+    setGenLoading(true); setGenResult(null)
     try {
-      await toggleFavorite({
-        id: String(id),
-        category: 'resource',
-        title: target.title,
-        desc: target.desc,
-        cover: target.emoji,
-        tags: [target.type, target.cate],
-        author: target.author,
-      })
-    } catch (e) { console.error(e) }
-    pushToast({
-      type: existed ? 'info' : 'success',
-      title: existed ? '已取消收藏' : '已加入收藏',
-      detail: target?.title + ' · 可在「个人中心 → 我的收藏」查看',
-      icon: existed ? '☆' : '★',
-      duration: 1800,
-    })
+      const res = genBatch
+        ? await generateLearningMaterialsBatch(genSessionId.trim())
+        : await generateLearningMaterial(genSessionId.trim())
+      if (res?.status === 'success') {
+        setGenResult(res.data)
+        pushToast({ type: 'success', title: genBatch ? `已生成 ${res.data.count} 种材料` : '讲义已生成', icon: '✅' })
+      }
+    } catch (e) { pushToast({ type: 'error', title: '生成失败', detail: e.message, icon: '❌' }) }
+    finally { setGenLoading(false) }
   }
 
-  // ==================== 资源卡片组件 ====================
-  const ResourceCard = ({ item }) => (
-    <div style={{
-      background: '#fff', borderRadius: 12, overflow: 'hidden',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #f1f5f9',
-      transition: 'transform 0.25s ease, box-shadow 0.25s ease',
-      cursor: 'pointer',
-    }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(0,0,0,0.14)' }}
-      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)' }}
+  /* ══════════════ 资源卡片 ══════════════ */
+  const Card = ({ item }) => (
+    <div
+      onClick={() => {
+        const content = getResourceContent(item)
+        setDetailItem({ ...item, content })
+      }}
+      style={{
+        background: '#fff', borderRadius: 12, overflow: 'hidden', cursor: 'pointer',
+        border: '1px solid #f1f5f9', transition: 'all 0.25s',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 28px rgba(0,0,0,0.10)' }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)' }}
     >
-      <div style={{
-        height: 90, background: item.gradient,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: '#fff', fontSize: 36, position: 'relative',
-      }}>
-        {item.emoji}
-        <span style={{
-          position: 'absolute', top: 8, right: 8, fontSize: 11,
-          background: 'rgba(255,255,255,0.25)', padding: '2px 8px',
-          borderRadius: 20, fontWeight: 600,
-        }}>{item.type}</span>
-      </div>
+      <div style={{ height: 80, background: item.bg || `linear-gradient(135deg, ${item.color}22, ${item.color}44)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>{item.emoji}</div>
       <div style={{ padding: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0, lineHeight: 1.4, flex: 1 }}>{item.title}</h3>
-          <span
-            onClick={() => toggleFavorite(item.id)}
-            style={{
-              color: item.collect ? '#f59e0b' : '#cbd5e1',
-              fontSize: 18, cursor: 'pointer', transition: 'color 0.2s', flexShrink: 0, marginLeft: 8,
-            }}
-            onMouseEnter={e => { if (!item.collect) e.currentTarget.style.color = '#fbbf24' }}
-            onMouseLeave={e => { if (!item.collect) e.currentTarget.style.color = '#cbd5e1' }}
-          >★</span>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0, lineHeight: 1.4 }}>{item.title}</h3>
+          <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: item.bg || '#f1f5f9', color: item.color, fontWeight: 600, whiteSpace: 'nowrap', marginLeft: 8 }}>{item.type}</span>
         </div>
-        <p style={{ color: '#64748b', fontSize: 12, marginBottom: 10, lineHeight: 1.5 }}>{item.desc}</p>
+        <p style={{ color: '#64748b', fontSize: 12, margin: '6px 0 10px', lineHeight: 1.5 }}>{item.desc}</p>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
-          <span>👨‍🏫 {item.author}</span>
-          <span>⏱️ {item.time}</span>
+          <span>🤖 {item.author}</span><span>⏱️ {item.time}</span>
         </div>
-        {item.progress > 0 && (
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
-              <span style={{ color: '#64748b' }}>学习进度</span>
-              <span style={{ fontWeight: 600, color: '#3b82f6' }}>{item.progress}%</span>
-            </div>
-            <div style={{ height: 5, background: '#e2e8f0', borderRadius: 99, overflow: 'hidden' }}>
-              <div style={{ width: `${item.progress}%`, height: '100%', background: '#3b82f6', borderRadius: 99, transition: 'width 0.3s' }}></div>
-            </div>
-          </div>
-        )}
         <button style={{
-          width: '100%', padding: '10px', borderRadius: 10, border: '1px solid #e2e8f0',
-          background: '#f8fafc', color: '#475569', fontSize: 12, fontWeight: 600,
-          cursor: 'pointer', transition: 'all 0.2s',
-        }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#3b82f6' }}
-          onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#475569'; e.currentTarget.style.borderColor = '#e2e8f0' }}
-        >开始学习 →</button>
+          width: '100%', padding: '8px', borderRadius: 8, border: `1px solid ${item.color}30`,
+          background: item.bg || '#f8fafc', color: item.color, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+        }}>查看详情 →</button>
       </div>
     </div>
   )
 
-  // ==================== Tab导航 ====================
-  const TabNav = () => (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid #e8ecf1', paddingBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-      <h2 style={{ fontSize: 18, color: '#1e293b', margin: '0 12px 0 0' }}>📖 资源中心</h2>
-      <div style={{ display: 'flex', gap: 6 }}>
+  /* ══════════════ 详情弹窗 ══════════════ */
+  const DetailModal = () => !detailItem ? null : (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }} onClick={() => setDetailItem(null)}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: 32, maxWidth: 720, width: '92%', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 28 }}>{detailItem.emoji}</span>
+            <div>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>{detailItem.title}</h2>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{detailItem.type} · {detailItem.author} · {detailItem.time}</div>
+            </div>
+          </div>
+          <button onClick={() => setDetailItem(null)} style={{ background: '#f1f5f9', border: 'none', fontSize: 20, width: 36, height: 36, borderRadius: 18, cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+        </div>
+        <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 16 }} dangerouslySetInnerHTML={{ __html: detailItem.content || `<p>${detailItem.desc}</p>` }} />
+        <div style={{ marginTop: 20, textAlign: 'right' }}>
+          <button onClick={() => setDetailItem(null)} style={{ padding: '8px 24px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>关闭</button>
+        </div>
+      </div>
+    </div>
+  )
+
+  /* ══════════════ 渲染 ══════════════ */
+  return (
+    <div style={{ maxWidth: '100%', margin: '0 auto', fontFamily: 'system-ui, sans-serif' }}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+      {/* Tab 切换 */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid #e8ecf1', paddingBottom: 12 }}>
         {[
-          { key: 'recommend', name: '推荐资源', icon: '⭐' },
-          { key: 'generate', name: '资源生成', icon: '✨' },
+          { key: 'recommend', label: '⭐ 推荐资源' },
+          { key: 'generate', label: '✨ 资源生成' },
         ].map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
-            padding: '7px 18px', borderRadius: 18, fontSize: 12, fontWeight: 500,
+            padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
             background: activeTab === tab.key ? '#3b82f6' : '#f1f5f9',
             color: activeTab === tab.key ? '#fff' : '#64748b',
-            border: 'none', cursor: 'pointer', transition: 'all 0.2s',
-            boxShadow: activeTab === tab.key ? '0 2px 8px rgba(59,130,246,0.3)' : 'none',
-          }}>{tab.icon} {tab.name}</button>
+            transition: 'all 0.2s',
+          }}>{tab.label}</button>
         ))}
       </div>
-    </div>
-  )
 
-  // ==================== Tab 1: 推荐资源（原资源库） ====================
-  const RecommendTab = () => {
-    const todayItems = useMemo(() => buildTodayRecommend(learn.weakTopics), [learn.weakTopics])
-    return (
-      <div style={{ maxWidth: '100%' }}>
-        {/* 顶部说明：基于学习画像智能推荐 */}
-        <div style={{
-          background: 'linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%)',
-          border: '1px solid #c7d2fe',
-          borderRadius: 12, padding: '12px 16px', marginBottom: 14,
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <span style={{ fontSize: 22 }}>🎯</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>基于你的学习画像智能推荐</div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-              目标：{learn.goal === '自定义目标' ? (learn.customGoal || '自定义') : (learn.goal || '尚未选择')} · 阶段：{learn.stage}
+      {/* ─── 推荐资源 Tab ─── */}
+      {activeTab === 'recommend' && (
+        <div>
+          <div style={{ background: 'linear-gradient(135deg,#eff6ff,#f5f3ff)', border: '1px solid #c7d2fe', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 22 }}>🎯</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>基于学习画像智能推荐</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>目标：{learn.goal === '自定义目标' ? (learn.customGoal || '自定义') : (learn.goal || '尚未选择')} · 阶段：{learn.stage || '主线中'}</div>
             </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 14 }}>
+            {DEMO_RESOURCES.map(item => <Card key={item.id} item={item} />)}
           </div>
         </div>
+      )}
 
-        {/* ── 今日推荐（按错点精准推送） ── */}
-        {learn.weakTopics?.length > 0 && (
-          <div style={{
-            background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-            border: '1px solid #fbbf24',
-            borderRadius: 12, padding: '12px 16px', marginBottom: 14,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 20 }}>💡</span>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>今日推荐 · 精准推送</div>
-                  <div style={{ fontSize: 11, color: '#a16207', marginTop: 2 }}>
-                    因为你在 <strong>{learn.weakTopics.join('、')}</strong> 上易错，AI 导师专门挑了这几份资源给你
-                  </div>
-                </div>
-              </div>
-              <span style={{
-                fontSize: 10, padding: '3px 8px', borderRadius: 6,
-                background: '#fbbf24', color: '#fff', fontWeight: 700,
-              }}>个性化</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-              {todayItems.map((it, idx) => (
-                <div key={idx} style={{
-                  background: '#fff', borderRadius: 10, padding: '12px 14px',
-                  border: `1.5px solid ${it.color}30`,
-                  display: 'flex', alignItems: 'center', gap: 10,
-                }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 8,
-                    background: it.color + '20',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 16, color: it.color, fontWeight: 700, flexShrink: 0,
-                  }}>📘</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {it.title}
-                    </div>
-                    <span style={{
-                      fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                      background: it.color + '20', color: it.color, fontWeight: 600,
-                    }}>{it.tag}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* ─── 资源生成 Tab ─── */}
+      {activeTab === 'generate' && <GenerateTabContent />}
 
-        {/* 搜索与筛选 */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-          {Object.entries(cateMap).map(([key, label]) => (
-            <button key={key} onClick={() => setCateTab(key)} style={{
-              padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 500,
-              background: cateTab === key ? '#3b82f6' : '#f1f5f9',
-              color: cateTab === key ? '#fff' : '#64748b',
-              border: 'none', cursor: 'pointer', transition: 'all 0.2s',
-            }}>{label}</button>
-          ))}
-          <input
-            placeholder="🔍 搜索资源标题、描述..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{
-              flex: 1, minWidth: 200, padding: '7px 12px', borderRadius: 10,
-              border: '1px solid #e2e8f0', fontSize: 13, outline: 'none',
-            }}
-          />
-        </div>
-
-        {/* 资源卡片网格 */}
-        {loading ? (
-          <ResourceGridSkeleton count={6} />
-        ) : filtered.length === 0 ? (
-          <EmptyState variant="no-search" />
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
-            {filtered.map(item => <ResourceCard key={item.id} item={item} />)}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // ==================== Tab 2: 学习包生成（真实 API + 全过程可视化） ====================
-  const GenerateTab = () => {
-    const [genSessionId, setGenSessionId] = useState('')
-    const [genLoading, setGenLoading] = useState(false)
-    const [genResult, setGenResult] = useState(null)
-
-    const handleGenerate = async () => {
-      if (!genSessionId.trim()) {
-        pushToast({ type: 'error', title: '请输入会话ID', detail: '可从首页对话完成后获取', icon: '⚠️', duration: 2000 })
-        return
-      }
-      setGenLoading(true)
-      setGenResult(null)
-      try {
-        const res = await generateLearningMaterial(genSessionId.trim())
-        if (res?.status === 'success') {
-          setGenResult(res.data)
-          pushToast({ type: 'success', title: '讲义已生成', detail: res.data.title, icon: '✅', duration: 2500 })
-        }
-      } catch (e) {
-        pushToast({ type: 'error', title: '生成失败', detail: e.message, icon: '❌', duration: 3000 })
-      } finally {
-        setGenLoading(false)
-      }
-    }
-
-    return (
-      <div style={{ maxWidth: '100%' }}>
-        {/* 真实 API 生成入口 */}
-        <div style={{
-          background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
-          border: '1px solid #6ee7b7', borderRadius: 12, padding: 16, marginBottom: 20,
-        }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#065f46', marginBottom: 8 }}>🔧 从会话生成学习讲义</div>
-          <div style={{ fontSize: 12, color: '#047857', marginBottom: 12 }}>
-            在首页完成四智能体对话后，输入会话 ID，一键生成 HTML 学术讲义并存入资源库。
-          </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <input
-              placeholder="输入 Session ID（如 default_session）"
-              value={genSessionId}
-              onChange={e => setGenSessionId(e.target.value)}
-              style={{
-                flex: 1, padding: '8px 14px', borderRadius: 8,
-                border: '1px solid #6ee7b7', fontSize: 13, outline: 'none',
-              }}
-            />
-            <button
-              onClick={handleGenerate}
-              disabled={genLoading}
-              style={{
-                padding: '8px 20px', borderRadius: 8, border: 'none', cursor: genLoading ? 'not-allowed' : 'pointer',
-                background: genLoading ? '#86efac' : '#10b981', color: '#fff', fontWeight: 700, fontSize: 13,
-                whiteSpace: 'nowrap', transition: 'all 0.2s',
-              }}
-            >{genLoading ? '⏳ 生成中...' : '⚡ 生成讲义'}</button>
-          </div>
-          {genResult && (
-            <div style={{ marginTop: 12, padding: '10px 14px', background: '#fff', borderRadius: 8, border: '1px solid #6ee7b7' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#065f46' }}>✅ {genResult.title}</span>
-              <span style={{ fontSize: 11, color: '#64748b', marginLeft: 10 }}>ID: {genResult.id}</span>
-              <span style={{ fontSize: 11, color: '#64748b', marginLeft: 10 }}>{genResult.task_type || ''}</span>
-            </div>
-          )}
-        </div>
-
-        {/* 原有的模拟生成（保留兼容） */}
-        <ResourceGenDeep
-          learn={learn}
-          generatePack={generateLearningPack}
-          MarkdownCard={MarkdownCard}
-          EmptyState={EmptyState}
-          ModuleContentSkeleton={ModuleContentSkeleton}
-          ShareModal={ShareModal}
-          PdfPreviewModal={PdfPreviewModal}
-          pushToast={pushToast}
-        />
-      </div>
-    )
-  }
-
-  // 收藏 Tab 已迁移至「个人中心 → 我的收藏」(/profile?tab=favorites)
-// 旧的 FavoritesTab 组件不再渲染；点击「我的收藏」请导航到 /profile?tab=favorites
-
-  return (
-    <div style={{ maxWidth: '100%', margin: '0 auto' }}>
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
-      {activeTab === 'recommend' && <RecommendTab />}
-      {activeTab === 'generate' && <GenerateTab />}
-
-      {/* 全局 Toast 栈 */}
+      <DetailModal />
       <ToastStack toasts={toasts} onClose={removeToast} />
     </div>
   )
 }
 
-/* ════════════════════════════════════════════════════════════════
-   ResourceGenDeep —— 学习包生成 · Deep Research 风格重做
-   ────────────────────────────────────────────────────────────────
-   4 步流水线 × 4 Agent：
-     1. 架构分析  → Architect 智能体
-     2. 算法教研  → Tutor 智能体
-     3. 资源生成  → Generator 智能体（生成 6 模块）
-     4. 质量校验  → Evaluator 智能体
+/* ══════════════ 资源生成 Tab 完整演示版 ══════════════ */
+function GenerateTabContent() {
+  const learn = useLearn()
+  const { pushToast } = useToasts()
+  const [genLoading, setGenLoading] = useState(false)
+  const [genDone, setGenDone] = useState(false)
+  const [activeModule, setActiveModule] = useState(null)
+  const [animating, setAnimating] = useState(false)
+  const [stepIdx, setStepIdx] = useState(-1)
+  const [elapsed, setElapsed] = useState(0)
+  const timerRef = React.useRef(null)
 
-   每步展示：当前 Agent · 执行进度（百分比+进度条）· 耗时（毫秒级）·
-   完成状态（✓/执行中/待开始）· 过程日志（类似 Deep Research 思考链）
+  const DEMO_PACK = {
+    讲义: { icon: '📚', color: '#3b82f6', content: getResourceContent({ title: 'SAM 模型架构精讲', type: '讲义' }) },
+    思维导图: { icon: '🗺️', color: '#a855f7', content: getResourceContent({ title: '计算机视觉知识全景', type: '思维导图' }) },
+    练习题: { icon: '📝', color: '#22c55e', content: getResourceContent({ title: '视觉模型专项练习', type: '练习题' }) },
+    PPT大纲: { icon: '📊', color: '#f59e0b', content: getResourceContent({ title: '图像分割教学课件', type: 'PPT大纲' }) },
+    拓展阅读: { icon: '📄', color: '#ef4444', content: getResourceContent({ title: '必读论文推荐', type: '拓展阅读' }) },
+    实操案例: { icon: '💻', color: '#06b6d4', content: getResourceContent({ title: 'PyTorch 分割实战', type: '实操案例' }) },
+    动画演示: { icon: '🎬', color: '#ec4899', content: '' },
+  }
 
-   阶段切换：
-     生成中 → 实时显示流水线进度 + Agent 思考流
-     生成后 → 6 模块网格卡片 + 单模块详情预览 + 5 操作按钮
-   全 Mock，无需后端。
-   ════════════════════════════════════════════════════════════════ */
-
-// 4 步 Agent 流程定义（Mock · 全程耗时分配）
-const RG_STEPS = [
-  {
-    key: 'arch',
-    emoji: '🏗️',
-    name: '架构分析',
-    agent: 'Architect',
-    color: '#38bdf8',
-    duration: 1800,             // 该步总耗时 ms
-    logs: [
-      '正在解析学习目标…',
-      '识别主题: {topic}',
-      '从易错点 {weak} 推断需要加强的子模块',
-      '已生成知识图谱骨架 (5 大主题 × 12 节点)',
-      '→ 输出: 学习路径 JSON 至共享黑板',
-    ],
-  },
-  {
-    key: 'research',
-    emoji: '📖',
-    name: '算法教研',
-    agent: 'Tutor',
-    color: '#a78bfa',
-    duration: 2400,
-    logs: [
-      '检索该方向的经典论文 (Top-5)…',
-      '匹配你的认知风格: 视觉优先',
-      '对照已有错题本，标记需要重点讲的 3 个易错点',
-      '→ 输出: 教研要点 + 推荐论文清单',
-    ],
-  },
-  {
-    key: 'gen',
-    emoji: '📝',
-    name: '资源生成',
-    agent: 'Generator',
-    color: '#22d3ee',
-    duration: 3200,
-    logs: [
-      '开始组装 6 大模块…',
-      '  ✓ 讲义 — Markdown 已生成 (1247 字)',
-      '  ✓ 思维导图 — Mermaid + 表格',
-      '  ✓ 练习任务 — 含 4 道诊断题',
-      '  ✓ 实验案例 — 最小可运行 PyTorch demo',
-      '  ✓ 源码路线 — 关键文件路径 + 注释',
-      '  ✓ 推荐论文 — Top-3 摘要',
-      '→ 输出: 完整学习包',
-    ],
-  },
-  {
-    key: 'qa',
-    emoji: '🔍',
-    name: '质量校验',
-    agent: 'Evaluator',
-    color: '#34d399',
-    duration: 1400,
-    logs: [
-      '校验 6 模块完整性…',
-      '对照你的画像评分: 个性化匹配度 0.92',
-      '→ 输出: 校验报告',
-    ],
-  },
-]
-
-// 6 个产出模块
-const RG_OUTPUT_MODULES = [
-  { key: 'lecture',     icon: '📚', name: '讲义',     desc: '核心概念与原理速通', color: '#3b82f6' },
-  { key: 'mindmap',     icon: '🗺️', name: '思维导图', desc: '知识骨架全景',         color: '#a855f7' },
-  { key: 'practice',    icon: '📝', name: '练习',     desc: '诊断题 + 实操任务',     color: '#22c55e' },
-  { key: 'paper',       icon: '📄', name: '论文',     desc: 'Top 经典论文清单',     color: '#f59e0b' },
-  { key: 'source',      icon: '🧭', name: '源码路线', desc: '关键文件 + 阅读顺序',   color: '#06b6d4' },
-  { key: 'experiment',  icon: '🧪', name: '实验案例', desc: '最小可运行 Demo',       color: '#ef4444' },
-]
-
-function ResourceGenDeep({ learn, generatePack, MarkdownCard, EmptyState, ModuleContentSkeleton, ShareModal, PdfPreviewModal, pushToast }) {
-  const [phase, setPhase] = useState('idle')   // idle | running | done
-  const [stepIdx, setStepIdx] = useState(-1)   // 当前步骤下标，-1 表示未开始
-  const [stepProgress, setStepProgress] = useState(0)   // 当前步骤 0-100
-  const [elapsedTotal, setElapsedTotal] = useState(0)   // 总耗时 ms
-  const [stepElapsed, setStepElapsed] = useState(0)     // 当前步耗时 ms
-  const [visibleLogCount, setVisibleLogCount] = useState(0)
-  const [activeModule, setActiveModule] = useState(0)
-  const [pack, setPack] = useState(null)
-  const [shareOpen, setShareOpen] = useState(false)
-  const [pdfOpen, setPdfOpen] = useState(false)
-  const [previewMode, setPreviewMode] = useState('preview')
-
-  // 用 ref 计时，避免重复启动
-  const rafRef = useRef(null)
-  const startRef = useRef(null)
-  const stepStartRef = useRef(null)
-  const stepAccumRef = useRef(0)
-  const logsTimerRef = useRef(null)
-
-  // 开始/重置：启动流水线
-  const startPipeline = () => {
-    setPhase('running')
-    setStepIdx(0)
-    setStepProgress(0)
-    setElapsedTotal(0)
-    setStepElapsed(0)
-    setVisibleLogCount(0)
-    setPack(null)
-    setActiveModule(0)
-    stepAccumRef.current = 0
-    startRef.current = performance.now()
-    stepStartRef.current = performance.now()
-
-    // 计划逐步切换（按总耗时比例压缩到 ~8.8s 总耗时）
-    const scale = 8800 / RG_STEPS.reduce((s, x) => s + x.duration, 0)
-    let acc = 0
-    RG_STEPS.forEach((step, i) => {
-      const stepMs = step.duration * scale
-      // 切到下一步
-      setTimeout(() => {
-        if (i > 0) {
-          setStepIdx(i)
-          setStepProgress(0)
-          setVisibleLogCount(0)
-          stepAccumRef.current = 0
-          stepStartRef.current = performance.now()
-        }
-        // 当前步的 log 依次冒出
-        const logInterval = stepMs / (step.logs.length + 1)
-        step.logs.forEach((_, li) => {
-          setTimeout(() => setVisibleLogCount(li + 1), logInterval * (li + 1))
-        })
-      }, acc)
-      acc += stepMs
+  const handleGenerate = () => {
+    setGenLoading(true); setGenDone(false); setAnimating(true); setStepIdx(0); setElapsed(0)
+    const start = Date.now()
+    timerRef.current = setInterval(() => setElapsed(Date.now() - start), 50)
+    const steps = [
+      { delay: 800, idx: 1, log: '🏗️ Architect 解析需求 → 识别学习目标：SAM 模型微调' },
+      { delay: 1600, idx: 2, log: '📖 Tutor 检索源码 → 匹配 code_mirror/SE_Block.py' },
+      { delay: 2400, idx: 3, log: '📝 Generator 生成讲义 → 组装 Mermaid 拓扑图' },
+      { delay: 3000, idx: 4, log: '🔍 Evaluator 质量校验 → 论文基准比对完成' },
+    ]
+    steps.forEach(s => {
+      setTimeout(() => setStepIdx(s.idx), s.delay)
     })
-
-    // 全部完成后产出 pack
-    const totalMs = RG_STEPS.reduce((s, x) => s + x.duration, 0) * scale + 400
     setTimeout(() => {
-      setStepIdx(RG_STEPS.length - 1)
-      setStepProgress(100)
-      setVisibleLogCount(RG_STEPS[RG_STEPS.length - 1].logs.length)
-      const built = generatePack(learn.goal, learn.customGoal, learn.weakTopics)
-      setPack(built)
-      setTimeout(() => setPhase('done'), 500)
-    }, totalMs)
+      clearInterval(timerRef.current)
+      setElapsed(Date.now() - start)
+      setStepIdx(5)
+      setGenLoading(false)
+      setGenDone(true)
+      setAnimating(false)
+      pushToast({ type: 'success', title: '🎉 学习包生成完成！含 7 个模块', icon: '✅', duration: 3000 })
+    }, 3800)
   }
 
-  // 主计时：requestAnimationFrame 驱动 elapsedTotal / stepElapsed
-  useEffect(() => {
-    if (phase !== 'running') return
-    const tick = () => {
-      const now = performance.now()
-      setElapsedTotal(now - startRef.current)
-      setStepElapsed(now - stepStartRef.current + stepAccumRef.current)
-      // 当前步内进度
-      const stepMs = (RG_STEPS[Math.max(0, stepIdx)]?.duration || 1) * (8800 / RG_STEPS.reduce((s, x) => s + x.duration, 0))
-      setStepProgress(Math.min(100, ((now - stepStartRef.current + stepAccumRef.current) / stepMs) * 100))
-      rafRef.current = requestAnimationFrame(tick)
-    }
-    rafRef.current = requestAnimationFrame(tick)
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
-  }, [phase, stepIdx])
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current) }, [])
 
-  // 主题/易错点字符串，供 log 模板替换
-  const topic = learn.goal === '自定义目标' ? (learn.customGoal || '自定义学习') : (learn.goal || '视觉模型')
-  const weak = (learn.weakTopics && learn.weakTopics.length) ? learn.weakTopics.join('、') : '暂无'
-
-  // === 工具 ===
-  const fmtMs = (ms) => {
-    if (ms < 1000) return `${Math.round(ms)} ms`
-    return `${(ms / 1000).toFixed(2)} s`
-  }
-  const fillLog = (s) => s.replace('{topic}', topic).replace('{weak}', weak)
-
-  // === 子组件 ===
-  const StepRow = ({ step, idx, isCompleted, isActive }) => {
-    const stepMs = step.duration * (8800 / RG_STEPS.reduce((s, x) => s + x.duration, 0))
-    const progress = isCompleted ? 100 : isActive ? stepProgress : 0
-    const elapsed = isCompleted ? stepMs : isActive ? stepElapsed : 0
-    return (
-      <div style={{
-        background: isActive ? `linear-gradient(135deg, ${step.color}12, #ffffff)` : '#ffffff',
-        border: `1px solid ${isActive ? step.color + '55' : '#e2e8f0'}`,
-        borderRadius: 10, padding: 12, transition: 'all .3s',
-        position: 'relative',
-        boxShadow: isActive ? `0 4px 14px ${step.color}22` : '0 1px 2px rgba(15,23,42,0.04)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* 步骤号/状态 */}
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            background: isCompleted ? '#10b981' : isActive ? `linear-gradient(135deg, ${step.color}, ${step.color}cc)` : '#f1f5f9',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, color: isCompleted || isActive ? '#fff' : '#94a3b8', fontWeight: 700,
-            boxShadow: isActive ? `0 4px 12px ${step.color}55` : 'none',
-            transition: 'all .3s',
-          }}>
-            {isCompleted ? '✓' : step.emoji}
-          </div>
-          {/* 标题 + Agent */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ color: '#1e293b', fontSize: 13, fontWeight: 700 }}>{step.name}</span>
-              <span style={{
-                fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                background: `${step.color}1a`, color: step.color,
-                fontWeight: 700, fontFamily: 'monospace',
-              }}>AGENT · {step.agent}</span>
-              <span style={{
-                fontSize: 9.5, padding: '1px 6px', borderRadius: 4,
-                background: isCompleted ? '#10b9811a' : isActive ? '#3b82f61a' : '#f1f5f9',
-                color:      isCompleted ? '#059669'    : isActive ? '#2563eb'    : '#94a3b8',
-                fontWeight: 700,
-              }}>
-                {isCompleted ? '已完成' : isActive ? '执行中' : '待开始'}
-              </span>
-            </div>
-            {/* Agent 当前在干什么（执行中时显示） */}
-            {(isActive || isCompleted) && (
-              <div style={{ marginTop: 6, fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>
-                {isActive && <span style={{ color: step.color }}>▸ </span>}
-                {fillLog(step.logs[Math.min(visibleLogCount, step.logs.length - 1) || 0])}
-                {isActive && <span style={{ color: step.color, animation: 'rgBlink 1s steps(1) infinite' }}> ▍</span>}
-              </div>
-            )}
-          </div>
-          {/* 耗时 + 进度 */}
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{
-              fontSize: 12, fontWeight: 700,
-              color: isCompleted ? '#059669' : isActive ? step.color : '#94a3b8',
-              fontFamily: 'monospace',
-            }}>
-              {fmtMs(elapsed)}
-            </div>
-            <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace', marginTop: 2 }}>
-              {isCompleted ? `100%` : isActive ? `${Math.round(progress)}%` : '0%'}
-            </div>
-          </div>
-        </div>
-        {/* 进度条 */}
-        <div style={{
-          marginTop: 8, height: 4, background: '#e2e8f0',
-          borderRadius: 999, overflow: 'hidden',
-        }}>
-          <div style={{
-            height: '100%',
-            width: `${progress}%`,
-            background: isCompleted ? '#10b981' : `linear-gradient(90deg, ${step.color}cc, ${step.color})`,
-            boxShadow: isActive ? `0 0 8px ${step.color}55` : 'none',
-            borderRadius: 999, transition: 'width .15s',
-          }} />
-        </div>
-      </div>
-    )
+  if (genDone) {
+    return <GeneratedPack modules={DEMO_PACK} active={activeModule} setActive={setActiveModule} onRegen={() => { setGenDone(false); setStepIdx(-1); setElapsed(0) }} />
   }
 
-  const totalDuration = RG_STEPS.reduce((s, x) => s + x.duration, 0) * (8800 / RG_STEPS.reduce((s, x) => s + x.duration, 0))
+  const flowSteps = [
+    { icon: '🏗️', name: 'Architect', desc: '架构分析', color: '#38bdf8' },
+    { icon: '📖', name: 'Tutor', desc: '源码教研', color: '#a78bfa' },
+    { icon: '📝', name: 'Generator', desc: '资源生成', color: '#22d3ee' },
+    { icon: '🔍', name: 'Evaluator', desc: '质量评估', color: '#34d399' },
+  ]
 
-  // ───────────── 渲染 ─────────────
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #eff6ff 100%)',
-      borderRadius: 14, padding: 16, color: '#1e293b',
-      border: '1px solid #e2e8f0',
-      position: 'relative', overflow: 'hidden',
-      boxShadow: '0 1px 3px rgba(15,23,42,0.04)',
-    }}>
-      <style>{`
-        @keyframes rgBlink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
-        @keyframes rgPulse { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
-        @keyframes rgScan  { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
-      `}</style>
-
-      {/* 顶部：标题 + 总耗时 + 状态徽标 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: 'linear-gradient(135deg, #a855f7, #3b82f6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, boxShadow: '0 4px 12px rgba(99,102,241,0.35)',
-          }}>✨</div>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: 0.3, color: '#1e293b' }}>
-              学习包生成 <span style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>/ LEARNING PACK GEN</span>
-            </div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-              基于你的画像定制 · 4 智能体协同 · 全过程可视化
-            </div>
-          </div>
+    <div>
+      {/* 生成触发区 */}
+      <div style={{ background: 'linear-gradient(135deg,#ecfdf5,#d1fae5)', border: '1px solid #6ee7b7', borderRadius: 12, padding: 24, marginBottom: 20 }}>
+        <div style={{ textAlign: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>🚀</div>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#065f46', margin: '0 0 4px' }}>一键生成完整学习包</h2>
+          <p style={{ fontSize: 13, color: '#047857', margin: 0 }}>四智能体协同，根据用户学情，生成完整学习资料</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* 总耗时 */}
-          <div style={{
-            padding: '6px 12px', borderRadius: 8,
-            background: '#ffffff', border: '1px solid #e2e8f0',
-            display: 'flex', alignItems: 'center', gap: 6,
-            fontFamily: 'monospace', fontSize: 11,
-            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
-          }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: phase === 'running' ? '#0ea5e9' : phase === 'done' ? '#10b981' : '#cbd5e1',
-              boxShadow: phase !== 'idle' ? `0 0 6px ${phase === 'running' ? '#0ea5e9' : '#10b981'}` : 'none',
-              animation: phase === 'running' ? 'rgPulse 1.2s ease-in-out infinite' : 'none',
-            }} />
-            <span style={{ color: '#64748b' }}>ELAPSED</span>
-            <span style={{ color: phase === 'running' ? '#0284c7' : phase === 'done' ? '#059669' : '#94a3b8', fontWeight: 700 }}>
-              {fmtMs(elapsedTotal)}
-            </span>
-            <span style={{ color: '#cbd5e1' }}>/ {fmtMs(totalDuration)}</span>
-          </div>
-          {/* 状态徽标 */}
-          <div style={{
-            padding: '4px 10px', borderRadius: 999,
-            background: phase === 'running' ? '#eff6ff' : phase === 'done' ? '#ecfdf5' : '#eef2ff',
-            border: `1px solid ${phase === 'running' ? '#bfdbfe' : phase === 'done' ? '#a7f3d0' : '#c7d2fe'}`,
-            color:      phase === 'running' ? '#2563eb'   : phase === 'done' ? '#059669'   : '#4f46e5',
-            fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
-          }}>
-            {phase === 'idle' ? '🟦 等待启动' : phase === 'running' ? '⚙️ 生成中' : '✅ 已完成'}
-          </div>
+        <div style={{ textAlign: 'center' }}>
+          <button onClick={handleGenerate} disabled={genLoading} style={{
+            padding: '12px 40px', borderRadius: 12, border: 'none', cursor: genLoading ? 'not-allowed' : 'pointer',
+            background: genLoading ? '#86efac' : 'linear-gradient(135deg,#10b981,#059669)',
+            color: '#fff', fontWeight: 800, fontSize: 15, letterSpacing: 1,
+            boxShadow: genLoading ? 'none' : '0 6px 24px rgba(16,185,129,0.35)',
+            transition: 'all 0.3s',
+          }}>{genLoading ? '⏳ 智能体协作中...' : '🎯 一键生成学习包'}</button>
+          {animating && <div style={{ fontSize: 12, color: '#047857', marginTop: 8 }}>已耗时 {Math.round(elapsed / 100) / 10}s</div>}
         </div>
       </div>
 
-      {/* 主题上下文条 */}
-      <div style={{
-        padding: '8px 12px', borderRadius: 8, marginBottom: 14,
-        background: '#ffffff', border: '1px solid #e2e8f0',
-        display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11,
-        boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
-      }}>
-        <span><span style={{ color: '#64748b' }}>🎯 目标</span> <span style={{ color: '#0284c7', fontWeight: 700 }}>{topic}</span></span>
-        <span><span style={{ color: '#64748b' }}>📍 阶段</span> <span style={{ color: '#7c3aed', fontWeight: 700 }}>{learn.stage || '主线中'}</span></span>
-        <span><span style={{ color: '#64748b' }}>⚠️ 易错点</span> <span style={{ color: '#dc2626', fontWeight: 700 }}>{weak}</span></span>
-      </div>
-
-      {/* ─── 生成中：左步骤 / 右 Agent 思考流 ─── */}
-      {phase !== 'done' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '50% 50%', gap: 14 }}>
-          {/* 左：4 步流水线 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ fontSize: 11, color: '#0284c7', fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>
-              ⚡ AGENT PIPELINE <span style={{ color: '#94a3b8', fontWeight: 500 }}>/ 4 步流水线</span>
-            </div>
-            {RG_STEPS.map((step, i) => (
-              <StepRow
-                key={step.key}
-                step={step}
-                idx={i}
-                isCompleted={stepIdx > i}
-                isActive={stepIdx === i && phase === 'running'}
-              />
-            ))}
-          </div>
-
-          {/* 右：思考流日志 */}
-          <div style={{
-            background: '#ffffff', borderRadius: 10,
-            border: '1px solid #e2e8f0',
-            overflow: 'hidden', display: 'flex', flexDirection: 'column',
-            minHeight: 360,
-            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
-          }}>
-            <div style={{
-              padding: '8px 12px',
-              background: 'linear-gradient(90deg, #eff6ff, #ffffff)',
-              borderBottom: '1px solid #e2e8f0',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 11, color: '#0284c7', fontWeight: 700, letterSpacing: 1 }}>💭 AGENT THINKING</span>
-                <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>/ 思考链</span>
-              </div>
-              {phase === 'running' && stepIdx >= 0 && (
-                <span style={{ fontSize: 10, color: RG_STEPS[stepIdx].color, fontFamily: 'monospace', fontWeight: 700 }}>
-                  {RG_STEPS[stepIdx].agent}
-                </span>
-              )}
-            </div>
-            <div style={{ flex: 1, padding: 12, overflowY: 'auto', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.8, background: '#f8fafc' }}>
-              {RG_STEPS.map((step, i) => {
-                if (i > stepIdx) return null
-                const visible = i < stepIdx ? step.logs.length : visibleLogCount
-                return (
-                  <div key={step.key} style={{ marginBottom: 12 }}>
-                    <div style={{ color: step.color, fontWeight: 700, marginBottom: 4 }}>
-                      [{String(i + 1).padStart(2, '0')}] {step.emoji} {step.name} · {step.agent}
-                    </div>
-                    {step.logs.slice(0, visible).map((l, li) => (
-                      <div key={li} style={{
-                        color: i < stepIdx ? '#94a3b8' : '#475569',
-                        paddingLeft: 16, opacity: i < stepIdx ? 0.6 : 1,
-                      }}>
-                        <span style={{ color: step.color }}>›</span> {fillLog(l)}
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-              {phase === 'running' && stepIdx >= 0 && (
-                <div style={{ color: '#0ea5e9', paddingLeft: 16, marginTop: 4 }}>
-                  <span style={{ animation: 'rgBlink 1s steps(1) infinite' }}>▍</span>
-                </div>
-              )}
-              {phase === 'idle' && (
-                <div style={{ color: '#94a3b8', textAlign: 'center', padding: '60px 0' }}>
-                  点击下方「开始生成」按钮启动 4 智能体流水线 →
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── 生成后：6 模块网格 + 详情 ─── */}
-      {phase === 'done' && pack && (
-        <div>
-          {/* 弹窗 */}
-          <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} title={pack.title} />
-          <PdfPreviewModal open={pdfOpen} onClose={() => setPdfOpen(false)} title={pack.title} sections={pack.modules} />
-
-{/* 完成总结 */}
-          <div style={{
-            marginBottom: 14, padding: 12,
-            background: 'linear-gradient(135deg, #ecfdf5, #f0fdf4)',
-            border: '1px solid #a7f3d0', borderRadius: 10,
-            display: 'flex', alignItems: 'center', gap: 12,
-            boxShadow: '0 1px 2px rgba(16,185,129,0.06)',
-          }}>
-            <span style={{ fontSize: 28 }}>🎁</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#059669' }}>
-                {pack.title} <span style={{ color: '#64748b', fontSize: 11, fontWeight: 500 }}>· 生成完成</span>
-              </div>
-              <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{pack.summary}</div>
-            </div>
-            <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#059669', textAlign: 'right' }}>
-              <div>总耗时 <b>{fmtMs(elapsedTotal)}</b></div>
-              <div style={{ color: '#94a3b8', marginTop: 2 }}>4 Agent · {pack.modules.length} 模块</div>
-            </div>
-          </div>
-
-          {/* 6 模块卡片网格 */}
-          <div style={{ marginBottom: 12, fontSize: 11, color: '#0284c7', fontWeight: 700, letterSpacing: 1 }}>
-            📦 最终生成 · 6 大模块 <span style={{ color: '#94a3b8', fontWeight: 500 }}>/ FINAL OUTPUT</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 14 }}>
-            {RG_OUTPUT_MODULES.map((m, i) => {
-              const matched = pack.modules.find(p => p.name.includes(m.name) || (m.key === 'lecture' && p.icon === '📚') || (m.key === 'mindmap' && p.icon === '🗺️') || (m.key === 'practice' && p.icon === '📝') || (m.key === 'experiment' && p.icon === '🧪') || (m.key === 'source' && p.icon === '🧭') || (m.key === 'paper' && p.icon === '📄'))
-              const active = activeModule === i
-              return (
-                <button key={m.key} onClick={() => { setActiveModule(i); setPreviewMode('preview') }} style={{
-                  padding: 12, borderRadius: 10,
-                  border: `1px solid ${active ? m.color : '#e2e8f0'}`,
-                  background: active ? `linear-gradient(135deg, ${m.color}1a, #ffffff)` : '#ffffff',
-                  cursor: 'pointer', textAlign: 'left',
-                  display: 'flex', flexDirection: 'column', gap: 4,
-                  transition: 'all .2s',
-                  boxShadow: active ? `0 4px 14px ${m.color}33` : '0 1px 2px rgba(15,23,42,0.04)',
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 22 }}>{m.icon}</span>
-                    <span style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{String(i + 1).padStart(2, '0')}</span>
-                  </div>
-                  <div style={{ color: active ? m.color : '#1e293b', fontSize: 13, fontWeight: 700 }}>{m.name}</div>
-                  <div style={{ color: '#64748b', fontSize: 10, lineHeight: 1.4 }}>{m.desc}</div>
-                  <div style={{ marginTop: 4, fontSize: 10, color: matched ? '#059669' : '#94a3b8', fontFamily: 'monospace' }}>
-                    {matched ? `✓ ${matched.content.length} 字` : '未生成'}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* 详情预览 */}
-          <div style={{
-            background: '#ffffff', border: '1px solid #e2e8f0',
-            borderRadius: 10, padding: 12, minHeight: 280,
-            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: RG_OUTPUT_MODULES[activeModule].color, fontSize: 13, fontWeight: 700 }}>
-                  {RG_OUTPUT_MODULES[activeModule].icon} {RG_OUTPUT_MODULES[activeModule].name}
-                </span>
-                <span style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>
-                  / {RG_OUTPUT_MODULES[activeModule].key.toUpperCase()}
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: 4 }}>
-                {[{ k: 'preview', l: '👁 预览' }, { k: 'source', l: '</> 源码' }].map(t => (
-                  <button key={t.k} onClick={() => setPreviewMode(t.k)} style={{
-                    padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                    background: previewMode === t.k ? '#eff6ff' : 'transparent',
-                    color: previewMode === t.k ? '#0284c7' : '#64748b',
-                    border: `1px solid ${previewMode === t.k ? '#bae6fd' : 'transparent'}`,
-                    cursor: 'pointer',
-                  }}>{t.l}</button>
-                ))}
-              </div>
-            </div>
-            {(() => {
-              const matched = pack.modules[activeModule]
-              if (!matched) return <div style={{ color: '#94a3b8', textAlign: 'center', padding: 60 }}>暂无内容</div>
-              if (previewMode === 'preview') return (
-                <div style={{ maxHeight: 360, overflowY: 'auto' }}>
-                  <MarkdownCard content={matched.content} title={matched.name} />
-                </div>
-              )
-              // 源码视图
-              const lines = (matched.content || '').split('\n')
-              return (
-                <pre style={{
-                  margin: 0, padding: '12px 0',
-                  background: '#f8fafc', color: '#1e293b',
-                  borderRadius: 8, fontFamily: 'monospace',
-                  fontSize: 12.5, lineHeight: 1.7, overflow: 'auto',
-                  maxHeight: 360,
-                  border: '1px solid #e2e8f0',
-                }}>
-                  {lines.map((line, i) => (
-                    <div key={i} style={{ display: 'flex', paddingRight: 12 }}>
-                      <span style={{ color: '#94a3b8', display: 'inline-block', width: 40, textAlign: 'right', paddingRight: 12, marginRight: 12, borderRight: '1px solid #e2e8f0', userSelect: 'none', flexShrink: 0 }}>{i + 1}</span>
-                      <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', flex: 1 }}>{line || ' '}</span>
-                    </div>
-                  ))}
-                </pre>
-              )
-            })()}
-          </div>
-
-          {/* 5 操作按钮 */}
-          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
-            {[
-              { icon: '📋', label: '复制全部', onClick: async () => {
-                  const all = pack.modules.map(m => m.content).join('\n\n---\n\n')
-                  try { await navigator.clipboard.writeText(all) } catch (_) {}
-                  pushToast({ type: 'success', title: '已复制全部内容', detail: `${pack.modules.length} 个模块 · ${all.length} 字符`, icon: '📋', duration: 1800 })
-                }},
-              { icon: '📥', label: '下载 MD', onClick: () => {
-                  const all = pack.modules.map(m => m.content).join('\n\n---\n\n')
-                  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-                  const blob = new Blob([all], { type: 'text/markdown;charset=utf-8' })
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url; a.download = `${pack.title}-${stamp}.md`; a.click()
-                  setTimeout(() => URL.revokeObjectURL(url), 1000)
-                  pushToast({ type: 'success', title: 'Markdown 已下载', detail: `${pack.title}.md`, icon: '📥', duration: 1800 })
-                }},
-              { icon: '📄', label: '下载 PDF', primary: true, onClick: () => setPdfOpen(true) },
-              { icon: '🔗', label: '分享', onClick: () => setShareOpen(true) },
-              { icon: '🔁', label: '重新生成', onClick: () => { pushToast({ type: 'info', title: '正在重新生成...', icon: '🔁', duration: 1500 }); startPipeline() } },
-            ].map(b => (
-              <button key={b.label} onClick={b.onClick} style={{
-                padding: '10px 6px', borderRadius: 8,
-                border: b.primary ? 'none' : '1px solid #e2e8f0',
-                background: b.primary
-                  ? 'linear-gradient(135deg, #3b82f6, #6366f1)'
-                  : '#ffffff',
-                color: b.primary ? '#fff' : '#475569',
-                fontSize: 11.5, fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                transition: 'all .15s',
-                boxShadow: b.primary
-                  ? '0 4px 12px rgba(99,102,241,0.35)'
-                  : '0 1px 2px rgba(15,23,42,0.04)',
+      {/* 四智能体流水线动画 */}
+      {animating && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
+          {flowSteps.map((s, i) => {
+            const status = i < stepIdx ? 'done' : i === stepIdx ? 'running' : 'waiting'
+            return (
+              <div key={i} style={{
+                background: status === 'running' ? `${s.color}12` : status === 'done' ? '#f0fdf4' : '#f8fafc',
+                border: `2px solid ${status === 'running' ? s.color : status === 'done' ? '#10b981' : '#e2e8f0'}`,
+                borderRadius: 12, padding: '16px 14px', textAlign: 'center', transition: 'all 0.3s',
+                boxShadow: status === 'running' ? `0 0 20px ${s.color}33` : 'none',
               }}>
-                <span style={{ fontSize: 16 }}>{b.icon}</span>
-                <span>{b.label}</span>
-              </button>
-            ))}
-          </div>
+                <div style={{ fontSize: 28, marginBottom: 6, animation: status === 'running' ? 'spin 1.5s linear infinite' : 'none' }}>
+                  {status === 'done' ? '✅' : s.icon}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: status === 'running' ? s.color : status === 'done' ? '#059669' : '#94a3b8' }}>{s.name}</div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{s.desc}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, marginTop: 4, color: status === 'done' ? '#059669' : status === 'running' ? s.color : '#cbd5e1' }}>
+                  {status === 'done' ? '✓ 完成' : status === 'running' ? '⚡ 执行中...' : '○ 等待'}
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
-      {/* 底部：CTA 按钮 */}
-      {phase !== 'done' && (
-        <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center' }}>
-          <button
-            onClick={startPipeline}
-            disabled={phase === 'running'}
-            style={{
-              padding: '14px 36px', borderRadius: 12,
-              border: '1px solid #e2e8f0',
-              background: phase === 'running'
-                ? '#f1f5f9'
-                : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-              color: phase === 'running' ? '#94a3b8' : '#1e293b',
-              fontSize: 14, fontWeight: 700,
-              cursor: phase === 'running' ? 'not-allowed' : 'pointer',
-              boxShadow: phase === 'running'
-                ? 'none'
-                : '0 4px 12px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,1)',
-              letterSpacing: 0.5,
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={e => {
-              if (phase !== 'running') {
-                e.currentTarget.style.transform = 'translateY(-1px)'
-                e.currentTarget.style.boxShadow = '0 8px 20px rgba(59,130,246,0.18), 0 0 0 3px rgba(59,130,246,0.10), inset 0 1px 0 rgba(255,255,255,1)'
-              }
-            }}
-            onMouseLeave={e => {
-              if (phase !== 'running') {
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,1)'
-              }
-            }}
-          >
-            {phase === 'running' ? '⏳ 4 智能体协同生成中...' : '🚀 一键生成学习包（基于你的画像）'}
-          </button>
+      {/* 等待中的占位 */}
+      {!animating && !genDone && (
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 40, textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.5 }}>🎬</div>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#94a3b8', margin: 0 }}>点击上方按钮，观看四智能体流水线演示</h3>
+          <p style={{ fontSize: 12, color: '#cbd5e1', marginTop: 4 }}>含动画生成过程 + 7 个可交互模块</p>
         </div>
       )}
     </div>
   )
 }
+
+/* ══════════════ 生成结果展示 ══════════════ */
+function GeneratedPack({ modules, active, setActive, onRegen }) {
+  const [previewType, setPreviewType] = useState(null)
+  const close = () => { setPreviewType(null); setActive(null) }
+  const entries = Object.entries(modules)
+
+  return (
+    <div>
+      {/* 成功横幅 */}
+      <div style={{ background: 'linear-gradient(135deg,#ecfdf5,#d1fae5)', border: '1px solid #6ee7b7', borderRadius: 12, padding: 16, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#065f46' }}>✅ 学习包生成完成</div>
+          <div style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>共 7 个模块 · 点击任意模块查看详情</div>
+        </div>
+        <button onClick={onRegen} style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #6ee7b7', background: '#fff', color: '#065f46', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>🔄 重新生成</button>
+      </div>
+
+      {/* 7 模块网格 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12 }}>
+        {entries.map(([name, m]) => (
+          <div key={name} onClick={() => { setActive(name); setPreviewType(name) }} style={{
+            background: '#fff', borderRadius: 12, border: active === name ? `2px solid ${m.color}` : '1px solid #f1f5f9',
+            padding: '20px 14px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s',
+            boxShadow: active === name ? `0 4px 16px ${m.color}22` : '0 1px 3px rgba(0,0,0,0.04)',
+          }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            <div style={{ fontSize: 32, marginBottom: 8 }}>{m.icon}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{name}</div>
+            <div style={{ fontSize: 10, color: m.color, marginTop: 4, fontWeight: 600 }}>点击查看 →</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 详情弹窗 - 按类型不同展示 */}
+      {previewType && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }} onClick={() => { setPreviewType(null); setActive(null) }}>
+          <div style={{ background: '#fff', borderRadius: 16, maxWidth: 750, width: '94%', maxHeight: '88vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+            {previewType === '动画演示' ? <AnimationDemo onClose={close} /> :
+             previewType === 'PPT大纲' ? <PPTOutlineView onClose={close} /> :
+             previewType === '讲义' ? <LectureView onClose={close} /> :
+             <div style={{ padding: 28 }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                 <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>{modules[previewType]?.icon} {previewType}</h2>
+                 <button onClick={() => { setPreviewType(null); setActive(null) }} style={{ background: '#f1f5f9', border: 'none', fontSize: 18, width: 32, height: 32, borderRadius: 16, cursor: 'pointer', color: '#64748b' }}>✕</button>
+               </div>
+               <div dangerouslySetInnerHTML={{ __html: modules[previewType]?.content || '' }} />
+             </div>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ══════════════ 讲义详情（含 PDF 下载） ══════════════ */
+function LectureView({ onClose }) {
+  const handleDownloadPDF = () => {
+    const html = `<html><head><meta charset="utf-8"><title>Vision-Forge 讲义</title>
+<style>body{font-family:'PingFang SC',sans-serif;max-width:800px;margin:40px auto;padding:20px;line-height:1.8;color:#333}
+h2{border-bottom:2px solid #3b82f6;padding-bottom:8px}pre{background:#f1f5f9;padding:12px;border-radius:8px}</style></head>
+<body><h1>📚 SAM 模型架构精讲</h1><p>生成时间：${new Date().toLocaleString('zh-CN')}</p>
+<h2>一、核心概念</h2><p>Segment Anything Model (SAM) 是 Meta 提出的通用图像分割模型，通过 Prompt Encoder + Image Encoder + Mask Decoder 架构实现零样本泛化能力。</p>
+<h2>二、架构设计</h2><p>SAM 由三个核心模块组成：</p><ul><li><b>Image Encoder</b>：基于 ViT-H 的视觉编码器，将输入图像编码为高维特征</li><li><b>Prompt Encoder</b>：编码用户的点击/框/掩码提示</li><li><b>Mask Decoder</b>：融合图像特征与提示，输出分割掩码</li></ul>
+<pre>Input → Image Encoder (ViT-H)
+  ↓
+Prompt → Prompt Encoder → Mask Decoder → Segmentation Mask</pre>
+<h2>三、实战指南</h2><ol><li>安装依赖：pip install segment-anything</li><li>加载模型：sam = sam_model_registry["vit_h"](checkpoint)</li><li>生成掩码：masks = SamPredictor(sam).predict(point_coords)</li></ol>
+<h2>四、学习建议</h2><p>建议先理解 ViT 基础 → 阅读 SAM 论文 → 跑通官方 Demo → 在自定义数据上微调。</p>
+<p style="margin-top:30px;color:#94a3b8">Generated by Vision-Forge AI</p></body></html>`
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = 'SAM模型架构精讲-VisionForge.html'; a.click()
+    URL.revokeObjectURL(url)
+  }
+  return (
+    <div style={{ padding: 28 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>📚 讲义：SAM 模型架构精讲</h2>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={handleDownloadPDF} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>📥 下载 HTML</button>
+          <button onClick={onClose} style={{ background: '#f1f5f9', border: 'none', fontSize: 18, width: 32, height: 32, borderRadius: 16, cursor: 'pointer', color: '#64748b' }}>✕</button>
+        </div>
+      </div>
+      <div dangerouslySetInnerHTML={{ __html: getResourceContent({ title: 'SAM 模型架构精讲', type: '讲义' }) }} />
+    </div>
+  )
+}
+
+/* ══════════════ PPT 大纲视图 ══════════════ */
+function PPTOutlineView({ onClose }) {
+  const [slide, setSlide] = useState(0)
+  const slides = [
+    { title: '封面', content: '图像分割：从 CNN 到 Transformer\n主讲：Vision-Forge AI 教学平台', icon: '🎯' },
+    { title: '背景与动机', content: '图像分割是计算机视觉的核心任务之一\n应用场景：医学影像、自动驾驶、遥感分析、电商视觉', icon: '📋' },
+    { title: '传统方法回顾', content: '阈值法 · 边缘检测 · 区域生长\n局限性：需要大量手工特征，泛化能力差', icon: '📜' },
+    { title: 'CNN 时代', content: 'FCN (2015) → U-Net (2015) → DeepLab (2017)\n端到端学习，大幅提升分割精度', icon: '🧠' },
+    { title: 'SAM 架构概览', content: 'Image Encoder (ViT-H)\n+ Prompt Encoder (Point/Box/Mask)\n+ Mask Decoder (Transformer)', icon: '🏗️' },
+    { title: 'Backbone 详解', content: 'ViT-Base: 86M 参数\nViT-Large: 307M 参数\nViT-Huge: 632M 参数', icon: '🔧' },
+    { title: 'Neck 与特征融合', content: 'FPN: 特征金字塔网络\nBiFPN: 双向特征金字塔\nPAN: 路径聚合网络', icon: '🔗' },
+    { title: '微调策略', content: 'LoRA: 低秩适配 (仅 0.5M 可训练参数)\nIA3: 更轻量的 Adapter\n全量 Fine-tuning vs 参数高效微调', icon: '🔌' },
+    { title: '实战案例', content: '玉米病斑检测管线\nResNet50 → FPN → YOLO_Detect_Head\nIoU: 0.87 | mAP: 0.93', icon: '💻' },
+    { title: '总结', content: '1. SAM 实现了零样本分割突破\n2. Backbone+Neck+Head 架构灵活可组合\n3. 参数高效微调是实际落地的关键', icon: '✅' },
+  ]
+  const s = slides[slide]
+  return (
+    <div style={{ padding: 28 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>📊 PPT 大纲预览</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 12, color: '#64748b', padding: '4px 10px', background: '#f1f5f9', borderRadius: 4 }}>{slide + 1} / {slides.length}</span>
+          <button onClick={onClose} style={{ background: '#f1f5f9', border: 'none', fontSize: 16, width: 28, height: 28, borderRadius: 14, cursor: 'pointer', color: '#64748b' }}>✕</button>
+        </div>
+      </div>
+      <div style={{ background: 'linear-gradient(135deg,#f8fafc,#eff6ff)', borderRadius: 16, padding: '32px 28px', minHeight: 280, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', border: '2px solid #e2e8f0' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>{s.icon}</div>
+        <h3 style={{ fontSize: 22, fontWeight: 800, color: '#1e293b', margin: '0 0 16px' }}>{s.title}</h3>
+        <p style={{ fontSize: 15, color: '#475569', lineHeight: 2, margin: 0, whiteSpace: 'pre-line' }}>{s.content}</p>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 20 }}>
+        <button onClick={() => setSlide(Math.max(0, slide - 1))} disabled={slide === 0} style={navBtn(slide === 0)}>◀ 上一页</button>
+        <button onClick={() => setSlide(Math.min(slides.length - 1, slide + 1))} disabled={slide === slides.length - 1} style={navBtn(slide === slides.length - 1)}>下一页 ▶</button>
+      </div>
+    </div>
+  )
+}
+
+/* ══════════════ 动画演示 ══════════════ */
+function AnimationDemo({ onClose }) {
+  const [frame, setFrame] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setFrame(f => (f + 1) % 6), 800)
+    return () => clearInterval(t)
+  }, [])
+  const frames = [
+    { emoji: '🖼️', label: '输入图像', desc: '原始图像送入 Image Encoder', color: '#3b82f6' },
+    { emoji: '🔍', label: '特征提取', desc: 'ViT 将图像编码为 768 维向量', color: '#8b5cf6' },
+    { emoji: '📍', label: 'Prompt 输入', desc: '用户点击目标区域/框选/掩码', color: '#f59e0b' },
+    { emoji: '🧩', label: 'Mask Decoder', desc: 'Transformer 融合特征与提示', color: '#22c55e' },
+    { emoji: '🎯', label: '掩码生成', desc: '输出精确分割掩码 + 置信度', color: '#ef4444' },
+    { emoji: '✅', label: '结果输出', desc: 'IoU 0.89 · 推理耗时 120ms', color: '#06b6d4' },
+  ]
+  return (
+    <div style={{ padding: 28 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: '0 0 4px' }}>🎬 SAM 推理流程动画</h2>
+          <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 20px' }}>逐步展示 SAM 模型从输入到输出的完整流程</p>
+        </div>
+        <button onClick={onClose} style={{ background: '#f1f5f9', border: 'none', fontSize: 18, width: 32, height: 32, borderRadius: 16, cursor: 'pointer', color: '#64748b' }}>✕</button>
+      </div>
+      <div style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)', borderRadius: 16, padding: '40px 20px', minHeight: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 30 }}>
+          {frames.map((_, i) => (
+            <div key={i} style={{ width: i <= frame ? 42 : 16, height: 4, borderRadius: 2, background: i <= frame ? frames[i].color : '#334155', transition: 'all 0.5s' }} />
+          ))}
+        </div>
+        <div style={{ fontSize: 64, marginBottom: 12, transition: 'all 0.3s', transform: `scale(${1 + Math.sin(frame * 0.5) * 0.1})` }}>
+          {frames[frame].emoji}
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 6 }}>{frames[frame].label}</div>
+        <div style={{ fontSize: 13, color: frames[frame].color, fontWeight: 500 }}>{frames[frame].desc}</div>
+        <div style={{ marginTop: 24, fontSize: 11, color: '#64748b' }}>
+          步骤 {frame + 1} / {frames.length}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const navBtn = (disabled) => ({
+  padding: '8px 18px', borderRadius: 8, border: '1px solid #e2e8f0',
+  background: disabled ? '#f1f5f9' : '#fff', color: disabled ? '#cbd5e1' : '#3b82f6',
+  fontWeight: 600, fontSize: 13, cursor: disabled ? 'not-allowed' : 'pointer',
+})
